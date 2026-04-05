@@ -3,13 +3,21 @@ let
   inherit (den.lib) take;
   inherit (den.lib.statics) owned statics isCtxStatic;
 
+  withIdentity =
+    self: attrs:
+    attrs
+    // lib.optionalAttrs (self ? name) { inherit (self) name; }
+    // lib.optionalAttrs ((self.__provider or [ ]) != [ ]) { inherit (self) __provider; };
+
   parametric.applyIncludes =
     takeFn: aspect:
     aspect
     // {
-      __functor = self: ctx: {
-        includes = (builtins.filter (x: x != { })) (map (fn: takeFn fn ctx) (self.includes or [ ]));
-      };
+      __functor =
+        self: ctx:
+        withIdentity self {
+          includes = (builtins.filter (x: x != { })) (map (fn: takeFn fn ctx) (self.includes or [ ]));
+        };
     };
 
   deepRecurse =
@@ -39,7 +47,7 @@ let
       __functor =
         self:
         { class, aspect-chain }:
-        {
+        withIdentity self {
           includes = [
             (owned self)
             (statics self { inherit class aspect-chain; })
@@ -54,16 +62,18 @@ let
     functor: aspect:
     aspect
     // {
-      __functor = self: ctx: {
-        includes =
-          if isCtxStatic ctx then
-            [
-              (owned self)
-              (statics self ctx)
-            ]
-          else
-            [ (functor self ctx) ];
-      };
+      __functor =
+        self: ctx:
+        withIdentity self {
+          includes =
+            if isCtxStatic ctx then
+              [
+                (owned self)
+                (statics self ctx)
+              ]
+            else
+              [ (functor self ctx) ];
+        };
     };
 
   parametric.__functor = _: parametric.withOwn parametric.atLeast;
