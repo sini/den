@@ -76,12 +76,36 @@ let
         in
         sort res.config.names;
 
+      funnyNamesWith =
+        opts: aspect:
+        let
+          resolve' = config.den.lib.aspects.resolve';
+          result = resolve' "funny" opts aspect;
+          namesMod = {
+            options.names = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+            };
+          };
+          res = lib.evalModules {
+            modules = [
+              result.module
+              namesMod
+            ];
+          };
+        in
+        {
+          names = sort res.config.names;
+          inherit (result) trace;
+        };
+
     in
     {
       _module.args = {
         inherit
           show
           funnyNames
+          funnyNamesWith
           apple
           igloo
           iceberg
