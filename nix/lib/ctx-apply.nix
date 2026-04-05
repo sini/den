@@ -29,6 +29,21 @@ let
 
   getCrossProvider = p: (p.prev.provides.${p.key} or (_: noop)) p.prevCtx;
 
+  refToName = ref: if builtins.isString ref then ref else ref.name or "<anon>";
+
+  collectExcludes =
+    ctx:
+    let
+      fromEntity = v: if builtins.isAttrs v then map refToName (v.excludes or [ ]) else [ ];
+      fromAspect =
+        v:
+        if builtins.isAttrs v && v ? aspect then
+          map refToName ((den.aspects.${v.aspect} or { }).excludes or [ ])
+        else
+          [ ];
+    in
+    lib.genAttrs (lib.concatMap (v: fromEntity v ++ fromAspect v) (builtins.attrValues ctx)) (_: true);
+
   traverse =
     args@{
       prev,
@@ -36,8 +51,12 @@ let
       self,
       ctx,
       key,
+      excluded,
     }:
     let
+      selfExcludes = lib.genAttrs (map refToName (self.excludes or [ ])) (_: true);
+      newExcluded = excluded // selfExcludes;
+
       intoList = flattenInto ((self.into or noop) ctx) [ ];
       expandOne =
         { path, into }:
@@ -46,8 +65,11 @@ let
           aspectKey = lib.concatStringsSep "." path;
           pathHead = lib.head path;
           hasProvider = self.provides ? ${pathHead};
+          isExcluded = newExcluded ? ${aspectKey};
         in
-        if aspect != null then
+        if isExcluded then
+          [ ]
+        else if aspect != null then
           lib.concatMap (
             c:
             traverse {
@@ -56,6 +78,7 @@ let
               self = aspect;
               ctx = c;
               key = aspectKey;
+              excluded = newExcluded;
             }
           ) into
         else if builtins.length path == 1 && hasProvider then
@@ -70,6 +93,7 @@ let
               };
               ctx = c;
               key = pathHead;
+              excluded = newExcluded;
             }
           ) into
         else
@@ -105,14 +129,30 @@ let
       result = [ ];
     } items).result;
 
-  ctxApply = self: ctx: {
-    includes = assembleIncludes (traverse {
-      prev = null;
-      prevCtx = null;
-      key = self.name;
-      inherit self ctx;
-    });
-  };
+  collectAspectTransforms =
+    ctx:
+    lib.concatMap (
+      v:
+      if builtins.isAttrs v && v ? aspect then (den.aspects.${v.aspect} or { }).transforms or [ ] else [ ]
+    ) (builtins.attrValues ctx);
+
+  ctxApply =
+    self: ctx:
+    let
+      excluded = collectExcludes ctx;
+      aspectTransforms = collectAspectTransforms ctx;
+    in
+    {
+      excludes = builtins.attrNames excluded; # merged into aspectSubmodule via ctxSubmodule.__functor
+      transforms = aspectTransforms;
+      includes = assembleIncludes (traverse {
+        prev = null;
+        prevCtx = null;
+        key = self.name;
+        inherit self ctx;
+        inherit excluded;
+      });
+    };
 
 in
 ctxApply

@@ -6,6 +6,8 @@
   ...
 }@top:
 let
+  toAspectName = ref: if builtins.isString ref then ref else ref.name or "<anon>";
+
   hostsOption = lib.mkOption {
     description = "den hosts definition";
     default = { };
@@ -42,6 +44,12 @@ let
             default = { };
             defaultText = lib.literalExpression "{ }";
             type = lib.types.attrsOf (userType config);
+          };
+          excludes = lib.mkOption {
+            description = "Aspects to exclude from resolution";
+            type = lib.types.listOf lib.types.raw;
+            apply = map toAspectName;
+            default = [ ];
           };
           instantiate = lib.mkOption {
             description = ''
@@ -133,6 +141,12 @@ let
             default = host;
             defaultText = lib.literalExpression "host";
           };
+          excludes = lib.mkOption {
+            description = "Aspects to exclude from resolution";
+            type = lib.types.listOf lib.types.raw;
+            apply = map toAspectName;
+            default = [ ];
+          };
         };
       }
     );
@@ -202,6 +216,12 @@ let
           system = strOpt "platform system" system;
           class = strOpt "home management nix class" "homeManager";
           aspect = strOpt "main aspect name" userName;
+          excludes = lib.mkOption {
+            description = "Aspects to exclude from resolution";
+            type = lib.types.listOf lib.types.raw;
+            apply = map toAspectName;
+            default = [ ];
+          };
           description = strOpt "home description" "home.${config.name}@${config.system}";
           pkgs = lib.mkOption {
             description = ''

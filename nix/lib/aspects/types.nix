@@ -2,6 +2,19 @@
 let
   inherit (den.lib) lastFunctionTo;
 
+  wrapProvider =
+    parentPath: val:
+    if builtins.isFunction val then
+      {
+        __provider = parentPath;
+        __functor = self: arg: wrapProvider self.__provider (val arg);
+        __functionArgs = lib.functionArgs val;
+      }
+    else if builtins.isAttrs val then
+      val // { __provider = parentPath; }
+    else
+      val;
+
   isSubmoduleFn =
     m:
     let
@@ -39,6 +52,7 @@ let
           builtins.removeAttrs f [
             "__functor"
             "__functionArgs"
+            "__provider"
           ] == { }
     );
 
@@ -77,17 +91,46 @@ let
             default = [ ];
           };
 
-          provides = lib.mkOption {
-            description = "Providers of aspect for other aspects";
-            defaultText = lib.literalExpression "{ }";
-            default = { };
-            type = lib.types.submodule (
-              { config, ... }:
-              {
-                freeformType = lib.types.lazyAttrsOf (providerType cnf);
-                config._module.args.aspects = config;
-              }
-            );
+          excludes = lib.mkOption {
+            description = "Aspects to exclude from this aspect's include subtree";
+            type = lib.types.listOf lib.types.raw;
+            default = [ ];
+          };
+
+          transforms = lib.mkOption {
+            description = "Transform functions applied during resolution of this aspect's subtree";
+            type = lib.types.listOf lib.types.raw;
+            default = [ ];
+          };
+
+          provides =
+            let
+              base = if config.__provider or [ ] != [ ] then config.__provider else cnf.providerPrefix or [ ];
+              parentPath = base ++ [ name ];
+              childCnf = cnf // {
+                providerPrefix = parentPath;
+              };
+            in
+            lib.mkOption {
+              description = "Providers of aspect for other aspects";
+              defaultText = lib.literalExpression "{ }";
+              default = { };
+              type = lib.types.submodule (
+                { config, ... }:
+                {
+                  freeformType = lib.types.lazyAttrsOf (providerType childCnf);
+                  config._module.args.aspects = config;
+                }
+              );
+              apply = lib.mapAttrs (_: wrapProvider parentPath);
+            };
+
+          __provider = lib.mkOption {
+            internal = true;
+            visible = false;
+            description = "Provider origin path";
+            type = lib.types.listOf lib.types.str;
+            default = cnf.providerPrefix or [ ];
           };
 
           __functor = lib.mkOption {
