@@ -19,7 +19,14 @@ let
       staticIntoPath = if lib.isFunction intoPath then [ ] else intoPath;
 
       asp = fwd.fromAspect item;
-      sourceModule = mapModule (den.lib.aspects.resolve fromClass asp);
+      excludeTransforms =
+        let
+          e = asp.excludes or [ ];
+        in
+        lib.optional (e != [ ]) (den.lib.aspects.transforms.exclude e);
+      aspTransforms = excludeTransforms ++ (asp.transforms or [ ]);
+      resolved = den.lib.aspects.resolve' fromClass { transforms = aspTransforms; } asp;
+      sourceModule = mapModule resolved.module;
 
       forward =
         path:
@@ -158,7 +165,7 @@ let
     else if needsAdapter then
       adapter
     else
-      forwarded;
+      forwarded // { __forwardTrace = resolved.trace; };
 
   forwardEach = fwd: {
     includes = map (item: forwardItem (fwd // { inherit item; })) fwd.each;
