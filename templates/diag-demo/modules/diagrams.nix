@@ -72,7 +72,9 @@ in
       fleetData = diag.fleet.of { flakeName = "diag-demo"; };
 
       # Views from the render context. Extend or filter as needed.
-      hostViewDefs = rc.views.host;
+      hostViewDefs  = rc.views.host;
+      userViewDefs  = rc.views.user;
+      homeViewDefs  = rc.views.home;
       fleetViewDefs = rc.views.fleet;
 
       # Per-host gallery: one markdown file per host embedding every
@@ -265,12 +267,34 @@ PlantUML, and C4 diagrams rendered from structuredTrace output.
 | `treemap` | Provider groups across fleet |
 | `provider-matrix` | Bipartite providers-to-hosts |
 
+## User Views
+
+Each (host, user) pair gets its own set of views rooted at the user
+context (`den.ctx.user`). Named `<host>-<user>-<view>`.
+
+```bash
+nix build .#laptop-alice-aspects      # alice's aspect tree on laptop
+nix build .#multi-desktop-bob-ctx     # bob's context pipeline
+```
+
+## Home Views
+
+Standalone homes (`den.homes.*`) get their own views rooted at the
+home context (`den.ctx.home`). Named `home-<name>-<view>`.
+
+```bash
+nix build .#home-alice-aspects           # unbound standalone home
+nix build .#home-alice@laptop-aspects    # host-bound home
+```
+
 ## Usage
 
 ```bash
 nix run .#write-diagrams          # writes all views + this README
-nix build .#aspects-laptop        # individual aspect view
+nix build .#aspects-laptop        # individual host aspect view
 nix build .#dag-laptop            # individual full DAG
+nix build .#laptop-alice-aspects  # user-rooted aspect view
+nix build .#home-alice-aspects    # home-rooted aspect view
 nix build .#fleet-namespace       # library declaration graph
 ```
 
@@ -285,12 +309,45 @@ ${renderedAspects}
 
       hostEntries = lib.concatMap (host:
         entityEntries { inherit pkgs rc diag; } {
-          entity = host;
+          entity = diag.hostContext { inherit host; };
           name = host.name;
           viewDefs = hostViewDefs;
           galleryDrv = galleryDrv host.name null;
         }
       ) allHosts;
+
+      # User entries: one set per (host, user) pair.
+      allUsers = lib.concatMap (host:
+        lib.mapAttrsToList (userName: user: {
+          inherit host user;
+          name = "${host.name}-${userName}";
+        }) (host.users or { })
+      ) allHosts;
+
+      userEntries = lib.concatMap (u:
+        entityEntries { inherit pkgs rc diag; } {
+          entity = diag.userContext { inherit (u) host user; };
+          name = u.name;
+          viewDefs = userViewDefs;
+        }
+      ) allUsers;
+
+      # Standalone home entries. Use the attr key (e.g. "alice@laptop")
+      # as the display name, since `home.name` is just the userName
+      # portion and would collide across host-bound variants.
+      allHomes = lib.concatMap (system:
+        lib.mapAttrsToList (key: home: { inherit home key; })
+          ((den.homes or { }).${system} or { })
+      ) (builtins.attrNames (den.homes or { }));
+
+      homeEntries = lib.concatMap (h:
+        let safeName = lib.replaceStrings [ "@" ] [ "-at-" ] h.key;
+        in entityEntries { inherit pkgs rc diag; } {
+          entity = diag.homeContext { home = h.home; };
+          name = "home-${safeName}";
+          viewDefs = homeViewDefs;
+        }
+      ) allHomes;
 
       fleetEntriesList = diag.export.fleetEntries { inherit pkgs; } {
         inherit fleetData;
@@ -298,7 +355,7 @@ ${renderedAspects}
         galleryDrv = fleetGalleryDrv;
       };
 
-      everyEntry = hostEntries ++ fleetEntriesList;
+      everyEntry = hostEntries ++ userEntries ++ homeEntries ++ fleetEntriesList;
       allPackages = entriesToPackages everyEntry;
       allFiles = entriesToFiles everyEntry;
       writeLines = lib.concatStringsSep "\n" (map entryCopyLine everyEntry);

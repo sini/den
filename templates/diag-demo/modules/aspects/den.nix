@@ -22,4 +22,11 @@
       bob = { };
     };
   };
+
+  den.default.homeManager.home.stateVersion = "25.11";
+
+  den.homes.x86_64-linux = {
+    alice = { };
+    "alice@laptop" = { };
+  };
 }

@@ -56,12 +56,34 @@ PlantUML, and C4 diagrams rendered from structuredTrace output.
 | `treemap`                     | Provider groups across fleet                |
 | `provider-matrix`             | Bipartite providers-to-hosts                |
 
+## User Views
+
+Each (host, user) pair gets its own set of views rooted at the user
+context (`den.ctx.user`). Named `<host>-<user>-<view>`.
+
+```bash
+nix build .#laptop-alice-aspects      # alice's aspect tree on laptop
+nix build .#multi-desktop-bob-ctx     # bob's context pipeline
+```
+
+## Home Views
+
+Standalone homes (`den.homes.*`) get their own views rooted at the
+home context (`den.ctx.home`). Named `home-<name>-<view>`.
+
+```bash
+nix build .#home-alice-aspects           # unbound standalone home
+nix build .#home-alice@laptop-aspects    # host-bound home
+```
+
 ## Usage
 
 ```bash
 nix run .#write-diagrams          # writes all views + this README
-nix build .#aspects-laptop        # individual aspect view
+nix build .#aspects-laptop        # individual host aspect view
 nix build .#dag-laptop            # individual full DAG
+nix build .#laptop-alice-aspects  # user-rooted aspect view
+nix build .#home-alice-aspects    # home-rooted aspect view
 nix build .#fleet-namespace       # library declaration graph
 ```
 

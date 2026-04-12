@@ -193,6 +193,61 @@ let
       classes = actualClasses;
     };
 
+  # --- User convenience wrapper ---
+  #
+  # Resolves `den.ctx.user { inherit host user; }`, auto-discovers classes
+  # from the user entity, and delegates to `diag.context`.
+  userContext =
+    {
+      host,
+      user,
+      classes ? null,
+      direction ? "LR",
+    }:
+    let
+      actualClasses =
+        if classes != null then
+          classes
+        else
+          lib.unique (
+            [
+              "homeManager"
+              "user"
+            ]
+            ++ (user.classes or [ "homeManager" ])
+          );
+      root = den.ctx.user { inherit host user; };
+    in
+    context {
+      inherit root direction;
+      name = user.name;
+      classes = actualClasses;
+    };
+
+  # --- Home convenience wrapper ---
+  #
+  # Resolves `den.ctx.home { inherit home; }`, auto-discovers classes
+  # from the home entity, and delegates to `diag.context`.
+  homeContext =
+    {
+      home,
+      classes ? null,
+      direction ? "LR",
+    }:
+    let
+      actualClasses =
+        if classes != null then
+          classes
+        else
+          lib.unique ([ "homeManager" ] ++ (home.classes or [ "homeManager" ]));
+      root = den.ctx.home { inherit home; };
+    in
+    context {
+      inherit root direction;
+      name = home.name;
+      classes = actualClasses;
+    };
+
   # Thin wrapper returning a plain graph (no auxiliary fields).
   graphOfHost =
     args:
@@ -516,7 +571,10 @@ let
       rc = infra // {
         inherit render renderDense theme;
         views = {
+          core = views.core rc;
           host = views.host rc;
+          user = views.user rc;
+          home = views.home rc;
           fleet = views.fleet rc;
         };
       };
@@ -651,6 +709,8 @@ in
   inherit
     context
     hostContext
+    userContext
+    homeContext
     graph
     fleet
     views

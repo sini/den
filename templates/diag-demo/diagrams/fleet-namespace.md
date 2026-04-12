@@ -7,6 +7,7 @@
 graph TD
   aspects([aspects]):::root
   alice[/"alice"\]:::alice_c
+  alice_dotfiles["alice-dotfiles"]:::alice_dotfiles_c
   angle_brackets["angle-brackets"]:::angle_brackets_c
   backup["backup"]:::backup_c
   bob["bob"]:::bob_c
@@ -18,6 +19,12 @@ graph TD
   devbox["devbox"]:::devbox_c
   gdm["gdm"]:::gdm_c
   gnome["gnome"]:::gnome_c
+  home_bat["home-bat"]:::home_bat_c
+  home_dev["home-dev"]:::home_dev_c
+  home_firefox["home-firefox"]:::home_firefox_c
+  home_git["home-git"]:::home_git_c
+  home_productivity["home-productivity"]:::home_productivity_c
+  home_slack["home-slack"]:::home_slack_c
   hyprland["hyprland"]:::hyprland_c
   laptop["laptop"]:::laptop_c
   mail["mail"]:::mail_c
@@ -36,12 +43,15 @@ graph TD
   workstation["workstation"]:::workstation_c
 
   aspects --> alice
+  aspects --> alice_dotfiles
   aspects --> angle_brackets
   aspects --> bob
   aspects --> deploy
   aspects --> desktop_gdm
   aspects --> devbox
   aspects --> gdm
+  aspects --> home_dev
+  aspects --> home_productivity
   aspects --> laptop
   aspects --> mail_relay
   aspects --> multi_desktop
@@ -60,6 +70,10 @@ graph TD
   desktop_gdm --> workstation
   devbox --> workstation
   devbox --> server
+  home_dev --> home_git
+  home_dev --> home_bat
+  home_productivity --> home_firefox
+  home_productivity --> home_slack
   laptop --> workstation
   mail_relay --> relay
   multi_desktop --> workstation
@@ -79,6 +93,7 @@ graph TD
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
+  classDef alice_dotfiles_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
   classDef angle_brackets_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:3px
   classDef backup_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef bob_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
@@ -90,6 +105,12 @@ graph TD
   classDef devbox_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:3px
   classDef gdm_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef gnome_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
+  classDef home_bat_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
+  classDef home_dev_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
+  classDef home_firefox_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
+  classDef home_git_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
+  classDef home_productivity_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
+  classDef home_slack_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
   classDef hyprland_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef laptop_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef mail_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
