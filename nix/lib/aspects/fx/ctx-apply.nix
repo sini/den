@@ -2,7 +2,7 @@
   lib,
   den,
   fx,
-  adapters,
+  identity,
   ...
 }:
 let

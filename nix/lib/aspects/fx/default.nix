@@ -19,14 +19,12 @@ let
     identity = pureIdentity;
   };
 
-  # Pure adapter constructors — no nix-effects dependency.
+  # Pure constraint constructors — no nix-effects dependency.
   # Available without init for use in aspect definitions.
-  pureAdapters = import ./adapters.nix {
+  pureConstraints = import ./constraints.nix {
     inherit lib den;
     fx = null;
     identity = pureIdentity;
-    includes = pureIncludes;
-    trace = pureTrace;
   };
 in
 {
@@ -41,11 +39,11 @@ in
   # Includes constructors usable in aspect definitions without nix-effects.
   inherit (pureIncludes) includeIf;
 
-  # Adapter constructors usable in aspect meta.adapter without nix-effects.
-  inherit (pureAdapters)
-    excludeAspect
-    substituteAspect
-    filterAspect
+  # Constraint constructors usable in aspect meta.adapter without nix-effects.
+  inherit (pureConstraints)
+    exclude
+    substitute
+    filterBy
     ;
 
   init =
@@ -61,14 +59,12 @@ in
           identity
           ;
       };
-      adapters = import ./adapters.nix {
+      constraints = import ./constraints.nix {
         inherit
           lib
           den
           fx
           identity
-          includes
-          trace
           ;
       };
       aspect = import ./aspect.nix { inherit lib den fx; };
@@ -78,7 +74,7 @@ in
           lib
           den
           fx
-          adapters
+          identity
           ;
       };
       resolve = import ./resolve.nix {
@@ -88,7 +84,7 @@ in
           fx
           aspect
           handlers
-          adapters
+          identity
           ctxApply
           ;
       };
@@ -123,8 +119,9 @@ in
         wrapIdentity
         ;
       inherit ctxApply;
+      inherit (constraints) exclude substitute filterBy;
       inherit
-        adapters
+        constraints
         aspect
         handlers
         identity
@@ -141,5 +138,6 @@ in
         pathSetHandler
         ;
       inherit (includes) includeIf;
+      inherit (trace) structuredTraceHandler tracingHandler;
     };
 }

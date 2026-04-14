@@ -4,7 +4,7 @@
   fx,
   aspect,
   handlers,
-  adapters,
+  identity,
   ctxApply,
   ...
 }:
@@ -161,11 +161,12 @@ let
             resolved:
             let
               hasClassConfig = resolved ? ${class} && !(resolved.meta.excluded or false);
-              identity = adapters.pathKey (adapters.aspectPath resolved);
+              nodeIdentity = identity.pathKey (identity.aspectPath resolved);
               classEmit =
                 if hasClassConfig then
                   fx.bind (fx.send "provide-class" {
-                    inherit class identity;
+                    inherit class;
+                    identity = nodeIdentity;
                     module = resolved.${class};
                   }) (_: fx.pure null)
                 else
@@ -215,7 +216,7 @@ let
                 else
                   child;
               includes = map tagChild (resolved.includes or [ ]);
-              rawSelfPath = identity;
+              rawSelfPath = nodeIdentity;
               rawName = resolved.name or "<anon>";
               isMeaningful =
                 rawName != "<anon>" && rawName != "<function body>" && !(lib.hasPrefix "[definition " rawName);
@@ -247,7 +248,7 @@ let
         else
           let
             envelope = wrapChild child;
-            childIdentity = adapters.pathKey (adapters.aspectPath envelope);
+            childIdentity = identity.pathKey (identity.aspectPath envelope);
           in
           fx.bind
             (fx.send "check-exclusion" {
@@ -258,12 +259,12 @@ let
               decision:
               if decision.action == "exclude" then
                 let
-                  ts = adapters.tombstone envelope { excludedFrom = decision.owner; };
+                  ts = identity.tombstone envelope { excludedFrom = decision.owner; };
                 in
                 fx.bind (fx.send "resolve-complete" ts) (_: fx.pure [ ts ])
               else if decision.action == "substitute" then
                 let
-                  ts = adapters.tombstone envelope {
+                  ts = identity.tombstone envelope {
                     excludedFrom = decision.owner;
                     replacedBy = decision.replacement.name or "<anon>";
                   };
@@ -298,7 +299,7 @@ let
           pathSet:
           let
             guardCtx = {
-              hasAspect = ref: pathSet ? ${adapters.pathKey (adapters.aspectPath ref)};
+              hasAspect = ref: pathSet ? ${identity.pathKey (identity.aspectPath ref)};
             };
             pass = condNode.meta.guard guardCtx;
           in
@@ -313,7 +314,7 @@ let
               fx.bind acc (
                 results:
                 let
-                  ts = adapters.tombstone a { guardFailed = true; };
+                  ts = identity.tombstone a { guardFailed = true; };
                 in
                 fx.bind (fx.send "resolve-complete" ts) (_: fx.pure (results ++ [ ts ]))
               )
@@ -374,7 +375,7 @@ let
     // handlers.provideClassHandler
     // handlers.adapterRegistryHandler
     // handlers.chainHandler
-    // adapters.pathSetHandler
+    // identity.pathSetHandler
     // {
       "resolve-include" =
         { param, state }:
@@ -390,7 +391,7 @@ let
         {
           resume = param;
           state = state // {
-            paths = (state.paths or [ ]) ++ (lib.optional (!isExcluded) (adapters.aspectPath param));
+            paths = (state.paths or [ ]) ++ (lib.optional (!isExcluded) (identity.aspectPath param));
           };
         };
     };

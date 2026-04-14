@@ -8,7 +8,7 @@ let
   fx = inputs.nix-effects.lib;
 in
 {
-  flake.tests.fx-adapters = {
+  flake.tests.fx-constraints = {
 
     test-exclude-declaration = denTest (
       { den, ... }:
@@ -20,7 +20,7 @@ in
             provider = [ ];
           };
         };
-        decl = fxLib.adapters.excludeAspect ref;
+        decl = fxLib.exclude ref;
       in
       {
         expr = {
@@ -51,7 +51,7 @@ in
           };
           includes = [ ];
         };
-        decl = fxLib.adapters.substituteAspect ref replacement;
+        decl = fxLib.substitute ref replacement;
       in
       {
         expr = {
@@ -77,7 +77,7 @@ in
             provider = [ ];
           };
         };
-        decl = fxLib.adapters.excludeAspect ref;
+        decl = fxLib.exclude ref;
         # Register then check-exclusion
         comp = fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
           _: fx.send "check-exclusion" "drop"
@@ -130,7 +130,7 @@ in
           };
           includes = [ ];
         };
-        decl = fxLib.adapters.substituteAspect ref replacement;
+        decl = fxLib.substitute ref replacement;
         comp = fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
           _: fx.send "check-exclusion" "old"
         );
@@ -231,7 +231,7 @@ in
         parent = {
           name = "root";
           meta = {
-            adapter = fxLib.adapters.excludeAspect target;
+            adapter = fxLib.exclude target;
           };
           includes = [
             {
@@ -265,7 +265,7 @@ in
               };
           }
           // fxLib.handlers.adapterRegistryHandler
-          // fxLib.adapters.collectPathsHandler
+          // fxLib.identity.collectPathsHandler
           // fxLib.handlers.chainHandler;
           state = {
             paths = [ ];
@@ -288,7 +288,7 @@ in
           name = "drop";
           meta.provider = [ ];
         };
-        decl = fxLib.adapters.excludeAspect ref;
+        decl = fxLib.exclude ref;
       in
       {
         expr = decl.scope;
@@ -304,7 +304,7 @@ in
           name = "drop";
           meta.provider = [ ];
         };
-        decl = fxLib.adapters.excludeAspect.global ref;
+        decl = fxLib.exclude.global ref;
       in
       {
         expr = {
@@ -333,7 +333,7 @@ in
           meta.provider = [ ];
           includes = [ ];
         };
-        decl = fxLib.adapters.substituteAspect ref replacement;
+        decl = fxLib.substitute ref replacement;
       in
       {
         expr = decl.scope;
@@ -354,7 +354,7 @@ in
           meta.provider = [ ];
           includes = [ ];
         };
-        decl = fxLib.adapters.substituteAspect.global ref replacement;
+        decl = fxLib.substitute.global ref replacement;
       in
       {
         expr = decl.scope;
@@ -366,7 +366,7 @@ in
       { den, ... }:
       let
         fxLib = den.lib.aspects.fx.init fx;
-        decl = fxLib.adapters.filterAspect (_: true);
+        decl = fxLib.filterBy (_: true);
       in
       {
         expr = decl.scope;
@@ -378,7 +378,7 @@ in
       { den, ... }:
       let
         fxLib = den.lib.aspects.fx.init fx;
-        decl = fxLib.adapters.filterAspect.global (_: true);
+        decl = fxLib.filterBy.global (_: true);
       in
       {
         expr = decl.scope;
@@ -394,7 +394,7 @@ in
           name = "drop";
           meta.provider = [ ];
         };
-        decl = fxLib.adapters.excludeAspect ref;
+        decl = fxLib.exclude ref;
         comp = fx.bind (fx.send "chain-push" { identity = "parent"; }) (
           _:
           fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
@@ -431,7 +431,7 @@ in
           name = "drop";
           meta.provider = [ ];
         };
-        decl = fxLib.adapters.excludeAspect ref;
+        decl = fxLib.exclude ref;
         comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
           _:
           fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
@@ -471,7 +471,7 @@ in
           name = "drop";
           meta.provider = [ ];
         };
-        decl = fxLib.adapters.excludeAspect.global ref;
+        decl = fxLib.exclude.global ref;
         comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
           _:
           fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
@@ -507,7 +507,7 @@ in
       { den, ... }:
       let
         fxLib = den.lib.aspects.fx.init fx;
-        decl = fxLib.adapters.filterAspect (a: a.name != "drop");
+        decl = fxLib.filterBy (a: a.name != "drop");
         aspect = {
           name = "drop";
           meta.provider = [ ];
@@ -541,7 +541,7 @@ in
       { den, ... }:
       let
         fxLib = den.lib.aspects.fx.init fx;
-        decl = fxLib.adapters.filterAspect (a: a.name != "drop");
+        decl = fxLib.filterBy (a: a.name != "drop");
         aspect = {
           name = "drop";
           meta.provider = [ ];
@@ -590,7 +590,7 @@ in
         parent = {
           name = "root";
           meta = {
-            adapter = fxLib.adapters.excludeAspect target;
+            adapter = fxLib.exclude target;
           };
           includes = [
             {

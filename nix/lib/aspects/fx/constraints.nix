@@ -3,23 +3,12 @@
   den,
   fx,
   identity,
-  includes,
-  trace,
   ...
 }:
 let
-  inherit (identity)
-    aspectPath
-    pathKey
-    toPathSet
-    tombstone
-    collectPathsHandler
-    pathSetHandler
-    ;
-  inherit (includes) includeIf;
-  inherit (trace) structuredTraceHandler tracingHandler;
+  inherit (identity) aspectPath pathKey;
 
-  excludeAspect = {
+  exclude = {
     __functor = _: ref: {
       type = "exclude";
       scope = "subtree";
@@ -32,7 +21,7 @@ let
     };
   };
 
-  substituteAspect = {
+  substitute = {
     __functor = _: ref: replacement: {
       type = "substitute";
       scope = "subtree";
@@ -51,7 +40,7 @@ let
 
   # Predicate-based filter. Excludes aspects where pred returns false.
   # pred receives the aspect attrset (with name, meta, includes, etc).
-  filterAspect = {
+  filterBy = {
     __functor = _: pred: {
       type = "filter";
       scope = "subtree";
@@ -66,18 +55,5 @@ let
 
 in
 {
-  inherit
-    aspectPath
-    pathKey
-    toPathSet
-    tombstone
-    excludeAspect
-    substituteAspect
-    filterAspect
-    collectPathsHandler
-    includeIf
-    pathSetHandler
-    structuredTraceHandler
-    tracingHandler
-    ;
+  inherit exclude substitute filterBy;
 }
