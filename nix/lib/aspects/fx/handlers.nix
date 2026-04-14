@@ -264,6 +264,29 @@ let
           };
   };
 
+  # Maintains includes-path stack. chain-push appends identity, chain-pop removes last.
+  chainHandler = {
+    "chain-push" =
+      { param, state }:
+      {
+        resume = null;
+        state = state // {
+          includesChain = (state.includesChain or [ ]) ++ [ param.identity ];
+        };
+      };
+    "chain-pop" =
+      { param, state }:
+      let
+        chain = state.includesChain or [ ];
+      in
+      {
+        resume = null;
+        state = state // {
+          includesChain = if chain == [ ] then [ ] else lib.init chain;
+        };
+      };
+  };
+
   # Accumulates class modules from provide-class effects.
   provideClassHandler = {
     "provide-class" =
@@ -294,5 +317,6 @@ in
     ctxEmitHandler
     adapterRegistryHandler
     provideClassHandler
+    chainHandler
     ;
 }

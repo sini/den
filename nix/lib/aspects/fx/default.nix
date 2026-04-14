@@ -59,6 +59,7 @@ in
         ctxEmitHandler
         adapterRegistryHandler
         provideClassHandler
+        chainHandler
         ;
       inherit (resolve)
         resolveOne

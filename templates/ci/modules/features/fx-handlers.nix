@@ -187,5 +187,69 @@ in
       }
     );
 
+    # chainHandler: push appends identity to includesChain.
+    test-chain-push-appends = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
+          _: fx.send "chain-push" { identity = "b"; }
+        );
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler;
+          state = {
+            includesChain = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.state.includesChain;
+        expected = [
+          "a"
+          "b"
+        ];
+      }
+    );
+
+    # chainHandler: pop removes last element.
+    test-chain-pop-removes-last = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
+          _: fx.bind (fx.send "chain-push" { identity = "b"; }) (_: fx.send "chain-pop" null)
+        );
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler;
+          state = {
+            includesChain = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.state.includesChain;
+        expected = [ "a" ];
+      }
+    );
+
+    # chainHandler: pop on empty list is safe (returns []).
+    test-chain-pop-empty-is-safe = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        comp = fx.send "chain-pop" null;
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler;
+          state = {
+            includesChain = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.state.includesChain;
+        expected = [ ];
+      }
+    );
+
   };
 }
