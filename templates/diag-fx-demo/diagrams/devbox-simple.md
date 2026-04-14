@@ -63,41 +63,33 @@ graph LR
   networking --> backup
   regreet --> backup
   server --> backup
-  tailscale --> backup
   virtualization --> backup
   workstation --> backup
   monitoring --> server
   networking --> server
   regreet --> server
-  tailscale --> server
   virtualization --> server
   workstation --> server
   monitoring --> workstation
   networking --> workstation
   regreet --> workstation
   server --> workstation
-  tailscale --> workstation
   virtualization --> workstation
   hyprland --> dev_tools
   hyprland --> alice
   hyprland --> demo_shell
-  monitoring --> tailscale
   networking --> monitoring
-  networking --> tailscale
   primary_user --> demo_shell
   regreet --> desktop
   server --> monitoring
   server --> devbox
-  server --> virtualization
+  server -.-x virtualization
   server --> networking
-  server --> tailscale
-  tailscale --> desktop
-  tailscale --> regreet
-  tailscale --> virtualization
+  server -.-x tailscale
   workstation --> desktop
   workstation --> networking
   workstation --> virtualization
-  workstation --> tailscale
+  workstation -.-x tailscale
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
@@ -116,7 +108,7 @@ graph LR
   classDef den__provides__primary_user_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef tailscale_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#a6e3a1,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef virtualization_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef workstation_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
 ```

@@ -12,7 +12,7 @@ sequenceDiagram
     participant user as user
 
     Note over host: ── host
-    Note over host: desktop, host, networking, regreet, tailscale, virtualization, virtualization/podman, workstation
+    Note over host: desktop, gdm, host, networking, regreet, tailscale, virtualization, virtualization/podman, workstation
 
     Note over p_default: ── default
     Note over p_default: alice/to-hosts, default, provides/define-user, provides/hostname, provides/mutual-provider

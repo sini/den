@@ -8,7 +8,7 @@ C4Container
 title Container view: desktop-gdm
 
 System_Boundary(desktop_gdm, "desktop-gdm") {
-  Container(ctx_host, "host", "nixos", "11 aspects")
+  Container(ctx_host, "host", "nixos", "12 aspects")
   Container(ctx_default, "default", "homeManager+nixos+nixos", "10 aspects")
   Container(ctx_hm_host, "hm-host", "nixos", "4 aspects")
   Container(ctx_hm_user, "hm-user", "nixos", "4 aspects")

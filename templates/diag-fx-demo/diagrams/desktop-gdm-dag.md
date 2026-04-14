@@ -11,6 +11,7 @@ graph LR
 
   subgraph ctx_host["host"]
   desktop["desktop"]:::desktop_c
+  gdm["gdm"]:::gdm_c
   host["host"]:::host_c
   host__aspect_host_["host/aspect(host)"]:::host__aspect_host__c
   host__cross_provide__anon__["host/cross-provide(<anon>)"]:::host__cross_provide__anon___c
@@ -21,11 +22,13 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
+  desktop --> gdm
   desktop --> host__self_provide_host_
-  desktop --> regreet
+  desktop -.->|replaced| regreet
   desktop --> virtualization
   desktop_gdm --> host__self_provide_host_
   desktop_gdm --> workstation
+  gdm --> desktop
   host --> alice
   host --> n_default
   host --> default__cross_provide_host_
@@ -48,11 +51,8 @@ graph LR
   host__self_provide_host_ --> workstation
   networking --> host__self_provide_host_
   networking --> tailscale
-  regreet --> desktop
-  regreet --> host__self_provide_host_
   tailscale --> desktop
   tailscale --> host__self_provide_host_
-  tailscale --> regreet
   virtualization --> host__self_provide_host_
   virtualization --> virtualization__podman
   virtualization__podman --> host__self_provide_host_
@@ -168,6 +168,7 @@ graph LR
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
+  classDef gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hm_host_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hm_host__aspect_hm_host__c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hm_host__cross_provide_host__c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -187,7 +188,7 @@ graph LR
   classDef virtualization__podman_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef regreet_c fill:#89b4fa,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -223,13 +224,14 @@ digraph {
     fontcolor="#cdd6f4";
     bgcolor="#313244";
   desktop [label="desktop",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
+  gdm [label="gdm",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   host [label="host",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   host__aspect_host_ [label="host/aspect(host)",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   host__cross_provide__anon__ [label="host/cross-provide(<anon>)",shape=box,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
   host__self_provide_host_ [label="host/self-provide(host)",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   networking [label="networking",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   virtualization__podman [label="virtualization/podman",shape=trapezium,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
-  regreet [label="regreet",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
+  regreet [label="regreet",shape=box,style="filled,dashed",fillcolor="#89b4fa",color="#fab387",fontcolor="#1e1e2e"];
   tailscale [label="tailscale",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   virtualization [label="virtualization",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   workstation [label="workstation",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
@@ -322,13 +324,15 @@ digraph {
   den__provides__mutual_provider -> den__provides__default__aspect_default__den__provides;
   den__provides__mutual_provider -> alice__to_hosts;
   den__provides__primary_user -> demo_shell;
+  desktop -> gdm;
   desktop -> host__self_provide_host_;
-  desktop -> regreet;
+  desktop -> regreet [style=dashed,color="#fab387",label="replaced"];
   desktop -> virtualization;
   desktop_gdm -> host__self_provide_host_;
   desktop_gdm -> workstation;
   dev_tools -> dev_tools;
   dev_tools -> user__self_provide_user_;
+  gdm -> desktop;
   hm_host -> hm_host__aspect_hm_host_;
   hm_host__aspect_hm_host_ -> hm_host;
   hm_host__cross_provide_host_ -> hm_user;
@@ -361,11 +365,8 @@ digraph {
   networking -> host__self_provide_host_;
   networking -> tailscale;
   primary_user -> demo_shell;
-  regreet -> desktop;
-  regreet -> host__self_provide_host_;
   tailscale -> desktop;
   tailscale -> host__self_provide_host_;
-  tailscale -> regreet;
   user -> alice;
   user -> user__aspect_user_;
   user__aspect_user_ -> user;
@@ -420,13 +421,14 @@ skinparam NoteFontColor #cdd6f4
 rectangle "desktop-gdm" as desktop_gdm #89b4fa
 package "host" as stage_host {
   rectangle "desktop" as desktop #f2cdcd
+  rectangle "gdm" as gdm #f2cdcd
   rectangle "host" as host #89b4fa
   rectangle "host/aspect(host)" as host__aspect_host_ #89b4fa
   rectangle "host/cross-provide(&lt;anon&gt;)" as host__cross_provide__anon__ #cba6f7
   rectangle "host/self-provide(host)" as host__self_provide_host_ #f2cdcd
   rectangle "networking" as networking #89b4fa
   card "virtualization/podman" as virtualization__podman #cba6f7
-  rectangle "regreet" as regreet #89b4fa
+  rectangle "regreet" as regreet #89b4fa;line.dashed
   rectangle "tailscale" as tailscale #f2cdcd
   rectangle "virtualization" as virtualization #89b4fa
   rectangle "workstation" as workstation #f2cdcd
@@ -499,13 +501,15 @@ den__provides__mutual_provider --> default__aspect_default_
 den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
 den__provides__mutual_provider --> alice__to_hosts
 den__provides__primary_user --> demo_shell
+desktop --> gdm
 desktop --> host__self_provide_host_
-desktop --> regreet
+desktop ..> regreet : replaced
 desktop --> virtualization
 desktop_gdm --> host__self_provide_host_
 desktop_gdm --> workstation
 dev_tools --> dev_tools
 dev_tools --> user__self_provide_user_
+gdm --> desktop
 hm_host --> hm_host__aspect_hm_host_
 hm_host__aspect_hm_host_ --> hm_host
 hm_host__cross_provide_host_ --> hm_user
@@ -538,11 +542,8 @@ hyprland --> user__self_provide_user_
 networking --> host__self_provide_host_
 networking --> tailscale
 primary_user --> demo_shell
-regreet --> desktop
-regreet --> host__self_provide_host_
 tailscale --> desktop
 tailscale --> host__self_provide_host_
-tailscale --> regreet
 user --> alice
 user --> user__aspect_user_
 user__aspect_user_ --> user

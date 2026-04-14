@@ -11,15 +11,11 @@ graph LR
   desktop["desktop"]:::desktop_c
   networking["networking"]:::networking_c
   virtualization__podman[/"virtualization/podman"\]:::virtualization__podman_c
-  regreet["regreet"]:::regreet_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  desktop --> regreet
   desktop --> virtualization
   networking --> tailscale
-  regreet --> desktop
   tailscale --> desktop
-  tailscale --> regreet
   virtualization --> virtualization__podman
   virtualization__podman -.->|provided-by| virtualization
   end
@@ -45,7 +41,6 @@ graph LR
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef virtualization__podman_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px

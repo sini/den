@@ -7,16 +7,25 @@
 graph LR
   web_server([web-server]):::root
   backup["backup · host"]:::backup_c
+  monitoring["monitoring · host"]:::monitoring_c
+  monitoring__nginx_exporter[/"monitoring/nginx-exporter · host"\]:::monitoring__nginx_exporter_c
   server["server · host"]:::server_c
 
   backup --> server
+  monitoring --> backup
   server --> backup
   web_server --> backup
+  monitoring --> server
   web_server --> server
+  server --> monitoring
+  server -.-x monitoring__nginx_exporter
   server --> web_server
+  monitoring__nginx_exporter -.->|provided-by| monitoring
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
+  classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
 ```

@@ -7,7 +7,10 @@
 graph LR
   devbox([devbox]):::root
   backup["backup · host"]:::backup_c
+  virtualization__docker[/"virtualization/docker · host"\]:::virtualization__docker_c
   server["server · host"]:::server_c
+  tailscale["tailscale · host"]:::tailscale_c
+  virtualization["virtualization · host"]:::virtualization_c
   workstation["workstation · host"]:::workstation_c
 
   backup --> server
@@ -16,14 +19,26 @@ graph LR
   devbox --> server
   devbox --> workstation
   server --> backup
+  virtualization --> backup
   workstation --> backup
+  virtualization --> server
   workstation --> server
   server --> workstation
+  virtualization --> workstation
   server --> devbox
+  server -.-x virtualization__docker
+  server -.-x tailscale
+  server --> virtualization
+  workstation -.-x tailscale
+  workstation --> virtualization
+  virtualization__docker -.->|provided-by| virtualization
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
+  classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
+  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
+  classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef workstation_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
 ```

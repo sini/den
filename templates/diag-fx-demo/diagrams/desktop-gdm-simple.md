@@ -11,6 +11,7 @@ graph LR
   demo_shell["demo-shell"]:::demo_shell_c
   desktop["desktop"]:::desktop_c
   dev_tools["dev-tools"]:::dev_tools_c
+  gdm["gdm"]:::gdm_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   hyprland["hyprland"]:::hyprland_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
@@ -43,15 +44,16 @@ graph LR
   demo_shell --> alice
   demo_shell --> dev_tools
   den__provides__primary_user --> demo_shell
+  desktop --> gdm
   desktop --> workstation
-  desktop --> regreet
+  desktop -.->|replaced| regreet
   desktop --> virtualization
   desktop_gdm --> workstation
   dev_tools --> alice
   dev_tools --> demo_shell
   dev_tools --> hyprland
+  gdm --> desktop
   networking --> workstation
-  regreet --> workstation
   tailscale --> workstation
   virtualization --> workstation
   hyprland --> dev_tools
@@ -59,9 +61,7 @@ graph LR
   hyprland --> demo_shell
   networking --> tailscale
   primary_user --> demo_shell
-  regreet --> desktop
   tailscale --> desktop
-  tailscale --> regreet
   workstation --> desktop
   workstation --> desktop_gdm
   workstation --> networking
@@ -75,13 +75,14 @@ graph LR
   classDef desktop_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef desktop_gdm_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:3px
   classDef dev_tools_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
+  classDef gdm_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef primary_user_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
-  classDef regreet_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
+  classDef regreet_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef tailscale_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef workstation_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px

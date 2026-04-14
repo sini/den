@@ -12,7 +12,7 @@ sequenceDiagram
     participant user as user
 
 
-    Note over host: desktop, desktop-gdm, host, host/aspect(host), host/cross-provide(<anon>), host/self-provide(host), +6 more
+    Note over host: desktop, desktop-gdm, gdm, host, host/aspect(host), host/cross-provide(<anon>), +7 more
     Note over p_default: default, default/aspect(default), provides/default/aspect(default):den/provides, default/cross-provide(host), default/cross-provide(user), default/self-provide(default), +4 more
     Note over hm_host: hm-host, hm-host/aspect(hm-host), hm-host/cross-provide(host), hm-host/self-provide(hm-host)
     Note over hm_user: hm-user, hm-user/aspect(hm-user), hm-user/cross-provide(hm-host), hm-user/self-provide(hm-user)

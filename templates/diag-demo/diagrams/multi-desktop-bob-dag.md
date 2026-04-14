@@ -153,6 +153,7 @@ digraph {
 
 ```plantuml
 @startuml
+left to right direction
 skinparam backgroundColor #1e1e2e
 skinparam defaultFontColor #cdd6f4
 skinparam defaultFontName "JetBrains Mono,monospace"
@@ -175,16 +176,16 @@ skinparam NoteBorderColor #6c7086
 skinparam NoteFontColor #cdd6f4
 
 rectangle "bob" as bob #89b4fa
-package "user { host, user }" {
+package "user { host, user }" as stage_user {
   rectangle "dev-tools" as dev_tools #fab387
   rectangle "gnome" as gnome #f2cdcd
   rectangle "primary-user" as primary_user #f2cdcd
   card "provides/primary-user" as den__provides__primary_user #f2cdcd
   rectangle "user/aspect(user)" as user__aspect_user_ #fab387
-  rectangle "user/cross-provide(<anon>)" as user__cross_provide__anon__ #f38ba8
+  rectangle "user/cross-provide(&lt;anon&gt;)" as user__cross_provide__anon__ #f38ba8
   rectangle "user/self-provide(user)" as user__self_provide_user_ #f2cdcd
 }
-package "default { host, user }" {
+package "default { host, user }" as stage_default {
   hexagon "default\n({ aspect-chain, class })" as n_default #fab387
   rectangle "default/aspect(default)" as default__aspect_default_ #a6e3a1
   card "provides/default/aspect(default):den/provides" as den__provides__default__aspect_default__den__provides #a6e3a1

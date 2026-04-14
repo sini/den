@@ -61,36 +61,27 @@ graph LR
   monitoring --> host__self_provide_host_
   monitoring --> monitoring__node_exporter
   monitoring__alerting --> host__self_provide_host_
-  monitoring__alerting --> tailscale
   monitoring__nginx_exporter --> monitoring__alerting
   monitoring__nginx_exporter --> host__self_provide_host_
   monitoring__node_exporter --> host__self_provide_host_
   monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> host__self_provide_host_
   networking --> monitoring
-  networking --> tailscale
   regreet --> desktop
   regreet --> host__self_provide_host_
   server --> monitoring__alerting
   server --> backup
   server --> devbox
-  server --> virtualization__docker
+  server -.-x virtualization__docker
   server --> host__self_provide_host_
   server --> monitoring
   server --> networking
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
-  server --> tailscale
+  server -.-x tailscale
   server --> virtualization
-  tailscale --> desktop
-  tailscale --> host__self_provide_host_
-  tailscale --> regreet
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   virtualization --> host__self_provide_host_
   virtualization --> virtualization__podman
-  virtualization__docker --> backup
-  virtualization__docker --> host__self_provide_host_
   virtualization__podman --> host__self_provide_host_
   virtualization__podman --> workstation
   workstation --> desktop
@@ -98,7 +89,7 @@ graph LR
   workstation --> networking
   workstation --> virtualization__podman
   workstation --> server
-  workstation --> tailscale
+  workstation -.-x tailscale
   workstation --> virtualization
   virtualization__podman -.->|provided-by| virtualization
   monitoring__node_exporter -.->|provided-by| monitoring
@@ -210,7 +201,7 @@ graph LR
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
-  classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
+  classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef hm_host_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hm_host__aspect_hm_host__c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hm_host__cross_provide_host__c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -235,7 +226,7 @@ graph LR
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef user__aspect_user__c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -272,7 +263,7 @@ digraph {
   monitoring__alerting [label="monitoring/alerting",shape=trapezium,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
   backup [label="backup",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   desktop [label="desktop",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
-  virtualization__docker [label="virtualization/docker",shape=trapezium,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
+  virtualization__docker [label="virtualization/docker",shape=trapezium,style="filled,dashed",fillcolor="#cba6f7",color="#f38ba8",fontcolor="#1e1e2e"];
   host [label="host",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   host__aspect_host_ [label="host/aspect(host)",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   host__cross_provide__anon__ [label="host/cross-provide(<anon>)",shape=box,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
@@ -284,7 +275,7 @@ digraph {
   virtualization__podman [label="virtualization/podman",shape=trapezium,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
   regreet [label="regreet",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   server [label="server",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
-  tailscale [label="tailscale",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
+  tailscale [label="tailscale",shape=box,style="filled,dashed",fillcolor="#f2cdcd",color="#f38ba8",fontcolor="#1e1e2e"];
   virtualization [label="virtualization",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   workstation [label="workstation",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   }
@@ -420,32 +411,26 @@ digraph {
   monitoring -> host__self_provide_host_;
   monitoring -> monitoring__node_exporter;
   monitoring__alerting -> host__self_provide_host_;
-  monitoring__alerting -> tailscale;
   monitoring__nginx_exporter -> monitoring__alerting;
   monitoring__nginx_exporter -> host__self_provide_host_;
   monitoring__node_exporter -> host__self_provide_host_;
   monitoring__node_exporter -> monitoring__nginx_exporter;
   networking -> host__self_provide_host_;
   networking -> monitoring;
-  networking -> tailscale;
   primary_user -> demo_shell;
   regreet -> desktop;
   regreet -> host__self_provide_host_;
   server -> monitoring__alerting;
   server -> backup;
   server -> devbox;
-  server -> virtualization__docker;
+  server -> virtualization__docker [style=dashed,color="#f38ba8"];
   server -> host__self_provide_host_;
   server -> monitoring;
   server -> networking;
   server -> monitoring__nginx_exporter;
   server -> monitoring__node_exporter;
-  server -> tailscale;
+  server -> tailscale [style=dashed,color="#f38ba8"];
   server -> virtualization;
-  tailscale -> desktop;
-  tailscale -> host__self_provide_host_;
-  tailscale -> regreet;
-  tailscale -> virtualization;
   user -> alice;
   user -> user__aspect_user_;
   user__aspect_user_ -> user;
@@ -453,11 +438,8 @@ digraph {
   user__self_provide_user_ -> demo_shell;
   user__self_provide_user_ -> dev_tools;
   user__self_provide_user_ -> hyprland;
-  virtualization -> virtualization__docker;
   virtualization -> host__self_provide_host_;
   virtualization -> virtualization__podman;
-  virtualization__docker -> backup;
-  virtualization__docker -> host__self_provide_host_;
   virtualization__podman -> host__self_provide_host_;
   virtualization__podman -> workstation;
   workstation -> desktop;
@@ -465,7 +447,7 @@ digraph {
   workstation -> networking;
   workstation -> virtualization__podman;
   workstation -> server;
-  workstation -> tailscale;
+  workstation -> tailscale [style=dashed,color="#f38ba8"];
   workstation -> virtualization;
   virtualization__podman -> virtualization;
   monitoring__node_exporter -> monitoring;
@@ -509,7 +491,7 @@ package "host" as stage_host {
   card "monitoring/alerting" as monitoring__alerting #cba6f7
   rectangle "backup" as backup #89b4fa
   rectangle "desktop" as desktop #f2cdcd
-  card "virtualization/docker" as virtualization__docker #cba6f7
+  card "virtualization/docker" as virtualization__docker #cba6f7;line.dashed
   rectangle "host" as host #89b4fa
   rectangle "host/aspect(host)" as host__aspect_host_ #89b4fa
   rectangle "host/cross-provide(&lt;anon&gt;)" as host__cross_provide__anon__ #cba6f7
@@ -521,7 +503,7 @@ package "host" as stage_host {
   card "virtualization/podman" as virtualization__podman #cba6f7
   rectangle "regreet" as regreet #89b4fa
   rectangle "server" as server #89b4fa
-  rectangle "tailscale" as tailscale #f2cdcd
+  rectangle "tailscale" as tailscale #f2cdcd;line.dashed
   rectangle "virtualization" as virtualization #89b4fa
   rectangle "workstation" as workstation #f2cdcd
 }
@@ -637,32 +619,26 @@ hyprland --> user__self_provide_user_
 monitoring --> host__self_provide_host_
 monitoring --> monitoring__node_exporter
 monitoring__alerting --> host__self_provide_host_
-monitoring__alerting --> tailscale
 monitoring__nginx_exporter --> monitoring__alerting
 monitoring__nginx_exporter --> host__self_provide_host_
 monitoring__node_exporter --> host__self_provide_host_
 monitoring__node_exporter --> monitoring__nginx_exporter
 networking --> host__self_provide_host_
 networking --> monitoring
-networking --> tailscale
 primary_user --> demo_shell
 regreet --> desktop
 regreet --> host__self_provide_host_
 server --> monitoring__alerting
 server --> backup
 server --> devbox
-server --> virtualization__docker
+server ..x virtualization__docker
 server --> host__self_provide_host_
 server --> monitoring
 server --> networking
 server --> monitoring__nginx_exporter
 server --> monitoring__node_exporter
-server --> tailscale
+server ..x tailscale
 server --> virtualization
-tailscale --> desktop
-tailscale --> host__self_provide_host_
-tailscale --> regreet
-tailscale --> virtualization
 user --> alice
 user --> user__aspect_user_
 user__aspect_user_ --> user
@@ -670,11 +646,8 @@ user__self_provide_user_ --> alice
 user__self_provide_user_ --> demo_shell
 user__self_provide_user_ --> dev_tools
 user__self_provide_user_ --> hyprland
-virtualization --> virtualization__docker
 virtualization --> host__self_provide_host_
 virtualization --> virtualization__podman
-virtualization__docker --> backup
-virtualization__docker --> host__self_provide_host_
 virtualization__podman --> host__self_provide_host_
 virtualization__podman --> workstation
 workstation --> desktop
@@ -682,7 +655,7 @@ workstation --> host__self_provide_host_
 workstation --> networking
 workstation --> virtualization__podman
 workstation --> server
-workstation --> tailscale
+workstation ..x tailscale
 workstation --> virtualization
 virtualization__podman --> virtualization : provided-by
 monitoring__node_exporter --> monitoring : provided-by

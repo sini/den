@@ -19,7 +19,6 @@ graph LR
   virtualization__podman[/"virtualization/podman"\]:::virtualization__podman_c
   regreet["regreet"]:::regreet_c
   server["server"]:::server_c
-  tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
   backup --> server
@@ -39,9 +38,7 @@ graph LR
   networking --> backup
   regreet --> backup
   server --> backup
-  tailscale --> backup
   virtualization --> backup
-  virtualization__docker --> backup
   virtualization__podman --> backup
   workstation --> backup
   monitoring --> server
@@ -50,9 +47,7 @@ graph LR
   monitoring__node_exporter --> server
   networking --> server
   regreet --> server
-  tailscale --> server
   virtualization --> server
-  virtualization__docker --> server
   virtualization__podman --> server
   workstation --> server
   monitoring --> workstation
@@ -62,35 +57,25 @@ graph LR
   networking --> workstation
   regreet --> workstation
   server --> workstation
-  tailscale --> workstation
   virtualization --> workstation
-  virtualization__docker --> workstation
   virtualization__podman --> workstation
   monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
   monitoring__nginx_exporter --> monitoring__alerting
   monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> monitoring
-  networking --> tailscale
   regreet --> desktop
   server --> monitoring__alerting
   server --> devbox
-  server --> virtualization__docker
+  server -.-x virtualization__docker
   server --> monitoring
   server --> networking
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
-  server --> tailscale
   server --> virtualization
-  tailscale --> desktop
-  tailscale --> regreet
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   virtualization --> virtualization__podman
   workstation --> desktop
   workstation --> networking
   workstation --> virtualization__podman
-  workstation --> tailscale
   workstation --> virtualization
   virtualization__podman -.->|provided-by| virtualization
   monitoring__node_exporter -.->|provided-by| monitoring
@@ -152,7 +137,7 @@ graph LR
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
-  classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
+  classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -165,7 +150,6 @@ graph LR
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef workstation_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px

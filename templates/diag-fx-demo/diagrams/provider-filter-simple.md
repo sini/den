@@ -35,9 +35,8 @@ graph LR
   provider_filter --> server
   tailscale --> server
   virtualization --> server
-  monitoring --> tailscale
   networking --> monitoring
-  server --> monitoring
+  server -.-x monitoring
   server --> virtualization
   server --> networking
   server --> provider_filter

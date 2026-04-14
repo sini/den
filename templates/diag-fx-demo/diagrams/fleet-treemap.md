@@ -14,10 +14,10 @@ treemap-beta
     "den/provides/mutual-provider": 41
     "den/provides/primary-user": 7
 "monitoring"
-    "monitoring/alerting": 12
-    "monitoring/nginx-exporter": 10
-    "monitoring/node-exporter": 12
+    "monitoring/alerting": 16
+    "monitoring/nginx-exporter": 16
+    "monitoring/node-exporter": 16
 "virtualization"
-    "virtualization/docker": 14
+    "virtualization/docker": 16
     "virtualization/podman": 16
 ```

@@ -16,22 +16,17 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   angle_brackets --> desktop
   angle_brackets --> networking
-  angle_brackets --> tailscale
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
+  angle_brackets -.-x tailscale
   den__provides__primary_user --> demo_shell
   den__provides__primary_user --> networking
   desktop --> angle_brackets
   desktop --> networking
-  desktop --> tailscale
   desktop --> regreet
   networking --> desktop
   regreet --> desktop
-  tailscale --> desktop
   regreet --> networking
-  tailscale --> networking
-  networking --> tailscale
-  regreet --> tailscale
   primary_user --> demo_shell
   primary_user --> networking
   end
@@ -89,7 +84,7 @@ graph LR
   classDef primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
 style ctx_host fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px

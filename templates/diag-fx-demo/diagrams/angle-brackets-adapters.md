@@ -14,17 +14,13 @@ graph LR
 
   angle_brackets --> desktop
   angle_brackets --> networking
-  angle_brackets --> tailscale
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
+  angle_brackets -.-x tailscale
   den__provides__primary_user --> networking
   desktop --> angle_brackets
   desktop --> networking
-  desktop --> tailscale
   networking --> desktop
-  tailscale --> desktop
-  tailscale --> networking
-  networking --> tailscale
   primary_user --> networking
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
@@ -33,5 +29,5 @@ graph LR
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
 ```

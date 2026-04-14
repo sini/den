@@ -344,6 +344,7 @@ digraph {
 
 ```plantuml
 @startuml
+left to right direction
 skinparam backgroundColor #1e1e2e
 skinparam defaultFontColor #cdd6f4
 skinparam defaultFontName "JetBrains Mono,monospace"
@@ -366,10 +367,10 @@ skinparam NoteBorderColor #6c7086
 skinparam NoteFontColor #cdd6f4
 
 rectangle "multi-desktop" as multi_desktop #89b4fa
-package "host { host }" {
+package "host { host }" as stage_host {
   rectangle "desktop" as desktop #f2cdcd
   rectangle "host/aspect(host)" as host__aspect_host_ #89b4fa
-  rectangle "host/cross-provide(<anon>)" as host__cross_provide__anon__ #cba6f7
+  rectangle "host/cross-provide(&lt;anon&gt;)" as host__cross_provide__anon__ #cba6f7
   rectangle "host/self-provide(host)" as host__self_provide_host_ #f2cdcd
   rectangle "networking" as networking #89b4fa
   card "virtualization/podman" as virtualization__podman #cba6f7
@@ -378,7 +379,7 @@ package "host { host }" {
   rectangle "virtualization" as virtualization #89b4fa
   rectangle "workstation" as workstation #f2cdcd
 }
-package "default { host }" {
+package "default { host }" as stage_default {
   hexagon "default\n({ aspect-chain, class })" as n_default #fab387
   rectangle "default/aspect(default)" as default__aspect_default_ #a6e3a1
   card "provides/default/aspect(default):den/provides" as den__provides__default__aspect_default__den__provides #a6e3a1
@@ -390,19 +391,19 @@ package "default { host }" {
   card "provides/mutual-provider" as den__provides__mutual_provider #f9e2af
   card "alice/to-hosts" as alice__to_hosts #a6e3a1
 }
-package "hm-host { host }" {
+package "hm-host { host }" as stage_hm_host {
   hexagon "hm-host\n({ aspect-chain, class })" as hm_host #cba6f7
   rectangle "hm-host/aspect(hm-host)" as hm_host__aspect_hm_host_ #89b4fa
   rectangle "hm-host/cross-provide(host)" as hm_host__cross_provide_host_ #f2cdcd
   rectangle "hm-host/self-provide(hm-host)" as hm_host__self_provide_hm_host_ #cba6f7
 }
-package "hm-user { host, user }" {
+package "hm-user { host, user }" as stage_hm_user {
   hexagon "hm-user\n({ aspect-chain, class })" as hm_user #fab387
   rectangle "hm-user/aspect(hm-user)" as hm_user__aspect_hm_user_ #a6e3a1
   rectangle "hm-user/cross-provide(hm-host)" as hm_user__cross_provide_hm_host_ #a6e3a1
   rectangle "hm-user/self-provide(hm-user)" as hm_user__self_provide_hm_user_ #fab387
 }
-package "user { host, user }" {
+package "user { host, user }" as stage_user {
   hexagon "alice\n({ aspect-chain, class })" as alice #f2cdcd
   hexagon "bob\n({ aspect-chain, class })" as bob #f38ba8
   rectangle "demo-shell" as demo_shell #f2cdcd

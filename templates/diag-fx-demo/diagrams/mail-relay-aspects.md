@@ -25,7 +25,6 @@ graph LR
   backup --> server
   mail --> backup
   mail_relay --> backup
-  monitoring --> backup
   monitoring__alerting --> backup
   monitoring__nginx_exporter --> backup
   monitoring__node_exporter --> backup
@@ -36,7 +35,6 @@ graph LR
   virtualization --> backup
   virtualization__docker --> backup
   mail_relay --> mail
-  monitoring --> mail
   monitoring__alerting --> mail
   monitoring__nginx_exporter --> mail
   monitoring__node_exporter --> mail
@@ -48,7 +46,6 @@ graph LR
   virtualization__docker --> mail
   mail --> relay
   mail_relay --> relay
-  monitoring --> relay
   monitoring__alerting --> relay
   monitoring__nginx_exporter --> relay
   monitoring__node_exporter --> relay
@@ -57,17 +54,15 @@ graph LR
   tailscale --> relay
   virtualization --> relay
   virtualization__docker --> relay
-  monitoring --> monitoring__node_exporter
   monitoring__alerting --> tailscale
   monitoring__nginx_exporter --> monitoring__alerting
   monitoring__node_exporter --> monitoring__nginx_exporter
-  networking --> monitoring
   relay --> mail_relay
   relay --> networking
   relay --> server
   server --> monitoring__alerting
   server --> virtualization__docker
-  server --> monitoring
+  server -.-x monitoring
   server --> networking
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
@@ -102,7 +97,7 @@ graph LR
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
-  classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px

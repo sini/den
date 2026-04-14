@@ -51,7 +51,6 @@ graph LR
   tailscale --> relay
   virtualization --> relay
   monitoring --> tailscale
-  networking --> monitoring
   relay --> mail_relay
   relay --> networking
   relay --> server
@@ -68,7 +67,7 @@ graph LR
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_relay_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:3px
-  classDef monitoring_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
+  classDef monitoring_c fill:#fab387,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef relay_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px

@@ -30,9 +30,9 @@ graph LR
   alice --> den__provides__mutual_provider
   angle_brackets --> desktop
   angle_brackets --> networking
-  angle_brackets --> tailscale
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
+  angle_brackets -.-x tailscale
   den__provides__mutual_provider --> den__provides__define_user
   den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice
@@ -49,18 +49,13 @@ graph LR
   den__provides__primary_user --> networking
   desktop --> angle_brackets
   desktop --> networking
-  desktop --> tailscale
   desktop --> regreet
   dev_tools --> alice
   dev_tools --> demo_shell
   dev_tools --> hyprland
   networking --> desktop
   regreet --> desktop
-  tailscale --> desktop
   regreet --> networking
-  tailscale --> networking
-  networking --> tailscale
-  regreet --> tailscale
   hyprland --> dev_tools
   hyprland --> alice
   hyprland --> demo_shell
@@ -81,5 +76,5 @@ graph LR
   classDef primary_user_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef regreet_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
-  classDef tailscale_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#a6e3a1,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
 ```

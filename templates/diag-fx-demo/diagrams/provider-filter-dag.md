@@ -48,25 +48,18 @@ graph LR
   host__self_provide_host_ --> backup
   host__self_provide_host_ --> server
   monitoring --> host__self_provide_host_
-  monitoring --> monitoring__node_exporter
-  monitoring__alerting --> host__self_provide_host_
-  monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__nginx_exporter --> host__self_provide_host_
-  monitoring__node_exporter --> host__self_provide_host_
-  monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> host__self_provide_host_
   networking --> monitoring
   provider_filter --> host__self_provide_host_
   provider_filter --> server
-  server --> monitoring__alerting
+  server -.-x monitoring__alerting
   server --> backup
   server --> virtualization__docker
   server --> host__self_provide_host_
   server --> monitoring
   server --> networking
-  server --> monitoring__nginx_exporter
-  server --> monitoring__node_exporter
+  server -.-x monitoring__nginx_exporter
+  server -.-x monitoring__node_exporter
   server --> provider_filter
   server --> tailscale
   server --> virtualization
@@ -142,7 +135,7 @@ graph LR
 
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
-  classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__alerting_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef n_default_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef default__aspect_default__c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
@@ -169,8 +162,8 @@ graph LR
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
+  classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
@@ -205,7 +198,7 @@ digraph {
     color="#6c7086";
     fontcolor="#cdd6f4";
     bgcolor="#313244";
-  monitoring__alerting [label="monitoring/alerting",shape=trapezium,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
+  monitoring__alerting [label="monitoring/alerting",shape=trapezium,style="filled,dashed",fillcolor="#cba6f7",color="#f38ba8",fontcolor="#1e1e2e"];
   backup [label="backup",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   virtualization__docker [label="virtualization/docker",shape=trapezium,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
   host [label="host",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
@@ -214,8 +207,8 @@ digraph {
   host__self_provide_host_ [label="host/self-provide(host)",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   monitoring [label="monitoring",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   networking [label="networking",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
-  monitoring__nginx_exporter [label="monitoring/nginx-exporter",shape=trapezium,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
-  monitoring__node_exporter [label="monitoring/node-exporter",shape=trapezium,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
+  monitoring__nginx_exporter [label="monitoring/nginx-exporter",shape=trapezium,style="filled,dashed",fillcolor="#89b4fa",color="#f38ba8",fontcolor="#1e1e2e"];
+  monitoring__node_exporter [label="monitoring/node-exporter",shape=trapezium,style="filled,dashed",fillcolor="#f2cdcd",color="#f38ba8",fontcolor="#1e1e2e"];
   server [label="server",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   tailscale [label="tailscale",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   virtualization [label="virtualization",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
@@ -319,25 +312,18 @@ digraph {
   host__self_provide_host_ -> backup;
   host__self_provide_host_ -> server;
   monitoring -> host__self_provide_host_;
-  monitoring -> monitoring__node_exporter;
-  monitoring__alerting -> host__self_provide_host_;
-  monitoring__alerting -> tailscale;
-  monitoring__nginx_exporter -> monitoring__alerting;
-  monitoring__nginx_exporter -> host__self_provide_host_;
-  monitoring__node_exporter -> host__self_provide_host_;
-  monitoring__node_exporter -> monitoring__nginx_exporter;
   networking -> host__self_provide_host_;
   networking -> monitoring;
   provider_filter -> host__self_provide_host_;
   provider_filter -> server;
-  server -> monitoring__alerting;
+  server -> monitoring__alerting [style=dashed,color="#f38ba8"];
   server -> backup;
   server -> virtualization__docker;
   server -> host__self_provide_host_;
   server -> monitoring;
   server -> networking;
-  server -> monitoring__nginx_exporter;
-  server -> monitoring__node_exporter;
+  server -> monitoring__nginx_exporter [style=dashed,color="#f38ba8"];
+  server -> monitoring__node_exporter [style=dashed,color="#f38ba8"];
   server -> provider_filter;
   server -> tailscale;
   server -> virtualization;
@@ -388,7 +374,7 @@ skinparam NoteFontColor #cdd6f4
 
 rectangle "provider-filter" as provider_filter #89b4fa
 package "host" as stage_host {
-  card "monitoring/alerting" as monitoring__alerting #cba6f7
+  card "monitoring/alerting" as monitoring__alerting #cba6f7;line.dashed
   rectangle "backup" as backup #89b4fa
   card "virtualization/docker" as virtualization__docker #cba6f7
   rectangle "host" as host #89b4fa
@@ -397,8 +383,8 @@ package "host" as stage_host {
   rectangle "host/self-provide(host)" as host__self_provide_host_ #f2cdcd
   rectangle "monitoring" as monitoring #89b4fa
   rectangle "networking" as networking #89b4fa
-  card "monitoring/nginx-exporter" as monitoring__nginx_exporter #89b4fa
-  card "monitoring/node-exporter" as monitoring__node_exporter #f2cdcd
+  card "monitoring/nginx-exporter" as monitoring__nginx_exporter #89b4fa;line.dashed
+  card "monitoring/node-exporter" as monitoring__node_exporter #f2cdcd;line.dashed
   rectangle "server" as server #89b4fa
   rectangle "tailscale" as tailscale #f2cdcd
   rectangle "virtualization" as virtualization #89b4fa
@@ -482,25 +468,18 @@ host__cross_provide__anon__ --> n_default
 host__self_provide_host_ --> backup
 host__self_provide_host_ --> server
 monitoring --> host__self_provide_host_
-monitoring --> monitoring__node_exporter
-monitoring__alerting --> host__self_provide_host_
-monitoring__alerting --> tailscale
-monitoring__nginx_exporter --> monitoring__alerting
-monitoring__nginx_exporter --> host__self_provide_host_
-monitoring__node_exporter --> host__self_provide_host_
-monitoring__node_exporter --> monitoring__nginx_exporter
 networking --> host__self_provide_host_
 networking --> monitoring
 provider_filter --> host__self_provide_host_
 provider_filter --> server
-server --> monitoring__alerting
+server ..x monitoring__alerting
 server --> backup
 server --> virtualization__docker
 server --> host__self_provide_host_
 server --> monitoring
 server --> networking
-server --> monitoring__nginx_exporter
-server --> monitoring__node_exporter
+server ..x monitoring__nginx_exporter
+server ..x monitoring__node_exporter
 server --> provider_filter
 server --> tailscale
 server --> virtualization

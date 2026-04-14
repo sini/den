@@ -105,22 +105,17 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   angle_brackets --> desktop
   angle_brackets --> networking
-  angle_brackets --> tailscale
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
+  angle_brackets -.-x tailscale
   den__provides__primary_user --> demo_shell
   den__provides__primary_user --> networking
   desktop --> angle_brackets
   desktop --> networking
-  desktop --> tailscale
   desktop --> regreet
   networking --> desktop
   regreet --> desktop
-  tailscale --> desktop
   regreet --> networking
-  tailscale --> networking
-  networking --> tailscale
-  regreet --> tailscale
   primary_user --> demo_shell
   primary_user --> networking
   end
@@ -178,7 +173,7 @@ graph LR
   classDef primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
 style ctx_host fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px
@@ -196,25 +191,25 @@ graph LR
 
   subgraph ctx_host["host"]
   desktop["desktop"]:::desktop_c
+  gdm["gdm"]:::gdm_c
   networking["networking"]:::networking_c
   virtualization__podman[/"virtualization/podman"\]:::virtualization__podman_c
   regreet["regreet"]:::regreet_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
+  desktop --> gdm
   desktop --> workstation
-  desktop --> regreet
+  desktop -.->|replaced| regreet
   desktop --> virtualization
   desktop_gdm --> workstation
+  gdm --> desktop
   networking --> workstation
-  regreet --> workstation
   tailscale --> workstation
   virtualization --> workstation
   virtualization__podman --> workstation
   networking --> tailscale
-  regreet --> desktop
   tailscale --> desktop
-  tailscale --> regreet
   virtualization --> virtualization__podman
   workstation --> desktop
   workstation --> desktop_gdm
@@ -274,6 +269,7 @@ graph LR
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
+  classDef gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -281,7 +277,7 @@ graph LR
   classDef virtualization__podman_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef regreet_c fill:#89b4fa,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -332,9 +328,7 @@ graph LR
   networking --> backup
   regreet --> backup
   server --> backup
-  tailscale --> backup
   virtualization --> backup
-  virtualization__docker --> backup
   virtualization__podman --> backup
   workstation --> backup
   monitoring --> server
@@ -343,9 +337,7 @@ graph LR
   monitoring__node_exporter --> server
   networking --> server
   regreet --> server
-  tailscale --> server
   virtualization --> server
-  virtualization__docker --> server
   virtualization__podman --> server
   workstation --> server
   monitoring --> workstation
@@ -355,35 +347,27 @@ graph LR
   networking --> workstation
   regreet --> workstation
   server --> workstation
-  tailscale --> workstation
   virtualization --> workstation
-  virtualization__docker --> workstation
   virtualization__podman --> workstation
   monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
   monitoring__nginx_exporter --> monitoring__alerting
   monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> monitoring
-  networking --> tailscale
   regreet --> desktop
   server --> monitoring__alerting
   server --> devbox
-  server --> virtualization__docker
+  server -.-x virtualization__docker
   server --> monitoring
   server --> networking
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
-  server --> tailscale
+  server -.-x tailscale
   server --> virtualization
-  tailscale --> desktop
-  tailscale --> regreet
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   virtualization --> virtualization__podman
   workstation --> desktop
   workstation --> networking
   workstation --> virtualization__podman
-  workstation --> tailscale
+  workstation -.-x tailscale
   workstation --> virtualization
   end
   subgraph ctx_default["default"]
@@ -439,7 +423,7 @@ graph LR
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
-  classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
+  classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -452,7 +436,7 @@ graph LR
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef workstation_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -594,7 +578,6 @@ graph LR
   backup --> server
   mail --> backup
   mail_relay --> backup
-  monitoring --> backup
   monitoring__alerting --> backup
   monitoring__nginx_exporter --> backup
   monitoring__node_exporter --> backup
@@ -605,7 +588,6 @@ graph LR
   virtualization --> backup
   virtualization__docker --> backup
   mail_relay --> mail
-  monitoring --> mail
   monitoring__alerting --> mail
   monitoring__nginx_exporter --> mail
   monitoring__node_exporter --> mail
@@ -617,7 +599,6 @@ graph LR
   virtualization__docker --> mail
   mail --> relay
   mail_relay --> relay
-  monitoring --> relay
   monitoring__alerting --> relay
   monitoring__nginx_exporter --> relay
   monitoring__node_exporter --> relay
@@ -626,17 +607,15 @@ graph LR
   tailscale --> relay
   virtualization --> relay
   virtualization__docker --> relay
-  monitoring --> monitoring__node_exporter
   monitoring__alerting --> tailscale
   monitoring__nginx_exporter --> monitoring__alerting
   monitoring__node_exporter --> monitoring__nginx_exporter
-  networking --> monitoring
   relay --> mail_relay
   relay --> networking
   relay --> server
   server --> monitoring__alerting
   server --> virtualization__docker
-  server --> monitoring
+  server -.-x monitoring
   server --> networking
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
@@ -671,7 +650,7 @@ graph LR
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
-  classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -835,9 +814,6 @@ graph LR
   virtualization["virtualization"]:::virtualization_c
   backup --> server
   monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
   networking --> backup
   provider_filter --> backup
   server --> backup
@@ -845,25 +821,18 @@ graph LR
   virtualization --> backup
   virtualization__docker --> backup
   monitoring --> server
-  monitoring__alerting --> server
-  monitoring__nginx_exporter --> server
-  monitoring__node_exporter --> server
   networking --> server
   provider_filter --> server
   tailscale --> server
   virtualization --> server
   virtualization__docker --> server
-  monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> monitoring
-  server --> monitoring__alerting
+  server -.-x monitoring__alerting
   server --> virtualization__docker
   server --> monitoring
   server --> networking
-  server --> monitoring__nginx_exporter
-  server --> monitoring__node_exporter
+  server -.-x monitoring__nginx_exporter
+  server -.-x monitoring__node_exporter
   server --> provider_filter
   server --> tailscale
   server --> virtualization
@@ -888,7 +857,7 @@ graph LR
 
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
-  classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__alerting_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef deploy_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
@@ -897,8 +866,8 @@ graph LR
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
+  classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
@@ -931,7 +900,6 @@ graph LR
   backup --> server
   monitoring --> backup
   monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
   monitoring__node_exporter --> backup
   networking --> backup
   server --> backup
@@ -941,7 +909,6 @@ graph LR
   web_server --> backup
   monitoring --> server
   monitoring__alerting --> server
-  monitoring__nginx_exporter --> server
   monitoring__node_exporter --> server
   networking --> server
   tailscale --> server
@@ -950,14 +917,12 @@ graph LR
   web_server --> server
   monitoring --> monitoring__node_exporter
   monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> monitoring
   server --> monitoring__alerting
   server --> virtualization__docker
   server --> monitoring
   server --> networking
-  server --> monitoring__nginx_exporter
+  server -.-x monitoring__nginx_exporter
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
@@ -992,7 +957,7 @@ graph LR
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px

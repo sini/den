@@ -12,7 +12,6 @@ graph LR
   backup["backup"]:::backup_c
   virtualization__docker[/"virtualization/docker"\]:::virtualization__docker_c
   mail["mail"]:::mail_c
-  monitoring["monitoring"]:::monitoring_c
   networking["networking"]:::networking_c
   monitoring__nginx_exporter[/"monitoring/nginx-exporter"\]:::monitoring__nginx_exporter_c
   monitoring__node_exporter[/"monitoring/node-exporter"\]:::monitoring__node_exporter_c
@@ -28,28 +27,20 @@ graph LR
   mail_relay --> backup
   mail_relay --> mail
   mail_relay --> relay
-  monitoring --> backup
-  monitoring --> mail
-  monitoring --> monitoring__node_exporter
-  monitoring --> relay
   monitoring__alerting --> backup
   monitoring__alerting --> mail
-  monitoring__alerting -.->|provided-by| monitoring
   monitoring__alerting --> relay
   monitoring__alerting --> tailscale
   monitoring__nginx_exporter --> backup
   monitoring__nginx_exporter --> mail
-  monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter --> monitoring__alerting
   monitoring__nginx_exporter --> relay
   monitoring__node_exporter --> backup
   monitoring__node_exporter --> mail
-  monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__node_exporter --> monitoring__nginx_exporter
   monitoring__node_exporter --> relay
   networking --> backup
   networking --> mail
-  networking --> monitoring
   networking --> relay
   relay --> backup
   relay --> mail
@@ -58,7 +49,6 @@ graph LR
   relay --> server
   server --> backup
   server --> mail
-  server --> monitoring
   server --> monitoring__alerting
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
@@ -93,7 +83,6 @@ graph LR
   classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef mail_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef mail_relay_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
-  classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef networking_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px

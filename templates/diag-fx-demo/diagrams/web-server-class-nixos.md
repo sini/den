@@ -21,7 +21,6 @@ graph LR
   backup --> server
   monitoring --> backup
   monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
   monitoring__node_exporter --> backup
   networking --> backup
   server --> backup
@@ -31,7 +30,6 @@ graph LR
   web_server --> backup
   monitoring --> server
   monitoring__alerting --> server
-  monitoring__nginx_exporter --> server
   monitoring__node_exporter --> server
   networking --> server
   tailscale --> server
@@ -40,14 +38,12 @@ graph LR
   web_server --> server
   monitoring --> monitoring__node_exporter
   monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> monitoring
   server --> monitoring__alerting
   server --> virtualization__docker
   server --> monitoring
   server --> networking
-  server --> monitoring__nginx_exporter
+  server -.-x monitoring__nginx_exporter
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
@@ -72,7 +68,7 @@ graph LR
   classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px

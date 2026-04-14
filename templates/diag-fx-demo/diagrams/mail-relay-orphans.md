@@ -7,8 +7,10 @@
 graph LR
   mail_relay([mail-relay]):::root
   deploy["deploy · user"]:::deploy_c
+  monitoring["monitoring · host"]:::monitoring_c
 
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef deploy_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
 ```

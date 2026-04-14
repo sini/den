@@ -11,21 +11,14 @@ graph LR
   desktop["desktop"]:::desktop_c
   networking["networking"]:::networking_c
   regreet["regreet"]:::regreet_c
-  tailscale["tailscale"]:::tailscale_c
   angle_brackets --> desktop
   angle_brackets --> networking
-  angle_brackets --> tailscale
   desktop --> angle_brackets
   desktop --> networking
-  desktop --> tailscale
   desktop --> regreet
   networking --> desktop
   regreet --> desktop
-  tailscale --> desktop
   regreet --> networking
-  tailscale --> networking
-  networking --> tailscale
-  regreet --> tailscale
   end
   subgraph ctx_default["default"]
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
@@ -46,7 +39,6 @@ graph LR
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
 style ctx_host fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px

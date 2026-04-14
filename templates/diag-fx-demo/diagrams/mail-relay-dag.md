@@ -54,8 +54,6 @@ graph LR
   mail --> relay
   mail_relay --> host__self_provide_host_
   mail_relay --> relay
-  monitoring --> host__self_provide_host_
-  monitoring --> monitoring__node_exporter
   monitoring__alerting --> host__self_provide_host_
   monitoring__alerting --> tailscale
   monitoring__nginx_exporter --> monitoring__alerting
@@ -63,7 +61,6 @@ graph LR
   monitoring__node_exporter --> host__self_provide_host_
   monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> host__self_provide_host_
-  networking --> monitoring
   relay --> host__self_provide_host_
   relay --> mail
   relay --> mail_relay
@@ -74,7 +71,7 @@ graph LR
   server --> virtualization__docker
   server --> host__self_provide_host_
   server --> mail
-  server --> monitoring
+  server -.-x monitoring
   server --> networking
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
@@ -178,7 +175,7 @@ graph LR
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
-  classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -225,7 +222,7 @@ digraph {
   host__cross_provide__anon__ [label="host/cross-provide(<anon>)",shape=box,style=filled,fillcolor="#cba6f7",color="#cba6f7",fontcolor="#1e1e2e"];
   host__self_provide_host_ [label="host/self-provide(host)",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   mail [label="mail",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
-  monitoring [label="monitoring",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
+  monitoring [label="monitoring",shape=box,style="filled,dashed",fillcolor="#89b4fa",color="#f38ba8",fontcolor="#1e1e2e"];
   networking [label="networking",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   monitoring__nginx_exporter [label="monitoring/nginx-exporter",shape=trapezium,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   monitoring__node_exporter [label="monitoring/node-exporter",shape=trapezium,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
@@ -337,8 +334,6 @@ digraph {
   mail -> relay;
   mail_relay -> host__self_provide_host_;
   mail_relay -> relay;
-  monitoring -> host__self_provide_host_;
-  monitoring -> monitoring__node_exporter;
   monitoring__alerting -> host__self_provide_host_;
   monitoring__alerting -> tailscale;
   monitoring__nginx_exporter -> monitoring__alerting;
@@ -346,7 +341,6 @@ digraph {
   monitoring__node_exporter -> host__self_provide_host_;
   monitoring__node_exporter -> monitoring__nginx_exporter;
   networking -> host__self_provide_host_;
-  networking -> monitoring;
   relay -> host__self_provide_host_;
   relay -> mail;
   relay -> mail_relay;
@@ -357,7 +351,7 @@ digraph {
   server -> virtualization__docker;
   server -> host__self_provide_host_;
   server -> mail;
-  server -> monitoring;
+  server -> monitoring [style=dashed,color="#f38ba8"];
   server -> networking;
   server -> monitoring__nginx_exporter;
   server -> monitoring__node_exporter;
@@ -418,7 +412,7 @@ package "host" as stage_host {
   rectangle "host/cross-provide(&lt;anon&gt;)" as host__cross_provide__anon__ #cba6f7
   rectangle "host/self-provide(host)" as host__self_provide_host_ #f2cdcd
   rectangle "mail" as mail #f2cdcd
-  rectangle "monitoring" as monitoring #89b4fa
+  rectangle "monitoring" as monitoring #89b4fa;line.dashed
   rectangle "networking" as networking #89b4fa
   card "monitoring/nginx-exporter" as monitoring__nginx_exporter #89b4fa
   card "monitoring/node-exporter" as monitoring__node_exporter #f2cdcd
@@ -510,8 +504,6 @@ mail --> host__self_provide_host_
 mail --> relay
 mail_relay --> host__self_provide_host_
 mail_relay --> relay
-monitoring --> host__self_provide_host_
-monitoring --> monitoring__node_exporter
 monitoring__alerting --> host__self_provide_host_
 monitoring__alerting --> tailscale
 monitoring__nginx_exporter --> monitoring__alerting
@@ -519,7 +511,6 @@ monitoring__nginx_exporter --> host__self_provide_host_
 monitoring__node_exporter --> host__self_provide_host_
 monitoring__node_exporter --> monitoring__nginx_exporter
 networking --> host__self_provide_host_
-networking --> monitoring
 relay --> host__self_provide_host_
 relay --> mail
 relay --> mail_relay
@@ -530,7 +521,7 @@ server --> backup
 server --> virtualization__docker
 server --> host__self_provide_host_
 server --> mail
-server --> monitoring
+server ..x monitoring
 server --> networking
 server --> monitoring__nginx_exporter
 server --> monitoring__node_exporter

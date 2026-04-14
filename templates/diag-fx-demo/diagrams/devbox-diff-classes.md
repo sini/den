@@ -19,7 +19,6 @@ graph LR
   virtualization__podman[/"virtualization/podman"\]:::virtualization__podman_c
   regreet["regreet"]:::regreet_c
   server["server"]:::server_c
-  tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
   backup --> server
@@ -39,7 +38,6 @@ graph LR
   monitoring__alerting --> backup
   monitoring__alerting -.->|provided-by| monitoring
   monitoring__alerting --> server
-  monitoring__alerting --> tailscale
   monitoring__alerting --> workstation
   monitoring__nginx_exporter --> backup
   monitoring__nginx_exporter -.->|provided-by| monitoring
@@ -54,7 +52,6 @@ graph LR
   networking --> backup
   networking --> monitoring
   networking --> server
-  networking --> tailscale
   networking --> workstation
   regreet --> backup
   regreet --> desktop
@@ -67,25 +64,14 @@ graph LR
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
   server --> networking
-  server --> tailscale
   server --> virtualization
-  server --> virtualization__docker
+  server -.-x virtualization__docker
   server --> workstation
-  tailscale --> backup
-  tailscale --> desktop
-  tailscale --> regreet
-  tailscale --> server
-  tailscale --> virtualization
-  tailscale --> workstation
   virtualization --> backup
   virtualization --> server
-  virtualization --> virtualization__docker
   virtualization --> virtualization__podman
   virtualization --> workstation
-  virtualization__docker --> backup
-  virtualization__docker --> server
   virtualization__docker -.->|provided-by| virtualization
-  virtualization__docker --> workstation
   virtualization__podman --> backup
   virtualization__podman --> server
   virtualization__podman -.->|provided-by| virtualization
@@ -94,7 +80,6 @@ graph LR
   workstation --> desktop
   workstation --> networking
   workstation --> server
-  workstation --> tailscale
   workstation --> virtualization
   workstation --> virtualization__podman
   end
@@ -165,7 +150,6 @@ graph LR
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef server_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef workstation_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px

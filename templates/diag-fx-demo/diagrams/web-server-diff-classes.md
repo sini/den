@@ -26,13 +26,9 @@ graph LR
   monitoring__alerting -.->|provided-by| monitoring
   monitoring__alerting --> server
   monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> backup
   monitoring__nginx_exporter -.->|provided-by| monitoring
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__nginx_exporter --> server
   monitoring__node_exporter --> backup
   monitoring__node_exporter -.->|provided-by| monitoring
-  monitoring__node_exporter --> monitoring__nginx_exporter
   monitoring__node_exporter --> server
   networking --> backup
   networking --> monitoring
@@ -40,7 +36,7 @@ graph LR
   server --> backup
   server --> monitoring
   server --> monitoring__alerting
-  server --> monitoring__nginx_exporter
+  server -.-x monitoring__nginx_exporter
   server --> monitoring__node_exporter
   server --> networking
   server --> tailscale

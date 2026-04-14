@@ -25,7 +25,7 @@ graph LR
   angle_brackets --> networking
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
-  angle_brackets --> tailscale
+  angle_brackets -.-x tailscale
   den__provides__primary_user --> demo_shell
   den__provides__primary_user --> networking
   desktop --> angle_brackets
@@ -52,17 +52,12 @@ graph LR
   host__cross_provide__anon__ --> n_default
   host__self_provide_host_ --> desktop
   host__self_provide_host_ --> networking
-  host__self_provide_host_ --> tailscale
   networking --> host__self_provide_host_
   networking --> networking
-  networking --> tailscale
   primary_user --> demo_shell
   primary_user --> networking
   regreet --> desktop
   regreet --> host__self_provide_host_
-  tailscale --> desktop
-  tailscale --> host__self_provide_host_
-  tailscale --> tailscale
   end
   subgraph ctx_default["default"]
   n_default["default"]:::n_default_c
@@ -181,7 +176,7 @@ graph LR
   classDef primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
+  classDef tailscale_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef user__aspect_user__c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -222,7 +217,7 @@ digraph {
   primary_user [label="primary-user",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   den__provides__primary_user [label="provides/primary-user",shape=trapezium,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   regreet [label="regreet",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
-  tailscale [label="tailscale",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
+  tailscale [label="tailscale",shape=box,style="filled,dashed",fillcolor="#f2cdcd",color="#f38ba8",fontcolor="#1e1e2e"];
   }
   subgraph cluster_ctx_default {
     label="default";
@@ -292,7 +287,7 @@ digraph {
   angle_brackets -> networking;
   angle_brackets -> primary_user;
   angle_brackets -> den__provides__primary_user;
-  angle_brackets -> tailscale;
+  angle_brackets -> tailscale [style=dashed,color="#f38ba8"];
   n_default -> default__aspect_default_;
   n_default -> den__provides__define_user;
   n_default -> den__provides__hostname;
@@ -349,20 +344,15 @@ digraph {
   host__cross_provide__anon__ -> n_default;
   host__self_provide_host_ -> desktop;
   host__self_provide_host_ -> networking;
-  host__self_provide_host_ -> tailscale;
   hyprland -> dev_tools;
   hyprland -> hyprland;
   hyprland -> user__self_provide_user_;
   networking -> host__self_provide_host_;
   networking -> networking;
-  networking -> tailscale;
   primary_user -> demo_shell;
   primary_user -> networking;
   regreet -> desktop;
   regreet -> host__self_provide_host_;
-  tailscale -> desktop;
-  tailscale -> host__self_provide_host_;
-  tailscale -> tailscale;
   user -> alice;
   user -> user__aspect_user_;
   user__aspect_user_ -> user;
@@ -413,7 +403,7 @@ package "host" as stage_host {
   rectangle "primary-user" as primary_user #89b4fa
   card "provides/primary-user" as den__provides__primary_user #89b4fa
   rectangle "regreet" as regreet #89b4fa
-  rectangle "tailscale" as tailscale #f2cdcd
+  rectangle "tailscale" as tailscale #f2cdcd;line.dashed
 }
 package "default" as stage_default {
   rectangle "default" as n_default #fab387
@@ -463,7 +453,7 @@ angle_brackets --> host__self_provide_host_
 angle_brackets --> networking
 angle_brackets --> primary_user
 angle_brackets --> den__provides__primary_user
-angle_brackets --> tailscale
+angle_brackets ..x tailscale
 n_default --> default__aspect_default_
 n_default --> den__provides__define_user
 n_default --> den__provides__hostname
@@ -520,20 +510,15 @@ host__aspect_host_ --> host
 host__cross_provide__anon__ --> n_default
 host__self_provide_host_ --> desktop
 host__self_provide_host_ --> networking
-host__self_provide_host_ --> tailscale
 hyprland --> dev_tools
 hyprland --> hyprland
 hyprland --> user__self_provide_user_
 networking --> host__self_provide_host_
 networking --> networking
-networking --> tailscale
 primary_user --> demo_shell
 primary_user --> networking
 regreet --> desktop
 regreet --> host__self_provide_host_
-tailscale --> desktop
-tailscale --> host__self_provide_host_
-tailscale --> tailscale
 user --> alice
 user --> user__aspect_user_
 user__aspect_user_ --> user

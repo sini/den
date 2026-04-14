@@ -9,25 +9,23 @@ graph LR
 
   subgraph ctx_host["host"]
   desktop["desktop"]:::desktop_c
+  gdm["gdm"]:::gdm_c
   networking["networking"]:::networking_c
   virtualization__podman[/"virtualization/podman"\]:::virtualization__podman_c
-  regreet["regreet"]:::regreet_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
+  desktop --> gdm
   desktop --> workstation
-  desktop --> regreet
   desktop --> virtualization
   desktop_gdm --> workstation
+  gdm --> desktop
   networking --> workstation
-  regreet --> workstation
   tailscale --> workstation
   virtualization --> workstation
   virtualization__podman --> workstation
   networking --> tailscale
-  regreet --> desktop
   tailscale --> desktop
-  tailscale --> regreet
   virtualization --> virtualization__podman
   workstation --> desktop
   workstation --> desktop_gdm
@@ -89,6 +87,7 @@ graph LR
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
+  classDef gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -96,7 +95,6 @@ graph LR
   classDef virtualization__podman_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef alice__to_hosts_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px

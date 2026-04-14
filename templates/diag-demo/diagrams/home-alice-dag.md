@@ -207,6 +207,7 @@ digraph {
 
 ```plantuml
 @startuml
+left to right direction
 skinparam backgroundColor #1e1e2e
 skinparam defaultFontColor #cdd6f4
 skinparam defaultFontName "JetBrains Mono,monospace"
@@ -229,7 +230,7 @@ skinparam NoteBorderColor #6c7086
 skinparam NoteFontColor #cdd6f4
 
 rectangle "alice" as alice #89b4fa
-package "home { home }" {
+package "home { home }" as stage_home {
   rectangle "alice-dotfiles" as alice_dotfiles #f2cdcd
   rectangle "demo-shell" as demo_shell #cba6f7
   rectangle "dev-tools" as dev_tools #f38ba8
@@ -240,13 +241,13 @@ package "home { home }" {
   rectangle "home-productivity" as home_productivity #cba6f7
   rectangle "home-slack" as home_slack #f2cdcd
   rectangle "home/aspect(home)" as home__aspect_home_ #cba6f7
-  rectangle "home/cross-provide(<anon>)" as home__cross_provide__anon__ #cba6f7
+  rectangle "home/cross-provide(&lt;anon&gt;)" as home__cross_provide__anon__ #cba6f7
   rectangle "home/self-provide(home)" as home__self_provide_home_ #f38ba8
   rectangle "hyprland" as hyprland #cba6f7
   rectangle "primary-user" as primary_user #cba6f7
   card "provides/primary-user" as den__provides__primary_user #cba6f7
 }
-package "default { home }" {
+package "default { home }" as stage_default {
   hexagon "default\n({ aspect-chain, class })" as n_default #fab387
   rectangle "default/aspect(default)" as default__aspect_default_ #a6e3a1
   card "provides/default/aspect(default):den/provides" as den__provides__default__aspect_default__den__provides #a6e3a1

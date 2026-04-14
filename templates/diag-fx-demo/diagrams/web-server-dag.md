@@ -51,10 +51,7 @@ graph LR
   monitoring --> monitoring__node_exporter
   monitoring__alerting --> host__self_provide_host_
   monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__nginx_exporter --> host__self_provide_host_
   monitoring__node_exporter --> host__self_provide_host_
-  monitoring__node_exporter --> monitoring__nginx_exporter
   networking --> host__self_provide_host_
   networking --> monitoring
   server --> monitoring__alerting
@@ -63,7 +60,7 @@ graph LR
   server --> host__self_provide_host_
   server --> monitoring
   server --> networking
-  server --> monitoring__nginx_exporter
+  server -.-x monitoring__nginx_exporter
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
@@ -169,7 +166,7 @@ graph LR
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
+  classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
@@ -214,7 +211,7 @@ digraph {
   host__self_provide_host_ [label="host/self-provide(host)",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   monitoring [label="monitoring",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   networking [label="networking",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
-  monitoring__nginx_exporter [label="monitoring/nginx-exporter",shape=trapezium,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
+  monitoring__nginx_exporter [label="monitoring/nginx-exporter",shape=trapezium,style="filled,dashed",fillcolor="#89b4fa",color="#f38ba8",fontcolor="#1e1e2e"];
   monitoring__node_exporter [label="monitoring/node-exporter",shape=trapezium,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   server [label="server",shape=box,style=filled,fillcolor="#89b4fa",color="#89b4fa",fontcolor="#1e1e2e"];
   tailscale [label="tailscale",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
@@ -322,10 +319,7 @@ digraph {
   monitoring -> monitoring__node_exporter;
   monitoring__alerting -> host__self_provide_host_;
   monitoring__alerting -> tailscale;
-  monitoring__nginx_exporter -> monitoring__alerting;
-  monitoring__nginx_exporter -> host__self_provide_host_;
   monitoring__node_exporter -> host__self_provide_host_;
-  monitoring__node_exporter -> monitoring__nginx_exporter;
   networking -> host__self_provide_host_;
   networking -> monitoring;
   server -> monitoring__alerting;
@@ -334,7 +328,7 @@ digraph {
   server -> host__self_provide_host_;
   server -> monitoring;
   server -> networking;
-  server -> monitoring__nginx_exporter;
+  server -> monitoring__nginx_exporter [style=dashed,color="#f38ba8"];
   server -> monitoring__node_exporter;
   server -> tailscale;
   server -> virtualization;
@@ -397,7 +391,7 @@ package "host" as stage_host {
   rectangle "host/self-provide(host)" as host__self_provide_host_ #f2cdcd
   rectangle "monitoring" as monitoring #89b4fa
   rectangle "networking" as networking #89b4fa
-  card "monitoring/nginx-exporter" as monitoring__nginx_exporter #89b4fa
+  card "monitoring/nginx-exporter" as monitoring__nginx_exporter #89b4fa;line.dashed
   card "monitoring/node-exporter" as monitoring__node_exporter #f2cdcd
   rectangle "server" as server #89b4fa
   rectangle "tailscale" as tailscale #f2cdcd
@@ -485,10 +479,7 @@ monitoring --> host__self_provide_host_
 monitoring --> monitoring__node_exporter
 monitoring__alerting --> host__self_provide_host_
 monitoring__alerting --> tailscale
-monitoring__nginx_exporter --> monitoring__alerting
-monitoring__nginx_exporter --> host__self_provide_host_
 monitoring__node_exporter --> host__self_provide_host_
-monitoring__node_exporter --> monitoring__nginx_exporter
 networking --> host__self_provide_host_
 networking --> monitoring
 server --> monitoring__alerting
@@ -497,7 +488,7 @@ server --> virtualization__docker
 server --> host__self_provide_host_
 server --> monitoring
 server --> networking
-server --> monitoring__nginx_exporter
+server ..x monitoring__nginx_exporter
 server --> monitoring__node_exporter
 server --> tailscale
 server --> virtualization
