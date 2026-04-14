@@ -12,6 +12,13 @@ let
     fx = null;
   };
 
+  # Pure trace handlers — no nix-effects dependency.
+  pureTrace = import ./trace.nix {
+    inherit lib den;
+    fx = null;
+    identity = pureIdentity;
+  };
+
   # Pure adapter constructors — no nix-effects dependency.
   # Available without init for use in aspect definitions.
   pureAdapters = import ./adapters.nix {
@@ -19,6 +26,7 @@ let
     fx = null;
     identity = pureIdentity;
     includes = pureIncludes;
+    trace = pureTrace;
   };
 in
 {
@@ -45,6 +53,14 @@ in
     let
       identity = import ./identity.nix { inherit lib den fx; };
       includes = import ./includes.nix { inherit lib den fx; };
+      trace = import ./trace.nix {
+        inherit
+          lib
+          den
+          fx
+          identity
+          ;
+      };
       adapters = import ./adapters.nix {
         inherit
           lib
@@ -52,6 +68,7 @@ in
           fx
           identity
           includes
+          trace
           ;
       };
       aspect = import ./aspect.nix { inherit lib den fx; };
@@ -113,6 +130,7 @@ in
         identity
         includes
         resolve
+        trace
         ;
       inherit (identity)
         aspectPath
