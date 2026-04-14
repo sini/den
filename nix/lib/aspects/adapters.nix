@@ -106,8 +106,8 @@ let
     args@{ aspect, resolveChild, ... }:
     let
       rawAdapter = aspect.meta.adapter or null;
-      # Only process function adapters (legacy). v2 attrset/list records
-      # are handled by the fx pipeline and silently skipped here.
+      # Only process function adapters (legacy). Resolution handlers
+      # (meta.handleWith) are handled by the fx pipeline separately.
       metaAdapter = if rawAdapter != null && lib.isFunction rawAdapter then rawAdapter else null;
       ownerName = aspect.meta.adapterOwner or (pathKey (aspectPath aspect));
     in
