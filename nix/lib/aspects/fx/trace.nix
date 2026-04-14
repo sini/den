@@ -6,7 +6,18 @@
   ...
 }:
 let
-  inherit (identity) aspectPath;
+  inherit (identity) aspectPath pathKey;
+
+  # Derive parent from includesChain, filtering out self-references.
+  # Mirrors legacy structuredTrace's `fp != selfFullPath` filter:
+  # withIdentity wrappers from deepRecurse carry the parent's name,
+  # so the chain may contain the aspect's own identity.
+  chainParent =
+    chain: selfPath:
+    let
+      filtered = builtins.filter (p: p != selfPath) chain;
+    in
+    if filtered == [ ] then null else lib.last filtered;
 
   # Trace handler that accumulates structured entries for each resolved aspect.
   # Reads __ctxStage/__ctxKind from provider-tagged aspects (set by ctxApply),
@@ -15,14 +26,11 @@ let
     "resolve-complete" =
       { param, state }:
       let
+        selfPath = pathKey (aspectPath param);
         entry = {
           name = param.name or "<anon>";
           inherit class;
-          parent =
-            let
-              chain = state.includesChain or [ ];
-            in
-            if chain == [ ] then null else lib.last chain;
+          parent = chainParent (state.includesChain or [ ]) selfPath;
           provider = param.meta.provider or [ ];
           excluded = param.meta.excluded or false;
           excludedFrom = param.meta.excludedFrom or null;
@@ -75,11 +83,7 @@ let
           else
             rawName;
         selfFullPath = if provPath != "" then "${provPath}/${name}" else name;
-        parent =
-          let
-            chain = state.includesChain or [ ];
-          in
-          if chain == [ ] then null else lib.last chain;
+        parent = chainParent (state.includesChain or [ ]) selfFullPath;
         entry = {
           inherit name class parent;
           provider = param.meta.provider or [ ];
