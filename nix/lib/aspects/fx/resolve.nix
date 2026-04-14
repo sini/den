@@ -215,7 +215,7 @@ let
                 else
                   child;
               includes = map tagChild (resolved.includes or [ ]);
-              rawSelfPath = adapters.pathKey (adapters.aspectPath resolved);
+              rawSelfPath = identity;
               rawName = resolved.name or "<anon>";
               isMeaningful =
                 rawName != "<anon>" && rawName != "<function body>" && !(lib.hasPrefix "[definition " rawName);
@@ -399,6 +399,7 @@ let
     seen = { };
     imports = [ ];
     adapterRegistry = { };
+    adapterFilters = [ ];
     paths = [ ];
     includesChain = [ ];
   };
