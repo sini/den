@@ -30,23 +30,49 @@ let
     includes = [ ];
   };
 
-  excludeAspect = ref: {
-    type = "exclude";
-    identity = pathKey (aspectPath ref);
+  excludeAspect = {
+    __functor = _: ref: {
+      type = "exclude";
+      scope = "subtree";
+      identity = pathKey (aspectPath ref);
+    };
+    global = ref: {
+      type = "exclude";
+      scope = "global";
+      identity = pathKey (aspectPath ref);
+    };
   };
 
-  substituteAspect = ref: replacement: {
-    type = "substitute";
-    identity = pathKey (aspectPath ref);
-    replacementName = replacement.name or "<anon>";
-    getReplacement = _: replacement;
+  substituteAspect = {
+    __functor = _: ref: replacement: {
+      type = "substitute";
+      scope = "subtree";
+      identity = pathKey (aspectPath ref);
+      replacementName = replacement.name or "<anon>";
+      getReplacement = _: replacement;
+    };
+    global = ref: replacement: {
+      type = "substitute";
+      scope = "global";
+      identity = pathKey (aspectPath ref);
+      replacementName = replacement.name or "<anon>";
+      getReplacement = _: replacement;
+    };
   };
 
   # Predicate-based filter. Excludes aspects where pred returns false.
   # pred receives the aspect attrset (with name, meta, includes, etc).
-  filterAspect = pred: {
-    type = "filter";
-    predicate = pred;
+  filterAspect = {
+    __functor = _: pred: {
+      type = "filter";
+      scope = "subtree";
+      predicate = pred;
+    };
+    global = pred: {
+      type = "filter";
+      scope = "global";
+      predicate = pred;
+    };
   };
 
   collectPathsHandler = {

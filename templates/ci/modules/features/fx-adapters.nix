@@ -276,6 +276,112 @@ in
       }
     );
 
+    test-exclude-default-scope = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        ref = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        decl = fxLib.adapters.excludeAspect ref;
+      in
+      {
+        expr = decl.scope;
+        expected = "subtree";
+      }
+    );
+
+    test-exclude-global-scope = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        ref = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        decl = fxLib.adapters.excludeAspect.global ref;
+      in
+      {
+        expr = {
+          type = decl.type;
+          scope = decl.scope;
+          identity = decl.identity;
+        };
+        expected = {
+          type = "exclude";
+          scope = "global";
+          identity = "drop";
+        };
+      }
+    );
+
+    test-substitute-default-scope = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        ref = {
+          name = "old";
+          meta.provider = [ ];
+        };
+        replacement = {
+          name = "new";
+          meta.provider = [ ];
+          includes = [ ];
+        };
+        decl = fxLib.adapters.substituteAspect ref replacement;
+      in
+      {
+        expr = decl.scope;
+        expected = "subtree";
+      }
+    );
+
+    test-substitute-global-scope = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        ref = {
+          name = "old";
+          meta.provider = [ ];
+        };
+        replacement = {
+          name = "new";
+          meta.provider = [ ];
+          includes = [ ];
+        };
+        decl = fxLib.adapters.substituteAspect.global ref replacement;
+      in
+      {
+        expr = decl.scope;
+        expected = "global";
+      }
+    );
+
+    test-filter-default-scope = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        decl = fxLib.adapters.filterAspect (_: true);
+      in
+      {
+        expr = decl.scope;
+        expected = "subtree";
+      }
+    );
+
+    test-filter-global-scope = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        decl = fxLib.adapters.filterAspect.global (_: true);
+      in
+      {
+        expr = decl.scope;
+        expected = "global";
+      }
+    );
+
     test-provideClassHandler-skips-tombstones = denTest (
       { den, ... }:
       let
