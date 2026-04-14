@@ -251,7 +251,7 @@ let
             )
           );
 
-      # Resolve a child: check-exclusion decides keep/exclude/substitute.
+      # Resolve a child: check-constraint decides keep/exclude/substitute.
       # Conditional markers (includeIf) are handled separately.
       resolveChild =
         child:

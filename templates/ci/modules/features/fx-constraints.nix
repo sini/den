@@ -78,7 +78,7 @@ in
           };
         };
         decl = fxLib.exclude ref;
-        # Register then check-exclusion
+        # Register then check-constraint
         comp = fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
           _: fx.send "check-constraint" "drop"
         );
@@ -95,7 +95,7 @@ in
       }
     );
 
-    test-check-exclusion-default-keep = denTest (
+    test-check-constraint-default-keep = denTest (
       { den, ... }:
       let
         fxLib = den.lib.aspects.fx.init fx;

@@ -102,7 +102,7 @@ in
       }
     );
 
-    # excludeAspect through full pipeline: tombstoned aspect's module not collected.
+    # exclude through full pipeline: tombstoned aspect's module not collected.
     test-exclude-through-pipeline = denTest (
       { den, ... }:
       let
@@ -149,7 +149,7 @@ in
       }
     );
 
-    # substituteAspect through full pipeline.
+    # substitute through full pipeline.
     test-substitute-through-pipeline = denTest (
       { den, ... }:
       let
