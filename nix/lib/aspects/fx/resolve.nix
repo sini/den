@@ -185,7 +185,9 @@ let
               owner = resolved.name or "<anon>";
               registerEmit = builtins.foldl' (
                 acc: reg:
-                fx.bind acc (_: fx.bind (fx.send "register-adapter" (reg // { inherit owner; })) (_: fx.pure null))
+                fx.bind acc (
+                  _: fx.bind (fx.send "register-constraint" (reg // { inherit owner; })) (_: fx.pure null)
+                )
               ) (fx.pure null) adapterList;
               # Propagate ctx stage tags to children that don't have their own.
               # This ensures nested aspects inherit the context stage from their
@@ -251,7 +253,7 @@ let
             childIdentity = identity.pathKey (identity.aspectPath envelope);
           in
           fx.bind
-            (fx.send "check-exclusion" {
+            (fx.send "check-constraint" {
               identity = childIdentity;
               aspect = envelope;
             })
@@ -373,7 +375,7 @@ let
     // handlers.ctxProviderHandler
     // handlers.ctxEmitHandler
     // handlers.provideClassHandler
-    // handlers.adapterRegistryHandler
+    // handlers.constraintRegistryHandler
     // handlers.chainHandler
     // identity.pathSetHandler
     // {
@@ -399,8 +401,8 @@ let
   defaultState = {
     seen = { };
     imports = [ ];
-    adapterRegistry = { };
-    adapterFilters = [ ];
+    constraintRegistry = { };
+    constraintFilters = [ ];
     paths = [ ];
     includesChain = [ ];
   };

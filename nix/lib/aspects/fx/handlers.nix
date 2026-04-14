@@ -170,10 +170,10 @@ let
       };
   };
 
-  # Adapter registry. Handles register-adapter and check-exclusion effects.
+  # Constraint registry. Handles register-constraint and check-constraint effects.
   # Supports identity-based (exclude, substitute) and predicate-based (filter).
-  adapterRegistryHandler = {
-    "register-adapter" =
+  constraintRegistryHandler = {
+    "register-constraint" =
       { param, state }:
       let
         ownerChain = state.includesChain or [ ];
@@ -183,7 +183,7 @@ let
         {
           resume = null;
           state = state // {
-            adapterFilters = (state.adapterFilters or [ ]) ++ [
+            constraintFilters = (state.constraintFilters or [ ]) ++ [
               {
                 predicate = param.predicate;
                 owner = param.owner or "<anon>";
@@ -196,7 +196,7 @@ let
         {
           resume = null;
           state = state // {
-            adapterRegistry = (state.adapterRegistry or { }) // {
+            constraintRegistry = (state.constraintRegistry or { }) // {
               ${param.identity} = {
                 type = param.type;
                 getReplacement = param.getReplacement or (_: null);
@@ -211,13 +211,13 @@ let
     # First checks identity-based registry, then predicate filters.
     # param = { identity; aspect; } where aspect is the full attrset
     # for predicate evaluation.
-    "check-exclusion" =
+    "check-constraint" =
       { param, state }:
       let
         identity = param.identity or param;
         aspect = param.aspect or null;
-        registry = state.adapterRegistry or { };
-        filters = state.adapterFilters or [ ];
+        registry = state.constraintRegistry or { };
+        filters = state.constraintFilters or [ ];
         currentChain = state.includesChain or [ ];
         # True when ownerChain is a prefix of currentChain (subtree membership).
         isAncestor = ownerChain: lib.take (builtins.length ownerChain) currentChain == ownerChain;
@@ -326,7 +326,7 @@ in
     ctxTraverseHandler
     ctxTraceHandler
     ctxEmitHandler
-    adapterRegistryHandler
+    constraintRegistryHandler
     provideClassHandler
     chainHandler
     ;

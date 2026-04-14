@@ -101,7 +101,7 @@ in
         ctxTraverseHandler
         ctxTraceHandler
         ctxEmitHandler
-        adapterRegistryHandler
+        constraintRegistryHandler
         provideClassHandler
         chainHandler
         ;
