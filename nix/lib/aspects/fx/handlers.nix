@@ -175,6 +175,10 @@ let
   adapterRegistryHandler = {
     "register-adapter" =
       { param, state }:
+      let
+        ownerChain = state.includesChain or [ ];
+        scope = param.scope or "subtree";
+      in
       if param.type == "filter" then
         {
           resume = null;
@@ -183,6 +187,7 @@ let
               {
                 predicate = param.predicate;
                 owner = param.owner or "<anon>";
+                inherit scope ownerChain;
               }
             ];
           };
@@ -196,6 +201,7 @@ let
                 type = param.type;
                 getReplacement = param.getReplacement or (_: null);
                 owner = param.owner or "<anon>";
+                inherit scope ownerChain;
               };
             };
           };
@@ -212,8 +218,12 @@ let
         aspect = param.aspect or null;
         registry = state.adapterRegistry or { };
         filters = state.adapterFilters or [ ];
+        currentChain = state.includesChain or [ ];
+        # True when ownerChain is a prefix of currentChain (subtree membership).
+        isAncestor = ownerChain: lib.take (builtins.length ownerChain) currentChain == ownerChain;
+        inScope = entry: entry.scope or "global" == "global" || isAncestor (entry.ownerChain or [ ]);
       in
-      if registry ? ${identity} then
+      if registry ? ${identity} && inScope registry.${identity} then
         let
           entry = registry.${identity};
         in
@@ -242,10 +252,11 @@ let
             inherit state;
           }
       else
-        # No identity match — check predicate filters.
+        # No in-scope identity match — check predicate filters.
         let
+          scopedFilters = builtins.filter inScope filters;
           failedFilter =
-            if aspect != null then lib.findFirst (f: !(f.predicate aspect)) null filters else null;
+            if aspect != null then lib.findFirst (f: !(f.predicate aspect)) null scopedFilters else null;
         in
         if failedFilter != null then
           {

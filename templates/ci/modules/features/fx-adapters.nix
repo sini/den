@@ -382,6 +382,197 @@ in
       }
     );
 
+    test-scoped-exclude-in-subtree = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        ref = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        decl = fxLib.adapters.excludeAspect ref;
+        comp = fx.bind (fx.send "chain-push" { identity = "parent"; }) (
+          _:
+          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+            _:
+            fx.bind (fx.send "chain-push" { identity = "child"; }) (
+              _:
+              fx.send "check-exclusion" {
+                identity = "drop";
+                aspect = null;
+              }
+            )
+          )
+        );
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          state = {
+            includesChain = [ ];
+            adapterRegistry = { };
+            adapterFilters = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.value.action;
+        expected = "exclude";
+      }
+    );
+
+    test-scoped-exclude-outside-subtree = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        ref = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        decl = fxLib.adapters.excludeAspect ref;
+        comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
+          _:
+          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+            _:
+            fx.bind (fx.send "chain-pop" null) (
+              _:
+              fx.bind (fx.send "chain-push" { identity = "b"; }) (
+                _:
+                fx.send "check-exclusion" {
+                  identity = "drop";
+                  aspect = null;
+                }
+              )
+            )
+          )
+        );
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          state = {
+            includesChain = [ ];
+            adapterRegistry = { };
+            adapterFilters = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.value.action;
+        expected = "keep";
+      }
+    );
+
+    test-global-exclude-ignores-chain = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        ref = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        decl = fxLib.adapters.excludeAspect.global ref;
+        comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
+          _:
+          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+            _:
+            fx.bind (fx.send "chain-pop" null) (
+              _:
+              fx.bind (fx.send "chain-push" { identity = "b"; }) (
+                _:
+                fx.send "check-exclusion" {
+                  identity = "drop";
+                  aspect = null;
+                }
+              )
+            )
+          )
+        );
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          state = {
+            includesChain = [ ];
+            adapterRegistry = { };
+            adapterFilters = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.value.action;
+        expected = "exclude";
+      }
+    );
+
+    test-scoped-filter-in-subtree = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        decl = fxLib.adapters.filterAspect (a: a.name != "drop");
+        aspect = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        comp = fx.bind (fx.send "chain-push" { identity = "parent"; }) (
+          _:
+          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+            _:
+            fx.send "check-exclusion" {
+              identity = "drop";
+              inherit aspect;
+            }
+          )
+        );
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          state = {
+            includesChain = [ ];
+            adapterRegistry = { };
+            adapterFilters = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.value.action;
+        expected = "exclude";
+      }
+    );
+
+    test-scoped-filter-outside-subtree = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        decl = fxLib.adapters.filterAspect (a: a.name != "drop");
+        aspect = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
+          _:
+          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+            _:
+            fx.bind (fx.send "chain-pop" null) (
+              _:
+              fx.bind (fx.send "chain-push" { identity = "b"; }) (
+                _:
+                fx.send "check-exclusion" {
+                  identity = "drop";
+                  inherit aspect;
+                }
+              )
+            )
+          )
+        );
+        result = fx.handle {
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          state = {
+            includesChain = [ ];
+            adapterRegistry = { };
+            adapterFilters = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.value.action;
+        expected = "keep";
+      }
+    );
+
     test-provideClassHandler-skips-tombstones = denTest (
       { den, ... }:
       let
