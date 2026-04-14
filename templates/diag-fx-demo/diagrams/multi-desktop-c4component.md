@@ -1,0 +1,128 @@
+# C4 Component View: multi-desktop
+
+![C4 Component](./multi-desktop-c4component.puml.svg)
+
+```plantuml
+@startuml
+!include <C4/C4_Component>
+skinparam backgroundColor #1e1e2e
+skinparam defaultFontColor #cdd6f4
+skinparam defaultFontName "JetBrains Mono,monospace"
+skinparam arrowColor #a6adc8
+skinparam arrowFontColor #cdd6f4
+skinparam PersonBackgroundColor #313244
+skinparam PersonBorderColor #a6adc8
+skinparam PersonFontColor #cdd6f4
+skinparam SystemBackgroundColor #313244
+skinparam SystemBorderColor #a6adc8
+skinparam SystemFontColor #cdd6f4
+skinparam ContainerBackgroundColor #313244
+skinparam ContainerBorderColor #a6adc8
+skinparam ContainerFontColor #cdd6f4
+skinparam ComponentBackgroundColor #313244
+skinparam ComponentBorderColor #a6adc8
+skinparam ComponentFontColor #cdd6f4
+skinparam BoundaryBackgroundColor #313244
+skinparam BoundaryBorderColor #6c7086
+skinparam BoundaryFontColor #cdd6f4
+skinparam RectangleBackgroundColor #313244
+skinparam RectangleBorderColor #a6adc8
+skinparam RectangleFontColor #cdd6f4
+
+
+title Component view: multi-desktop
+
+System_Boundary(multi_desktop, "multi-desktop") {
+  Container_Boundary(host, "host") {
+    Component(desktop, "desktop", "nixos")
+    Component(networking, "networking", "nixos")
+    Component(virtualization__podman, "virtualization/podman", "nixos")
+    Component(regreet, "regreet", "nixos")
+    Component(tailscale, "tailscale", "nixos")
+    Component(virtualization, "virtualization", "nixos")
+    Component(workstation, "workstation", "")
+}
+  Container_Boundary(c4_default, "default") {
+    Component(den__provides__define_user, "provides/define-user", "")
+    Component(den__provides__hostname, "provides/hostname", "")
+    Component(den__provides__mutual_provider, "provides/mutual-provider", "")
+    Component(alice__to_hosts, "alice/to-hosts", "nixos")
+}
+  Container_Boundary(user, "user") {
+    Component(alice, "alice", "homeManager+nixos")
+    Component(bob, "bob", "homeManager+nixos")
+    Component(demo_shell, "demo-shell", "homeManager")
+    Component(dev_tools, "dev-tools", "homeManager")
+    Component(gnome, "gnome", "homeManager+nixos")
+    Component(hyprland, "hyprland", "homeManager+nixos")
+    Component(primary_user, "primary-user", "")
+    Component(den__provides__primary_user, "provides/primary-user", "nixos")
+}
+}
+
+Rel(alice, demo_shell, "includes")
+Rel(alice, dev_tools, "includes")
+Rel(alice, hyprland, "includes")
+Rel(alice, primary_user, "includes")
+Rel(alice, den__provides__primary_user, "includes")
+Rel(alice, gnome, "includes")
+Rel(alice__to_hosts, den__provides__define_user, "includes")
+Rel(alice__to_hosts, den__provides__hostname, "includes")
+Rel(alice__to_hosts, den__provides__mutual_provider, "includes")
+Rel(bob, dev_tools, "includes")
+Rel(bob, gnome, "includes")
+Rel(bob, primary_user, "includes")
+Rel(bob, den__provides__primary_user, "includes")
+Rel(bob, alice, "includes")
+Rel(bob, demo_shell, "includes")
+Rel(bob, hyprland, "includes")
+Rel(den__provides__mutual_provider, den__provides__define_user, "includes")
+Rel(den__provides__mutual_provider, den__provides__hostname, "includes")
+Rel(den__provides__mutual_provider, alice__to_hosts, "includes")
+Rel(den__provides__hostname, den__provides__define_user, "includes")
+Rel(den__provides__define_user, den__provides__hostname, "includes")
+Rel(den__provides__define_user, den__provides__mutual_provider, "includes")
+Rel(den__provides__hostname, den__provides__mutual_provider, "includes")
+Rel(den__provides__define_user, alice__to_hosts, "includes")
+Rel(den__provides__hostname, alice__to_hosts, "includes")
+Rel(demo_shell, hyprland, "includes")
+Rel(demo_shell, alice, "includes")
+Rel(demo_shell, dev_tools, "includes")
+Rel(demo_shell, gnome, "includes")
+Rel(den__provides__primary_user, demo_shell, "includes")
+Rel(den__provides__primary_user, gnome, "includes")
+Rel(desktop, workstation, "includes")
+Rel(desktop, regreet, "includes")
+Rel(desktop, virtualization, "includes")
+Rel(dev_tools, bob, "includes")
+Rel(dev_tools, alice, "includes")
+Rel(dev_tools, demo_shell, "includes")
+Rel(dev_tools, gnome, "includes")
+Rel(dev_tools, hyprland, "includes")
+Rel(gnome, dev_tools, "includes")
+Rel(gnome, alice, "includes")
+Rel(gnome, demo_shell, "includes")
+Rel(gnome, hyprland, "includes")
+Rel(networking, workstation, "includes")
+Rel(regreet, workstation, "includes")
+Rel(tailscale, workstation, "includes")
+Rel(virtualization, workstation, "includes")
+Rel(virtualization__podman, workstation, "includes")
+Rel(hyprland, dev_tools, "includes")
+Rel(hyprland, alice, "includes")
+Rel(hyprland, demo_shell, "includes")
+Rel(hyprland, gnome, "includes")
+Rel(networking, tailscale, "includes")
+Rel(primary_user, demo_shell, "includes")
+Rel(primary_user, gnome, "includes")
+Rel(regreet, desktop, "includes")
+Rel(tailscale, desktop, "includes")
+Rel(tailscale, regreet, "includes")
+Rel(virtualization, virtualization__podman, "includes")
+Rel(workstation, desktop, "includes")
+Rel(workstation, networking, "includes")
+Rel(workstation, virtualization__podman, "includes")
+Rel(workstation, tailscale, "includes")
+Rel(workstation, virtualization, "includes")
+@enduml
+```
