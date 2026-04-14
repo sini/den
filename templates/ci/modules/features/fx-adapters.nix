@@ -204,9 +204,11 @@ in
                 inherit state;
               };
           }
-          // fxLib.handlers.provideClassHandler;
+          // fxLib.handlers.provideClassHandler
+          // fxLib.handlers.chainHandler;
           state = {
             imports = [ ];
+            includesChain = [ ];
           };
         } comp;
       in
@@ -263,10 +265,12 @@ in
               };
           }
           // fxLib.handlers.adapterRegistryHandler
-          // fxLib.adapters.collectPathsHandler;
+          // fxLib.adapters.collectPathsHandler
+          // fxLib.handlers.chainHandler;
           state = {
             paths = [ ];
             adapterRegistry = { };
+            includesChain = [ ];
           };
         } comp;
       in
@@ -632,10 +636,12 @@ in
               };
           }
           // fxLib.handlers.adapterRegistryHandler
-          // fxLib.handlers.provideClassHandler;
+          // fxLib.handlers.provideClassHandler
+          // fxLib.handlers.chainHandler;
           state = {
             imports = [ ];
             adapterRegistry = { };
+            includesChain = [ ];
           };
         } comp;
       in

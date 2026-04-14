@@ -130,10 +130,14 @@ in
               };
             "resolve-complete" =
               { param, state }:
+              let
+                chain = state.includesChain or [ ];
+                parent = if chain == [ ] then "ROOT" else lib.last chain;
+              in
               {
                 resume = param;
                 state = state // {
-                  parents = (state.parents or [ ]) ++ [ (param.__parent or "ROOT") ];
+                  parents = (state.parents or [ ]) ++ [ parent ];
                 };
               };
             "check-exclusion" =
@@ -144,9 +148,11 @@ in
                 };
                 inherit state;
               };
-          };
+          }
+          // fxLib.handlers.chainHandler;
           state = {
             parents = [ ];
+            includesChain = [ ];
           };
         } comp;
       in

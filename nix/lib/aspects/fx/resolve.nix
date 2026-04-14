@@ -146,9 +146,9 @@ let
           child;
 
       # Recursive resolution of a single aspect node.
-      # parentPath tracks the parent's identity for __parent on resolve-complete.
+      # Emits chain-push/chain-pop around children for meaningful nodes.
       go =
-        parentPath: aspectVal:
+        aspectVal:
         fx.bind
           (
             (resolveOne {
@@ -219,15 +219,21 @@ let
               rawName = resolved.name or "<anon>";
               isMeaningful =
                 rawName != "<anon>" && rawName != "<function body>" && !(lib.hasPrefix "[definition " rawName);
-              selfPath = if isMeaningful then rawSelfPath else parentPath;
             in
             fx.bind classEmit (
               _:
               fx.bind registerEmit (
                 _:
-                resolveChildren selfPath includes (
-                  resolvedIncludes: fx.pure (resolved // { includes = resolvedIncludes; })
-                )
+                if isMeaningful then
+                  fx.bind (fx.send "chain-push" { identity = rawSelfPath; }) (
+                    _:
+                    resolveChildren includes (
+                      resolvedIncludes:
+                      fx.bind (fx.send "chain-pop" null) (_: fx.pure (resolved // { includes = resolvedIncludes; }))
+                    )
+                  )
+                else
+                  resolveChildren includes (resolvedIncludes: fx.pure (resolved // { includes = resolvedIncludes; }))
               )
             )
           );
@@ -235,9 +241,9 @@ let
       # Resolve a child: check-exclusion decides keep/exclude/substitute.
       # Conditional markers (includeIf) are handled separately.
       resolveChild =
-        parentPath: child:
+        child:
         if builtins.isAttrs child && (child.meta.conditional or false) then
-          resolveConditional parentPath child
+          resolveConditional child
         else
           let
             envelope = wrapChild child;
@@ -254,7 +260,7 @@ let
                 let
                   ts = adapters.tombstone envelope { excludedFrom = decision.owner; };
                 in
-                fx.bind (fx.send "resolve-complete" (ts // { __parent = parentPath; })) (_: fx.pure [ ts ])
+                fx.bind (fx.send "resolve-complete" ts) (_: fx.pure [ ts ])
               else if decision.action == "substitute" then
                 let
                   ts = adapters.tombstone envelope {
@@ -262,11 +268,11 @@ let
                     replacedBy = decision.replacement.name or "<anon>";
                   };
                 in
-                fx.bind (fx.send "resolve-complete" (ts // { __parent = parentPath; })) (
+                fx.bind (fx.send "resolve-complete" ts) (
                   _:
-                  fx.bind (go parentPath decision.replacement) (
+                  fx.bind (go decision.replacement) (
                     resolvedReplacement:
-                    fx.bind (fx.send "resolve-complete" (resolvedReplacement // { __parent = parentPath; })) (
+                    fx.bind (fx.send "resolve-complete" resolvedReplacement) (
                       _:
                       fx.pure [
                         ts
@@ -279,18 +285,15 @@ let
                 # Keep: emit resolve-include (for tracing), then recurse
                 fx.bind (fx.send "resolve-include" envelope) (
                   _:
-                  fx.bind (go parentPath envelope) (
-                    resolvedChild:
-                    fx.bind (fx.send "resolve-complete" (resolvedChild // { __parent = parentPath; })) (
-                      _: fx.pure [ resolvedChild ]
-                    )
+                  fx.bind (go envelope) (
+                    resolvedChild: fx.bind (fx.send "resolve-complete" resolvedChild) (_: fx.pure [ resolvedChild ])
                   )
                 )
             );
 
       # Evaluate a conditional marker against accumulated paths.
       resolveConditional =
-        parentPath: condNode:
+        condNode:
         fx.bind (fx.send "get-path-set" null) (
           pathSet:
           let
@@ -302,9 +305,7 @@ let
           if pass then
             builtins.foldl' (
               acc: a:
-              fx.bind acc (
-                results: fx.bind (resolveChild parentPath a) (childResults: fx.pure (results ++ childResults))
-              )
+              fx.bind acc (results: fx.bind (resolveChild a) (childResults: fx.pure (results ++ childResults)))
             ) (fx.pure [ ]) condNode.meta.aspects
           else
             builtins.foldl' (
@@ -314,27 +315,25 @@ let
                 let
                   ts = adapters.tombstone a { guardFailed = true; };
                 in
-                fx.bind (fx.send "resolve-complete" (ts // { __parent = parentPath; })) (
-                  _: fx.pure (results ++ [ ts ])
-                )
+                fx.bind (fx.send "resolve-complete" ts) (_: fx.pure (results ++ [ ts ]))
               )
             ) (fx.pure [ ]) condNode.meta.aspects
         );
 
       # Resolve all children.
       resolveChildren =
-        parentPath: includes: cont:
+        includes: cont:
         let
           childComp = builtins.foldl' (
             acc: child:
             fx.bind acc (
-              results: fx.bind (resolveChild parentPath child) (childResults: fx.pure (results ++ childResults))
+              results: fx.bind (resolveChild child) (childResults: fx.pure (results ++ childResults))
             )
           ) (fx.pure [ ]) includes;
         in
         fx.bind childComp cont;
     in
-    go null;
+    go;
 
   # Compose two handler sets, chaining handlers for shared effect names.
   # For overlapping keys, handler b runs first, then a's state updates are merged.
@@ -374,6 +373,7 @@ let
     // handlers.ctxEmitHandler
     // handlers.provideClassHandler
     // handlers.adapterRegistryHandler
+    // handlers.chainHandler
     // adapters.pathSetHandler
     // {
       "resolve-include" =
@@ -400,6 +400,7 @@ let
     imports = [ ];
     adapterRegistry = { };
     paths = [ ];
+    includesChain = [ ];
   };
 
   # Configurable pipeline builder. Pass custom handlers/state to extend.
@@ -417,22 +418,17 @@ let
     let
       comp = fx.bind (ctxApply.ctxApplyEffectful ctxNs self ctx) (
         includes:
-        fx.bind
-          (resolveDeepEffectful
-            {
-              inherit ctx class;
-              aspect-chain = [ ];
-            }
-            {
-              name = self.name or "<anon>";
-              meta = self.meta or { };
-              inherit includes;
-            }
-          )
-          (
-            resolved:
-            fx.bind (fx.send "resolve-complete" (resolved // { __parent = null; })) (_: fx.pure resolved)
-          )
+        fx.bind (resolveDeepEffectful
+          {
+            inherit ctx class;
+            aspect-chain = [ ];
+          }
+          {
+            name = self.name or "<anon>";
+            meta = self.meta or { };
+            inherit includes;
+          }
+        ) (resolved: fx.bind (fx.send "resolve-complete" resolved) (_: fx.pure resolved))
       );
     in
     fx.handle {

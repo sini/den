@@ -65,8 +65,11 @@ in
                 };
                 inherit state;
               };
+          }
+          // fxLib.handlers.chainHandler;
+          state = {
+            includesChain = [ ];
           };
-          state = { };
         } comp;
       in
       {
@@ -148,9 +151,11 @@ in
                 inherit state;
               };
           }
-          // fxLib.handlers.adapterRegistryHandler;
+          // fxLib.handlers.adapterRegistryHandler
+          // fxLib.handlers.chainHandler;
           state = {
             adapterRegistry = { };
+            includesChain = [ ];
           };
         } comp;
         children = result.value.includes;
@@ -219,9 +224,11 @@ in
                 };
                 inherit state;
               };
-          };
+          }
+          // fxLib.handlers.chainHandler;
           state = {
             names = [ ];
+            includesChain = [ ];
           };
         } comp;
       in
@@ -300,8 +307,11 @@ in
                   };
                   inherit state;
                 };
-            };
-          state = { };
+            }
+            // fxLib.handlers.chainHandler;
+          state = {
+            includesChain = [ ];
+          };
         } comp;
         child = builtins.head result.value.includes;
       in
@@ -369,8 +379,11 @@ in
                   };
                   inherit state;
                 };
-            };
-          state = { };
+            }
+            // fxLib.handlers.chainHandler;
+          state = {
+            includesChain = [ ];
+          };
         } comp;
         child = builtins.head result.value.includes;
       in
@@ -455,10 +468,12 @@ in
                 };
               };
           }
-          // fxLib.handlers.adapterRegistryHandler;
+          // fxLib.handlers.adapterRegistryHandler
+          // fxLib.handlers.chainHandler;
           state = {
             excluded = [ ];
             adapterRegistry = { };
+            includesChain = [ ];
           };
         } comp;
       in
