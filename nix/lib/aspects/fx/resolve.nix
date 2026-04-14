@@ -40,6 +40,7 @@ let
       meta = {
         adapter = meta.adapter or null;
         handleWith = meta.handleWith or null;
+        excludes = meta.excludes or [ ];
         provider = meta.provider or [ ];
       }
       // lib.optionalAttrs isParametric { inherit isParametric fnArgNames; };
@@ -172,17 +173,25 @@ let
                   }) (_: fx.pure null)
                 else
                   fx.pure null;
-              rawAdapter = resolved.meta.handleWith or null;
+              rawHandleWith = resolved.meta.handleWith or null;
+              rawExcludes = resolved.meta.excludes or [ ];
               # Accept single record or list of records. Skip legacy function adapters.
-              adapterList =
-                if rawAdapter == null then
+              handleWithList =
+                if rawHandleWith == null then
                   [ ]
-                else if builtins.isList rawAdapter then
-                  rawAdapter
-                else if builtins.isAttrs rawAdapter then
-                  [ rawAdapter ]
+                else if builtins.isList rawHandleWith then
+                  rawHandleWith
+                else if builtins.isAttrs rawHandleWith then
+                  [ rawHandleWith ]
                 else
                   [ ]; # legacy function adapter — skip
+              # Merge excludes sugar into handler list as exclude constraints.
+              excludeList = map (ref: {
+                type = "exclude";
+                scope = "subtree";
+                identity = identity.pathKey (identity.aspectPath ref);
+              }) rawExcludes;
+              adapterList = handleWithList ++ excludeList;
               owner = resolved.name or "<anon>";
               registerEmit = builtins.foldl' (
                 acc: reg:

@@ -307,6 +307,7 @@ in
         expr = result.meta;
         expected = {
           adapter = null;
+          excludes = [ ];
           handleWith = null;
           provider = [ ];
         };
