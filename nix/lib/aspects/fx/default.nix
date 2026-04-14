@@ -12,13 +12,6 @@ let
     fx = null;
   };
 
-  # Pure trace handlers — no nix-effects dependency.
-  pureTrace = import ./trace.nix {
-    inherit lib den;
-    fx = null;
-    identity = pureIdentity;
-  };
-
   # Pure constraint constructors — no nix-effects dependency.
   # Available without init for use in aspect definitions.
   pureConstraints = import ./constraints.nix {
@@ -39,7 +32,7 @@ in
   # Includes constructors usable in aspect definitions without nix-effects.
   inherit (pureIncludes) includeIf;
 
-  # Constraint constructors usable in aspect meta.adapter without nix-effects.
+  # Constraint constructors usable in aspect meta.handleWith without nix-effects.
   inherit (pureConstraints)
     exclude
     substitute

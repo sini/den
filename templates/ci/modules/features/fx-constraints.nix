@@ -651,5 +651,148 @@ in
       }
     );
 
+    # meta.excludes sugar: exclude via list of refs
+    test-excludes-sugar = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        target = {
+          name = "drop";
+          meta.provider = [ ];
+        };
+        parent = {
+          name = "root";
+          meta = {
+            excludes = [ target ];
+          };
+          includes = [
+            {
+              name = "keep";
+              meta.provider = [ ];
+              includes = [ ];
+            }
+            {
+              name = "drop";
+              meta.provider = [ ];
+              includes = [ ];
+            }
+          ];
+        };
+        comp = fxLib.resolve.resolveDeepEffectful {
+          ctx = { };
+          class = "nixos";
+          aspect-chain = [ ];
+        } parent;
+        result = fx.handle {
+          handlers = {
+            "resolve-include" =
+              { param, state }:
+              {
+                resume = param;
+                inherit state;
+              };
+            "resolve-complete" =
+              { param, state }:
+              {
+                resume = param;
+                state = state // {
+                  excluded = (state.excluded or [ ]) ++ (lib.optional (param.meta.excluded or false) param.name);
+                };
+              };
+          }
+          // fxLib.handlers.constraintRegistryHandler
+          // fxLib.handlers.chainHandler;
+          state = {
+            excluded = [ ];
+            constraintRegistry = { };
+            includesChain = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = result.state.excluded;
+        expected = [ "~drop" ];
+      }
+    );
+
+    # meta.handleWith as list of multiple handlers
+    test-handleWith-list = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        targetA = {
+          name = "a";
+          meta.provider = [ ];
+        };
+        targetB = {
+          name = "b";
+          meta.provider = [ ];
+        };
+        parent = {
+          name = "root";
+          meta = {
+            handleWith = [
+              (fxLib.exclude targetA)
+              (fxLib.exclude targetB)
+            ];
+          };
+          includes = [
+            {
+              name = "a";
+              meta.provider = [ ];
+              includes = [ ];
+            }
+            {
+              name = "b";
+              meta.provider = [ ];
+              includes = [ ];
+            }
+            {
+              name = "c";
+              meta.provider = [ ];
+              includes = [ ];
+            }
+          ];
+        };
+        comp = fxLib.resolve.resolveDeepEffectful {
+          ctx = { };
+          class = "nixos";
+          aspect-chain = [ ];
+        } parent;
+        result = fx.handle {
+          handlers = {
+            "resolve-include" =
+              { param, state }:
+              {
+                resume = param;
+                inherit state;
+              };
+            "resolve-complete" =
+              { param, state }:
+              {
+                resume = param;
+                state = state // {
+                  excluded = (state.excluded or [ ]) ++ (lib.optional (param.meta.excluded or false) param.name);
+                };
+              };
+          }
+          // fxLib.handlers.constraintRegistryHandler
+          // fxLib.handlers.chainHandler;
+          state = {
+            excluded = [ ];
+            constraintRegistry = { };
+            includesChain = [ ];
+          };
+        } comp;
+      in
+      {
+        expr = builtins.sort builtins.lessThan result.state.excluded;
+        expected = [
+          "~a"
+          "~b"
+        ];
+      }
+    );
+
   };
 }

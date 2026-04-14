@@ -16,6 +16,7 @@ let
       meta = {
         adapter = meta.adapter or null;
         handleWith = meta.handleWith or null;
+        excludes = meta.excludes or [ ];
         provider = meta.provider or [ ];
       };
     }

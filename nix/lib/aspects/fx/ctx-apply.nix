@@ -2,7 +2,6 @@
   lib,
   den,
   fx,
-  identity,
   ...
 }:
 let
