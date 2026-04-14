@@ -123,7 +123,11 @@ let
         entry = {
           name = param.name or "<anon>";
           inherit class;
-          parent = param.__parent or null;
+          parent =
+            let
+              chain = state.includesChain or [ ];
+            in
+            if chain == [ ] then null else lib.last chain;
           provider = param.meta.provider or [ ];
           excluded = param.meta.excluded or false;
           excludedFrom = param.meta.excludedFrom or null;
@@ -176,18 +180,11 @@ let
           else
             rawName;
         selfFullPath = if provPath != "" then "${provPath}/${name}" else name;
-        # Filter parent: skip self-references and anonymous intermediates.
-        # Fall back to last meaningful parent tracked in state.
-        rawParent = param.__parent or null;
         parent =
-          if rawParent == null then
-            null
-          else if rawParent == selfFullPath then
-            state.lastMeaningfulParent or null
-          else if !meaningful (lib.last (lib.splitString "/" rawParent)) then
-            state.lastMeaningfulParent or null
-          else
-            rawParent;
+          let
+            chain = state.includesChain or [ ];
+          in
+          if chain == [ ] then null else lib.last chain;
         entry = {
           inherit name class parent;
           provider = param.meta.provider or [ ];
@@ -210,7 +207,6 @@ let
             paths = (state.paths or [ ]) ++ (lib.optional (!isExcluded) (aspectPath param));
             entries = (state.entries or [ ]) ++ [ entry ];
           }
-          // lib.optionalAttrs (meaningful name) { lastMeaningfulParent = selfFullPath; }
           // lib.optionalAttrs (param ? __ctxStage) {
             currentStage = param.__ctxStage;
             currentKind = param.__ctxKind or null;

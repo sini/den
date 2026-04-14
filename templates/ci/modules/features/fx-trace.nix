@@ -376,5 +376,73 @@ in
       }
     );
 
+    test-trace-parent-from-chain = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        parent = {
+          name = "root";
+          meta = { };
+          includes = [
+            {
+              name = "child";
+              meta = { };
+              includes = [ ];
+            }
+          ];
+        };
+        comp = fxLib.resolve.resolveDeepEffectful {
+          ctx = { };
+          class = "nixos";
+          aspect-chain = [ ];
+        } parent;
+        result = fx.handle {
+          handlers = fxLib.resolve.composeHandlers (fxLib.resolve.defaultHandlers {
+            class = "nixos";
+            ctx = { };
+          }) (fxLib.adapters.tracingHandler "nixos");
+          state = fxLib.resolve.defaultState // {
+            entries = [ ];
+          };
+        } comp;
+        childEntry = lib.findFirst (e: e.name == "child") null result.state.entries;
+      in
+      {
+        expr = childEntry.parent;
+        expected = "root";
+      }
+    );
+
+    test-trace-root-parent-null = denTest (
+      { den, ... }:
+      let
+        fxLib = den.lib.aspects.fx.init fx;
+        root = {
+          name = "root";
+          meta = { };
+          includes = [ ];
+        };
+        comp = fx.bind (fxLib.resolve.resolveDeepEffectful {
+          ctx = { };
+          class = "nixos";
+          aspect-chain = [ ];
+        } root) (resolved: fx.send "resolve-complete" resolved);
+        result = fx.handle {
+          handlers = fxLib.resolve.composeHandlers (fxLib.resolve.defaultHandlers {
+            class = "nixos";
+            ctx = { };
+          }) (fxLib.adapters.tracingHandler "nixos");
+          state = fxLib.resolve.defaultState // {
+            entries = [ ];
+          };
+        } comp;
+        rootEntry = lib.findFirst (e: e.name == "root") null result.state.entries;
+      in
+      {
+        expr = rootEntry.parent;
+        expected = null;
+      }
+    );
+
   };
 }
