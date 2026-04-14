@@ -164,8 +164,20 @@ let
       ) groupedByName;
 
       nodes = dedupBy fullName entries;
+      # Set of excluded node IDs — edges FROM these are dropped.
+      excludedIds = lib.listToAttrs (
+        map (e: {
+          name = sanitize (fullName e);
+          value = true;
+        }) (builtins.filter (e: e.excluded or false) entries)
+      );
       edges = dedupBy (e: "${e.parent or ""}->${fullName e}") (
-        builtins.filter (e: e.parent != null) entries
+        builtins.filter (
+          e:
+          e.parent != null
+          # Drop edges FROM excluded parents (tombstoned nodes have no children).
+          && !(excludedIds ? ${sanitize (e.parent or "")})
+        ) entries
       );
 
       # Disambiguation: if two distinct entries would render to the same
