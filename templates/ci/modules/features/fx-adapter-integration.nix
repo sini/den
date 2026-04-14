@@ -16,6 +16,7 @@ let
       inherit class;
       aspect-chain = [ ];
     }
+    // fxLib.handlers.chainHandler
     // fxLib.handlers.provideClassHandler
     // fxLib.handlers.adapterRegistryHandler
     // fxLib.adapters.pathSetHandler
@@ -56,6 +57,7 @@ let
         imports = [ ];
         adapterRegistry = { };
         paths = [ ];
+        includesChain = [ ];
       };
     } comp;
 in

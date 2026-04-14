@@ -22,6 +22,7 @@ let
           inherit state;
         };
     }
+    // fxLib.handlers.chainHandler
     // fxLib.handlers.adapterRegistryHandler
     // fxLib.adapters.pathSetHandler
     // fxLib.adapters.collectPathsHandler;
@@ -59,6 +60,7 @@ in
           state = {
             adapterRegistry = { };
             paths = [ ];
+            includesChain = [ ];
           };
         } comp;
       in
@@ -95,6 +97,7 @@ in
           state = {
             adapterRegistry = { };
             paths = [ ];
+            includesChain = [ ];
           };
         } comp;
       in
@@ -144,6 +147,7 @@ in
           state = {
             adapterRegistry = { };
             paths = [ ];
+            includesChain = [ ];
           };
         } comp;
         names = map (c: c.name) result.value.includes;
@@ -189,6 +193,7 @@ in
           state = {
             adapterRegistry = { };
             paths = [ ];
+            includesChain = [ ];
           };
         } comp;
       in
@@ -244,6 +249,7 @@ in
           state = {
             adapterRegistry = { };
             paths = [ ];
+            includesChain = [ ];
           };
         } comp;
         children = result.value.includes;
