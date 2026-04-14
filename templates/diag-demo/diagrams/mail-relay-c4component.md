@@ -1,0 +1,72 @@
+# C4 Component View: mail-relay
+
+![C4 Component](./mail-relay-c4component.puml.svg)
+
+```plantuml
+@startuml
+!include <C4/C4_Component>
+skinparam backgroundColor #1e1e2e
+skinparam defaultFontColor #cdd6f4
+skinparam defaultFontName "JetBrains Mono,monospace"
+skinparam arrowColor #a6adc8
+skinparam arrowFontColor #cdd6f4
+skinparam PersonBackgroundColor #313244
+skinparam PersonBorderColor #a6adc8
+skinparam PersonFontColor #cdd6f4
+skinparam SystemBackgroundColor #313244
+skinparam SystemBorderColor #a6adc8
+skinparam SystemFontColor #cdd6f4
+skinparam ContainerBackgroundColor #313244
+skinparam ContainerBorderColor #a6adc8
+skinparam ContainerFontColor #cdd6f4
+skinparam ComponentBackgroundColor #313244
+skinparam ComponentBorderColor #a6adc8
+skinparam ComponentFontColor #cdd6f4
+skinparam BoundaryBackgroundColor #313244
+skinparam BoundaryBorderColor #6c7086
+skinparam BoundaryFontColor #cdd6f4
+skinparam RectangleBackgroundColor #313244
+skinparam RectangleBorderColor #a6adc8
+skinparam RectangleFontColor #cdd6f4
+
+
+title Component view: mail-relay
+
+System_Boundary(mail_relay, "mail-relay") {
+  Container_Boundary(host, "host { host }") {
+    Component(monitoring__alerting, "monitoring/alerting", "")
+    Component(backup, "backup", "")
+    Component(virtualization__docker, "virtualization/docker", "nixos")
+    Component(mail, "mail", "")
+    Component(monitoring, "monitoring", "")
+    Component(networking, "networking", "nixos")
+    Component(monitoring__nginx_exporter, "monitoring/nginx-exporter", "")
+    Component(monitoring__node_exporter, "monitoring/node-exporter", "")
+    Component(relay, "relay", "")
+    Component(server, "server", "")
+    Component(tailscale, "tailscale", "nixos")
+    Component(virtualization, "virtualization", "nixos")
+}
+  Container_Boundary(c4_default, "default { host }") {
+    Component(den__provides__define_user, "provides/define-user", "")
+    Component(den__provides__hostname, "provides/hostname", "")
+    Component(den__provides__mutual_provider, "provides/mutual-provider", "")
+}
+  Container_Boundary(user, "user { host, user }") {
+    Component(deploy, "deploy", "homeManager+nixos")
+}
+}
+
+Rel(relay, mail, "includes")
+Rel(relay, server, "includes")
+Rel(server, monitoring__alerting, "excluded")
+Rel(server, backup, "includes")
+Rel(server, virtualization__docker, "includes")
+Rel(server, monitoring, "excluded")
+Rel(server, networking, "includes")
+Rel(server, monitoring__nginx_exporter, "excluded")
+Rel(server, monitoring__node_exporter, "excluded")
+Rel(server, tailscale, "includes")
+Rel(server, virtualization, "includes")
+@enduml
+```

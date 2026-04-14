@@ -1,0 +1,394 @@
+# Graph IR construction.
+#
+# Transforms structuredTrace entries into a format-agnostic graph IR
+# with nodes, edges, stages, and stage transitions. The IR is consumed
+# by the renderer modules (mermaid, dot, plantuml), which are responsible
+# for anything visual — theme, colors, layout, diagram config are all
+# render-time concerns and do not appear in the IR.
+#
+# Filter/reshape operations over the IR live in `filters.nix`.
+{ lib, util }:
+let
+  inherit (util) dedupBy makeIdSanitizer sanitizeChars;
+
+  # --- Helpers ---
+
+  sanitize = makeIdSanitizer "n";
+
+  # Default node record — used by `buildGraph.mkNode` as the starting
+  # point AND by reshape filters (contextOnly, phantomStubEntries, etc.)
+  # that need to synthesize nodes outside the normal entry-derived path.
+  # Keeping defaults in one place means when the node schema grows a
+  # new field, every synthesized node automatically inherits it.
+  emptyNode = {
+    id = "";
+    label = "";
+    fullLabel = "";
+    # Canonical key matching `adapters.pathKey (aspectPath aspect)`.
+    pathKey = "";
+    shape = "rect";
+    # Rendering style — drives color/border in renderers. Filters
+    # should NOT use this for structural reasoning; use the structural
+    # booleans below (`isExcluded`, `isReplaced`) instead.
+    style = "default";
+    stage = null;
+    classes = [ ];
+    class = "";
+    perClass = { };
+    fnArgNames = [ ];
+    isParametric = false;
+    isProvider = false;
+    providerPath = [ ];
+    hasClass = false;
+    # Structural booleans for filters. Decoupled from `style` so
+    # structural queries don't depend on the rendering vocabulary.
+    isExcluded = false;
+    isReplaced = false;
+  };
+
+  # Full path: "provider/sub/.../name". Used for stable IDs and edge
+  # key dedup — never changes meaning, always uniquely identifies an
+  # entry within a trace.
+  fullName =
+    entry:
+    if entry.provider != [ ] then
+      lib.concatStringsSep "/" (entry.provider ++ [ entry.name ])
+    else
+      entry.name;
+
+  # Compact display label: `<last-provider-segment>/<name>` for provider
+  # sub-aspects, bare name for top-level aspects. This keeps visible
+  # labels short enough that mermaid's HTML foreignObject text doesn't
+  # wrap mid-path (which made `coolercontrol/class/enable` and
+  # `coolercontrol/class/setup` look like duplicates in the rendered
+  # SVG) while still disambiguating same-named leaves across providers
+  # (`amdcpu/enable` vs `class/enable` vs `bat/enable`).
+  displayName =
+    entry:
+    let
+      p = entry.provider;
+    in
+    if p == [ ] then entry.name else "${lib.last p}/${entry.name}";
+
+  # An entry's stable identifier is derived from its full path — not
+  # its bare name — so `monitoring/enable` and `persist/enable` don't collide.
+  entryId = entry: sanitize (fullName entry);
+
+  # --- Graph IR builder ---
+
+  buildGraph =
+    {
+      entries,
+      rootName,
+      ctxTrace ? [ ],
+      direction ? "LR", # LR (left-right) or TD (top-down)
+    }:
+    let
+      # Group raw entries by fullName so we can merge class info when
+      # the same aspect appears in multiple class traces.
+      #
+      # `captureAll` iterates classes and invokes structuredTrace once
+      # per class. Each invocation walks the entire aspect tree,
+      # emitting an entry per aspect regardless of whether that aspect
+      # has content for the current class. The adapter sets
+      # `hasClass = classModule != []` — true when the aspect actually
+      # defines attrs for this class, false when it's just traversed.
+      #
+      # To answer "which classes does this aspect contribute to?" we
+      # merge ONLY the entries where `hasClass = true`. Otherwise every
+      # aspect would look like it belongs to every class just because
+      # the traversal visited it.
+      groupedByName = lib.foldl' (
+        acc: e:
+        let
+          k = fullName e;
+        in
+        acc // { ${k} = (acc.${k} or [ ]) ++ [ e ]; }
+      ) { } entries;
+
+      # The classes this aspect actually contributes to (where
+      # hasClass = true). Drives `node.class` and `node.classes`.
+      classesByName = lib.mapAttrs (
+        _: es:
+        lib.unique (
+          builtins.filter (c: c != null && c != "") (
+            map (e: e.class or null) (builtins.filter (e: e.hasClass or false) es)
+          )
+        )
+      ) groupedByName;
+
+      # Per-class metadata for each aspect. Structural fields (parent,
+      # provider, stage, isParametric) stay on the node top level since
+      # they're class-independent. The fields here CAN differ per class
+      # — hasClass is the discriminator, and excluded/replacedBy can
+      # differ if `meta.adapter` branches on class. Keyed by class name
+      # so filters/renderers can ask "is this node active for nixos?".
+      #
+      # Merge semantics: when multiple entries exist for the same
+      # (fullName, class) pair (because the trace visits the aspect
+      # via multiple include paths), we OR the per-class flags — any
+      # visit with hasClass=true or excluded=true is enough to mark
+      # the class's metadata accordingly.
+      mergePerClassField = a: b: {
+        hasClass = a.hasClass || b.hasClass;
+        excluded = a.excluded || b.excluded;
+        replacedBy = if a.replacedBy != null then a.replacedBy else b.replacedBy;
+        # Full aspectPath identity of the adapter owner that caused
+        # the exclusion. Used by `decisionsView` for attribution-based
+        # grouping. Takes the first non-null value — multiple entries
+        # for the same (aspect, class) come from different traversal
+        # paths but the adapter-owner identity is stable.
+        excludedFrom = if a.excludedFrom != null then a.excludedFrom else b.excludedFrom;
+      };
+
+      perClassByName = lib.mapAttrs (
+        _: es:
+        lib.foldl' (
+          acc: e:
+          let
+            c = e.class or "";
+            newEntry = {
+              hasClass = e.hasClass or false;
+              excluded = e.excluded or false;
+              replacedBy = e.replacedBy or null;
+              excludedFrom = e.excludedFrom or null;
+            };
+          in
+          if c == "" then
+            acc
+          else if acc ? ${c} then
+            acc // { ${c} = mergePerClassField acc.${c} newEntry; }
+          else
+            acc // { ${c} = newEntry; }
+        ) { } es
+      ) groupedByName;
+
+      nodes = dedupBy fullName entries;
+      edges = dedupBy (e: "${e.parent or ""}->${fullName e}") (
+        builtins.filter (e: e.parent != null) entries
+      );
+
+      # Disambiguation: if two distinct entries would render to the same
+      # short label (e.g. `coolercontrol/class/enable` and
+      # `lact/class/enable` both shortening to `class/enable`), fall
+      # back to the full path for the colliding ones. Unique short
+      # labels stay short.
+      shortLabelCounts = lib.foldl' (
+        acc: e:
+        let
+          s = displayName e;
+        in
+        acc // { ${s} = (acc.${s} or 0) + 1; }
+      ) { } nodes;
+      displayLabel =
+        entry:
+        let
+          s = displayName entry;
+        in
+        if (shortLabelCounts.${s} or 0) > 1 then fullName entry else s;
+
+      # Provider-root lookup: map a top-level provider's bare name to
+      # its entry. Used by `providerEdges` to resolve the source of a
+      # `provider = [ "foo" ]` chain back to the entry definition of
+      # `foo`. Only top-level entries (provider == []) are included,
+      # so a sub-aspect like `bar/foo` can't accidentally shadow a
+      # top-level `foo` aspect — root-level aspect names are unique
+      # in the module system.
+      topLevelEntryByName = lib.listToAttrs (
+        map (e: {
+          name = e.name;
+          value = e;
+        }) (builtins.filter (e: (e.provider or [ ]) == [ ]) entries)
+      );
+
+      # Context stages from __ctxTrace.
+      ctxItems = builtins.filter (i: i.selfName != "<anon>") ctxTrace;
+      stageNames = lib.unique (builtins.filter (s: s != null) (map (e: e.ctxStage or null) entries));
+
+      # Node shape classification.
+      nodeShape =
+        entry:
+        if entry.isParametric or false then
+          "hexagon"
+        else if entry.isProvider or false then
+          "trapezoid"
+        else
+          "rect";
+
+      # Node style classification.
+      nodeStyle =
+        entry:
+        if entry.excluded or false && entry.replacedBy or null != null then
+          "replaced"
+        else if entry.excluded or false then
+          "excluded"
+        else if entry.hasAdapter or false then
+          "adapter"
+        else
+          "default";
+
+      # Edge style classification.
+      edgeStyle =
+        edge:
+        if edge.excluded or false && edge.replacedBy or null != null then
+          "replaced"
+        else if edge.excluded or false then
+          "excluded"
+        else
+          "normal";
+
+      # Null-safe field accessor: treats both missing and explicit-null as
+      # "use the default". Plain `entry.attr or default` only falls through
+      # on missing — an explicit `null` still returns `null`, which breaks
+      # downstream string interpolation.
+      getOr = default: value: if value == null then default else value;
+
+      mkNode =
+        entry:
+        let
+          fn = fullName entry;
+          merged = classesByName.${fn} or [ ];
+          perClass = perClassByName.${fn} or { };
+        in
+        {
+          id = entryId entry;
+          # Short form when unique in this graph, full path otherwise.
+          # See displayLabel / displayName / shortLabelCounts.
+          label = displayLabel entry;
+          # Full "provider/sub/.../name" form. Used by structural operations
+          # like foldProviders that need to resolve a provider chain back
+          # to its parent node, and by renderers that want to disambiguate
+          # when the short label would collide.
+          fullLabel = fullName entry;
+          # Canonical key matching `adapters.pathKey (aspectPath aspect)`.
+          pathKey = fullName entry;
+          shape = nodeShape entry;
+          style = nodeStyle entry;
+          stage = getOr null (entry.ctxStage or null);
+          # `classes` is the set of classes this aspect contributes to
+          # (hasClass = true for each). `class` is the legacy joined-
+          # with-`+` single string for renderers that display it.
+          # `perClass` is the richer per-class metadata attrset keyed
+          # by class name — `perClass.nixos.hasClass`, `.excluded`,
+          # `.replacedBy` — for renderers/filters that need class-
+          # aware materialization info (e.g. "is this aspect active
+          # for the homeConfigurations target?").
+          classes = merged;
+          class = if merged == [ ] then "" else lib.concatStringsSep "+" (lib.sort (a: b: a < b) merged);
+          inherit perClass;
+          fnArgNames = getOr [ ] (entry.fnArgNames or [ ]);
+          isParametric = getOr false (entry.isParametric or false);
+          isProvider = getOr false (entry.isProvider or false);
+          providerPath = getOr [ ] (entry.provider or [ ]);
+          hasClass = getOr false (entry.hasClass or false);
+          isExcluded = getOr false (entry.excluded or false);
+          isReplaced = (getOr null (entry.replacedBy or null)) != null;
+        };
+
+      # `edge.parent` is now a full display path (e.g. `foo/bar/baz`)
+      # thanks to the structuredTrace adapter, so sanitize directly —
+      # no lookup table, no collision possible between sub-aspects
+      # sharing a bare name.
+      mkEdge = edge: {
+        from = sanitize edge.parent;
+        to = entryId edge;
+        style = edgeStyle edge;
+        label = if edge.excluded or false && edge.replacedBy or null != null then "replaced" else null;
+      };
+
+      # Stage ids use `ctx_` prefix unconditionally (never collides with
+      # mermaid reserved words since the prefix always runs first).
+      mkStage = stageName: {
+        id = "ctx_${sanitizeChars stageName}";
+        name = stageName;
+        ctxKeys =
+          let
+            item = lib.findFirst (i: i.key == stageName) null ctxItems;
+          in
+          if item != null then item.ctxKeys else [ ];
+      };
+
+      # Context stage transitions.
+      stageEdges = dedupBy (e: "${e.from}->${e.to}") (
+        lib.concatMap (
+          item:
+          lib.optional (item.prevName != null) {
+            from = "ctx_${sanitizeChars item.prevName}";
+            to = "ctx_${sanitizeChars item.key}";
+            style = if item.hasCrossProvider or false then "provide" else "normal";
+            label = if item.hasCrossProvider or false then "cross-provide" else null;
+          }
+        ) ctxItems
+      );
+
+      # Provider-provenance edges: dotted "provided-by" links from provider
+      # sub-aspects back to their provider source (e.g. to-hosts → alice,
+      # disko/diskoClass → disko).
+      providerEdges = lib.concatMap (
+        entry:
+        let
+          prov = entry.provider or [ ];
+          providerName = if prov != [ ] then builtins.head prov else null;
+          providerEntry = if providerName != null then topLevelEntryByName.${providerName} or null else null;
+          # If the provider has a real top-level entry use its full
+          # display ID; otherwise fall back to the sanitized bare
+          # provider name. The phantom target gets a stub node below.
+          providerNodeId = if providerEntry != null then entryId providerEntry else sanitize providerName;
+        in
+        lib.optional (prov != [ ] && providerName != "den") {
+          from = entryId entry;
+          to = providerNodeId;
+          style = "provide";
+          label = "provided-by";
+        }
+      ) nodes;
+
+      # Phantom providers: names referenced by `provider` chains that never
+      # got their own top-level entry in the trace (e.g. `disko` in a host
+      # that only includes `disko/diskoClass` and `disko/diskoImport`
+      # directly). The parent aspect definitionally exists — it's
+      # defined in the config to host the sub-aspects — so we synthesize
+      # a stub node for it so the provider-provenance edges have a
+      # properly-labeled target.
+      phantomProviderNames = lib.unique (
+        lib.concatMap (
+          entry:
+          let
+            prov = entry.provider or [ ];
+            providerName = if prov != [ ] then builtins.head prov else null;
+          in
+          if providerName != null && providerName != "den" && !(topLevelEntryByName ? ${providerName}) then
+            [ providerName ]
+          else
+            [ ]
+        ) nodes
+      );
+
+      # Minimal stub: only the fields mkNode / mkEdge actually read. Omitted
+      # attrs fall through to mkNode's `getOr` defaults.
+      phantomStubEntries = map (name: {
+        inherit name;
+        provider = [ ];
+        excluded = false;
+      }) phantomProviderNames;
+    in
+    {
+      inherit rootName direction;
+      rootId = sanitize rootName;
+      nodes = map mkNode (lib.sort (a: b: a.name < b.name) (nodes ++ phantomStubEntries));
+      edges =
+        map mkEdge (
+          lib.sort (
+            a: b:
+            (a.parent or "") < (b.parent or "") || ((a.parent or "") == (b.parent or "") && a.name < b.name)
+          ) edges
+        )
+        ++ providerEdges;
+      stages = map mkStage stageNames;
+      inherit stageEdges;
+    };
+
+in
+{
+  inherit buildGraph emptyNode;
+}

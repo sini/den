@@ -20,6 +20,7 @@ let
   den-lib = builtins.mapAttrs (_: load) {
     aspects = ./aspects;
     canTake = ./can-take.nix;
+    diag = ./diag;
     ctxApply = ./ctx-apply.nix;
     ctxTypes = ./ctx-types.nix;
     __findFile = ./den-brackets.nix;

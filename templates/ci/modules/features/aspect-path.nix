@@ -223,6 +223,130 @@
       }
     );
 
+    # structuredTrace: produces entry objects with metadata
+    test-structuredTrace-entries = denTest (
+      { den, lib, ... }:
+      {
+        den.aspects.foo.includes = [ den.aspects.bar ];
+        den.aspects.foo.meta.adapter =
+          inherited: den.lib.aspects.adapters.excludeAspect den.aspects.bar inherited;
+        den.aspects.bar.nixos = { };
+
+        expr =
+          let
+            result =
+              den.lib.aspects.resolve.withAdapter den.lib.aspects.adapters.structuredTrace "nixos"
+                den.aspects.foo;
+            entries = builtins.filter (
+              e: e.name != "<anon>" && !(lib.hasPrefix "[definition " e.name)
+            ) result.trace;
+          in
+          map (e: { inherit (e) name excluded; }) entries;
+        expected = [
+          {
+            name = "foo";
+            excluded = false;
+          }
+          {
+            name = "bar";
+            excluded = true;
+          }
+        ];
+      }
+    );
+
+    # structuredTrace: excludedFrom reports the user-declared adapter
+    # owner, not the anonymous wrapper that the adapter was tagged
+    # onto. Regression test for the attribution-drift fix in
+    # filterIncludes.
+    test-structuredTrace-excludedFrom-attribution = denTest (
+      { den, lib, ... }:
+      {
+        # host includes role, role includes target. host's adapter
+        # excludes target — so the tombstone should say
+        # excludedFrom = "host-aspect", not "<anon>" or "role".
+        den.aspects.host-aspect = {
+          includes = [ den.aspects.role ];
+          meta.adapter = inherited: den.lib.aspects.adapters.excludeAspect den.aspects.target inherited;
+        };
+        den.aspects.role.includes = [
+          den.aspects.target
+          den.aspects.survivor
+        ];
+        den.aspects.target.nixos = { };
+        den.aspects.survivor.nixos = { };
+
+        expr =
+          let
+            result =
+              den.lib.aspects.resolve.withAdapter den.lib.aspects.adapters.structuredTrace "nixos"
+                den.aspects.host-aspect;
+            entries = builtins.filter (
+              e: e.name != "<anon>" && !(lib.hasPrefix "[definition " e.name)
+            ) result.trace;
+          in
+          map (e: {
+            inherit (e) name excluded;
+            excludedFrom = e.excludedFrom or null;
+          }) entries;
+        expected = [
+          {
+            name = "host-aspect";
+            excluded = false;
+            excludedFrom = null;
+          }
+          {
+            name = "role";
+            excluded = false;
+            excludedFrom = null;
+          }
+          {
+            name = "target";
+            excluded = true;
+            excludedFrom = "host-aspect";
+          }
+          {
+            name = "survivor";
+            excluded = false;
+            excludedFrom = null;
+          }
+        ];
+      }
+    );
+
+    # structuredTrace: excludedFrom carries through multi-level
+    # adapter propagation. outer's adapter tags onto middle, then
+    # middle's filterIncludes tombstones victim. The tombstone should
+    # report "outer" (the originating adapter owner), not "middle"
+    # or "<anon>".
+    test-structuredTrace-excludedFrom-propagation = denTest (
+      { den, lib, ... }:
+      {
+        den.aspects.outer = {
+          includes = [ den.aspects.middle ];
+          meta.adapter = inherited: den.lib.aspects.adapters.excludeAspect den.aspects.victim inherited;
+        };
+        den.aspects.middle.includes = [
+          den.aspects.victim
+          den.aspects.keep
+        ];
+        den.aspects.victim.nixos = { };
+        den.aspects.keep.nixos = { };
+
+        expr =
+          let
+            result =
+              den.lib.aspects.resolve.withAdapter den.lib.aspects.adapters.structuredTrace "nixos"
+                den.aspects.outer;
+            entries = builtins.filter (e: e.name == "victim") result.trace;
+          in
+          map (e: e.excludedFrom or null) entries;
+        # Attribution stays with "outer" even though the tombstone
+        # is created at the "middle" level.
+        expected = [ "outer" ];
+      }
+    );
+
     # perHost parametric aspects should appear in trace by name
     test-perHost-visible-in-trace = denTest (
       { den, trace, ... }:
@@ -247,6 +371,84 @@
             "param"
             [ "[definition 1-entry 1]" ]
           ]
+        ];
+      }
+    );
+
+    # structuredTrace: ctxStage is set when resolved through den.ctx.host.
+    # Check that key aspects get the right stage, ignoring duplicates.
+    test-structuredTrace-ctxStage = denTest (
+      { den, lib, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.aspects.igloo.nixos = { };
+        den.aspects.tux.nixos = { };
+
+        expr =
+          let
+            host = den.hosts.x86_64-linux.igloo;
+            asp = den.ctx.host { inherit host; };
+            result = den.lib.aspects.resolve.withAdapter den.lib.aspects.adapters.structuredTrace "nixos" asp;
+            isInternal =
+              n:
+              lib.hasPrefix "<" n
+              || lib.hasPrefix "[" n
+              || builtins.match ".+/(aspect|self-provide|cross-provide|resolve).*" n != null;
+            named = builtins.filter (e: !isInternal e.name) result.trace;
+            # Deduplicate by name, take first occurrence.
+            dedup =
+              builtins.foldl'
+                (
+                  acc: e:
+                  if acc.seen ? ${e.name} then
+                    acc
+                  else
+                    {
+                      seen = acc.seen // {
+                        ${e.name} = true;
+                      };
+                      result = acc.result ++ [ e ];
+                    }
+                )
+                {
+                  seen = { };
+                  result = [ ];
+                }
+                named;
+          in
+          map (e: {
+            inherit (e) name;
+            ctxStage = e.ctxStage or null;
+          }) dedup.result;
+        expected = [
+          {
+            name = "host";
+            ctxStage = null;
+          }
+          {
+            name = "igloo";
+            ctxStage = "host";
+          }
+          {
+            name = "default";
+            ctxStage = "default";
+          }
+          {
+            name = "hm-host";
+            ctxStage = "hm-host";
+          }
+          {
+            name = "hm-user";
+            ctxStage = "hm-user";
+          }
+          {
+            name = "user";
+            ctxStage = "user";
+          }
+          {
+            name = "tux";
+            ctxStage = "user";
+          }
         ];
       }
     );
