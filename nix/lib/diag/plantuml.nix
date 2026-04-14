@@ -62,12 +62,19 @@ let
         else
           "rectangle";
 
+      # Escape angle brackets to prevent PlantUML from interpreting
+      # <anon> as a stereotype/generic.
+      escapePuml = s: builtins.replaceStrings [ "<" ">" ] [ "&lt;" "&gt;" ] s;
+
       pumlLabel =
         node:
+        let
+          label = escapePuml node.label;
+        in
         if node.isParametric then
-          "${node.label}\\n({ ${fmtArgs node.fnArgNames} })${stageSuffix node}"
+          "${label}\\n({ ${fmtArgs node.fnArgNames} })${stageSuffix node}"
         else
-          "${node.label}${stageSuffix node}";
+          "${label}${stageSuffix node}";
 
       # PlantUML: `#fill` sets background; `;line.dashed` appends a dashed
       # border. Chaining style directives with `;` is the supported form.
@@ -99,9 +106,13 @@ let
         let
           stageNodes = builtins.filter (n: n.stage == stage.name && n.id != rootId) nodes;
           ctxLabel = if stage.ctxKeys != [ ] then " { ${lib.concatStringsSep ", " stage.ctxKeys} }" else "";
+          safeName =
+            builtins.replaceStrings [ "-" " " "/" "." "(" ")" ] [ "_" "_" "__" "_" "_" "_" ]
+              stage.name;
+          pkgAlias = "stage_${safeName}";
         in
         lib.optional (stageNodes != [ ]) (
-          "package \"${stage.name}${ctxLabel}\" {\n"
+          "package \"${stage.name}${ctxLabel}\" as ${pkgAlias} {\n"
           + lib.concatMapStringsSep "\n" (n: "  ${nodeDecl n}") stageNodes
           + "\n}"
         );
@@ -109,6 +120,7 @@ let
     lib.concatStringsSep "\n" (
       [
         "@startuml"
+        "left to right direction"
         (skinparamFor {
           inherit theme;
           elements = plantumlElements;

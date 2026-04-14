@@ -79,9 +79,25 @@ let
       parentsOf = id: adj.inTo.${id} or [ ];
 
       # Expand edges: replace foldable endpoints with their non-foldable connections.
-      expandFrom =
-        from: if !(foldIds ? ${from}) then [ from ] else lib.concatMap expandFrom (parentsOf from);
-      expandTo = to: if !(foldIds ? ${to}) then [ to ] else lib.concatMap expandTo (childrenOf to);
+      # Track visited set to prevent infinite recursion from cycles among foldable nodes.
+      expandFrom = expandFromWith { };
+      expandFromWith =
+        visited: from:
+        if !(foldIds ? ${from}) then
+          [ from ]
+        else if visited ? ${from} then
+          [ ]
+        else
+          lib.concatMap (expandFromWith (visited // { ${from} = true; })) (parentsOf from);
+      expandTo = expandToWith { };
+      expandToWith =
+        visited: to:
+        if !(foldIds ? ${to}) then
+          [ to ]
+        else if visited ? ${to} then
+          [ ]
+        else
+          lib.concatMap (expandToWith (visited // { ${to} = true; })) (childrenOf to);
 
       expandedEdges = lib.concatMap (
         edge:

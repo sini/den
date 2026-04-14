@@ -38,13 +38,23 @@ let
         edges
         ;
 
-      # Dedup edges (from, to) — sankey collapses duplicates anyway but the
-      # explicit dedup keeps the generated source readable.
-      uniqueEdges = dedupBy (e: "${e.from}->${e.to}") edges;
+      # Dedup edges, drop self-loops, and break cycles.
+      # Sankey diagrams don't support any circular links.
+      noSelfLoops = builtins.filter (e: e.from != e.to) edges;
+      dedupedEdges = dedupBy (e: "${e.from}->${e.to}") noSelfLoops;
+      fwdAdj = (adjacency dedupedEdges).outOf;
+      isReachable =
+        start: target: visited:
+        if start == target then
+          true
+        else if visited ? ${start} then
+          false
+        else
+          builtins.any (next: isReachable next target (visited // { ${start} = true; })) (
+            fwdAdj.${start} or [ ]
+          );
+      uniqueEdges = builtins.filter (e: !(isReachable e.to e.from { })) dedupedEdges;
 
-      # Parent → children adjacency for descendant counting. Use the
-      # shared `util.adjacency` primitive — same pattern graph.nix's
-      # `foldWrappers` uses.
       childMap = (adjacency uniqueEdges).outOf;
 
       # Number of leaves reachable from `id`. Visited set guards against

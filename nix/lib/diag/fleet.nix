@@ -12,9 +12,14 @@
 #       hosts     = [ { name, description } ]
 #       users     = [ { name } ]
 #       relations = [ { from, to, label } ]   # user->host (class) edges
-{ den, lib }:
+{
+  den,
+  lib,
+  inputs,
+  ...
+}:
 let
-  capture = import ./capture.nix { inherit den lib; };
+  capture = import ./capture.nix { inherit den lib inputs; };
 
   # Flatten a `den.hosts`-shaped attrset to a list of
   # { name, system, host, users : [ { name, classes } ] }.

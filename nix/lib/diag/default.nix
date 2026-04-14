@@ -39,13 +39,22 @@
 #     ctxTrace = root.__ctxTrace or [ ];
 #   };
 #
-{ lib, den, ... }:
+{
+  lib,
+  den,
+  inputs,
+  ...
+}:
 let
+  fxEnabled = den.fxPipeline or false;
+  fxLib =
+    if fxEnabled && inputs ? nix-effects then den.lib.aspects.fx.init inputs.nix-effects.lib else null;
+
   util = import ./util.nix { inherit lib; };
   colors = import ./colors.nix { inherit lib; };
   themes = import ./themes.nix { inherit lib; };
   renderUtil = import ./render-util.nix { inherit lib themes; };
-  capture = import ./capture.nix { inherit den lib; };
+  capture = import ./capture.nix { inherit den lib inputs; };
   graphLib = import ./graph.nix { inherit lib util; };
   filtersLib = import ./filters.nix { inherit lib util graphLib; };
   mermaid = import ./mermaid.nix {
@@ -116,7 +125,7 @@ let
       renderUtil
       ;
   };
-  fleetLib = import ./fleet.nix { inherit den lib; };
+  fleetLib = import ./fleet.nix { inherit den lib inputs; };
   exportLib = import ./export.nix { inherit lib; };
 
   # --- Entity-agnostic context constructor ---
@@ -144,12 +153,63 @@ let
       direction ? "LR",
     }:
     let
-      captured = capture.captureWithPaths classes root;
+      # FX-native capture: resolve pre-built root with trace handlers.
+      # Uses resolveDeepEffectful on the root (from legacy ctxApply).
+      # When legacy is removed, den.ctx.__functor uses fx ctxApply —
+      # the root shape stays the same.
+      fxCapture =
+        classes':
+        let
+          nxFx = inputs.nix-effects.lib;
+          rawPerClass = lib.genAttrs classes' (
+            class:
+            let
+              comp =
+                nxFx.bind
+                  (fxLib.resolve.resolveDeepEffectful {
+                    ctx = { };
+                    inherit class;
+                    aspect-chain = [ ];
+                  } root)
+                  (
+                    resolved:
+                    nxFx.bind (nxFx.send "resolve-complete" (resolved // { __parent = null; })) (_: nxFx.pure resolved)
+                  );
+            in
+            nxFx.handle {
+              handlers =
+                fxLib.resolve.defaultHandlers {
+                  inherit class;
+                  ctx = { };
+                }
+                // fxLib.adapters.tracingHandler class
+                // fxLib.handlers.ctxTraceHandler;
+              state = fxLib.resolve.defaultState // {
+                entries = [ ];
+                paths = [ ];
+                ctxTrace = [ ];
+              };
+            } comp
+          );
+        in
+        {
+          entries = lib.concatMap (c: (rawPerClass.${c}).state.entries) classes';
+          pathsByClass = lib.mapAttrs (_: r: fxLib.adapters.toPathSet (r.state.paths or [ ])) rawPerClass;
+          ctxTrace =
+            let
+              first = rawPerClass.${lib.head classes'};
+            in
+            first.state.ctxTrace or [ ];
+        };
+
+      useFx = fxEnabled && fxLib != null;
+      captured = if useFx then fxCapture classes else capture.captureWithPaths classes root;
+      ctxTrace = if useFx then captured.ctxTrace else root.__ctxTrace or [ ];
+
       graph = graphLib.buildGraph {
         entries = captured.entries;
         rootName = name;
-        ctxTrace = root.__ctxTrace or [ ];
-        inherit direction;
+        inherit ctxTrace direction;
       };
       pathSets = captured.pathsByClass;
     in

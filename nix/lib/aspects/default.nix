@@ -58,6 +58,7 @@ in
     types
     adapters
     resolve
+    legacyResolve
     fx
     ;
   inherit (hasAspect) hasAspectIn collectPathSet mkEntityHasAspect;
