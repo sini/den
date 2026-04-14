@@ -57,7 +57,7 @@ in
                 resume = null;
                 inherit state;
               };
-            "check-exclusion" =
+            "check-constraint" =
               { param, state }:
               {
                 resume = {
@@ -100,7 +100,7 @@ in
         parent = {
           name = "parent";
           meta = {
-            adapter = fxLib.adapters.excludeAspect target;
+            adapter = fxLib.exclude target;
           };
           includes = [
             {
@@ -151,10 +151,10 @@ in
                 inherit state;
               };
           }
-          // fxLib.handlers.adapterRegistryHandler
+          // fxLib.handlers.constraintRegistryHandler
           // fxLib.handlers.chainHandler;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
             includesChain = [ ];
           };
         } comp;
@@ -216,7 +216,7 @@ in
                   names = (state.names or [ ]) ++ [ param.name ];
                 };
               };
-            "check-exclusion" =
+            "check-constraint" =
               { param, state }:
               {
                 resume = {
@@ -299,7 +299,7 @@ in
                   resume = null;
                   inherit state;
                 };
-              "check-exclusion" =
+              "check-constraint" =
                 { param, state }:
                 {
                   resume = {
@@ -371,7 +371,7 @@ in
                   resume = null;
                   inherit state;
                 };
-              "check-exclusion" =
+              "check-constraint" =
                 { param, state }:
                 {
                   resume = {
@@ -413,13 +413,13 @@ in
         parent = {
           name = "root";
           meta = {
-            adapter = fxLib.adapters.excludeAspect targetA;
+            adapter = fxLib.exclude targetA;
           };
           includes = [
             {
               name = "inner";
               meta = {
-                adapter = fxLib.adapters.excludeAspect targetB;
+                adapter = fxLib.exclude targetB;
               };
               includes = [
                 {
@@ -468,11 +468,11 @@ in
                 };
               };
           }
-          // fxLib.handlers.adapterRegistryHandler
+          // fxLib.handlers.constraintRegistryHandler
           // fxLib.handlers.chainHandler;
           state = {
             excluded = [ ];
-            adapterRegistry = { };
+            constraintRegistry = { };
             includesChain = [ ];
           };
         } comp;

@@ -140,7 +140,7 @@ in
                   parents = (state.parents or [ ]) ++ [ parent ];
                 };
               };
-            "check-exclusion" =
+            "check-constraint" =
               { param, state }:
               {
                 resume = {

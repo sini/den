@@ -39,7 +39,7 @@ in
           fxLib.resolve.mkPipeline
             {
               class = "nixos";
-              extraHandlers = fxLib.adapters.structuredTraceHandler "nixos";
+              extraHandlers = fxLib.trace.structuredTraceHandler "nixos";
               extraState = {
                 entries = [ ];
               };
@@ -86,7 +86,7 @@ in
           name = "root";
           meta = {
             provider = [ ];
-            adapter = fxLib.adapters.excludeAspect target;
+            adapter = fxLib.exclude target;
           };
           includes = [
             {
@@ -103,7 +103,7 @@ in
           fxLib.resolve.mkPipeline
             {
               class = "nixos";
-              extraHandlers = fxLib.adapters.structuredTraceHandler "nixos";
+              extraHandlers = fxLib.trace.structuredTraceHandler "nixos";
               extraState = {
                 entries = [ ];
               };
@@ -188,7 +188,7 @@ in
           fxLib.resolve.mkPipeline
             {
               class = "nixos";
-              extraHandlers = fxLib.adapters.structuredTraceHandler "nixos" // fxLib.handlers.ctxTraceHandler;
+              extraHandlers = fxLib.trace.structuredTraceHandler "nixos" // fxLib.handlers.ctxTraceHandler;
               extraState = {
                 entries = [ ];
                 ctxTrace = [ ];
@@ -243,7 +243,7 @@ in
           fxLib.resolve.mkPipeline
             {
               class = "nixos";
-              extraHandlers = fxLib.adapters.structuredTraceHandler "nixos";
+              extraHandlers = fxLib.trace.structuredTraceHandler "nixos";
               extraState = {
                 entries = [ ];
               };
@@ -304,7 +304,7 @@ in
           fxLib.resolve.mkPipeline
             {
               class = "nixos";
-              extraHandlers = fxLib.adapters.tracingHandler "nixos" // fxLib.handlers.ctxTraceHandler;
+              extraHandlers = fxLib.trace.tracingHandler "nixos" // fxLib.handlers.ctxTraceHandler;
               extraState = {
                 entries = [ ];
                 paths = [ ];
@@ -400,7 +400,7 @@ in
           handlers = fxLib.resolve.composeHandlers (fxLib.resolve.defaultHandlers {
             class = "nixos";
             ctx = { };
-          }) (fxLib.adapters.tracingHandler "nixos");
+          }) (fxLib.trace.tracingHandler "nixos");
           state = fxLib.resolve.defaultState // {
             entries = [ ];
           };
@@ -431,7 +431,7 @@ in
           handlers = fxLib.resolve.composeHandlers (fxLib.resolve.defaultHandlers {
             class = "nixos";
             ctx = { };
-          }) (fxLib.adapters.tracingHandler "nixos");
+          }) (fxLib.trace.tracingHandler "nixos");
           state = fxLib.resolve.defaultState // {
             entries = [ ];
           };

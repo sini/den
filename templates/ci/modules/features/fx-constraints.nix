@@ -79,13 +79,13 @@ in
         };
         decl = fxLib.exclude ref;
         # Register then check-exclusion
-        comp = fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
-          _: fx.send "check-exclusion" "drop"
+        comp = fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
+          _: fx.send "check-constraint" "drop"
         );
         result = fx.handle {
-          handlers = fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.constraintRegistryHandler;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
           };
         } comp;
       in
@@ -99,11 +99,11 @@ in
       { den, ... }:
       let
         fxLib = den.lib.aspects.fx.init fx;
-        comp = fx.send "check-exclusion" "unknown";
+        comp = fx.send "check-constraint" "unknown";
         result = fx.handle {
-          handlers = fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.constraintRegistryHandler;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
           };
         } comp;
       in
@@ -131,13 +131,13 @@ in
           includes = [ ];
         };
         decl = fxLib.substitute ref replacement;
-        comp = fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
-          _: fx.send "check-exclusion" "old"
+        comp = fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
+          _: fx.send "check-constraint" "old"
         );
         result = fx.handle {
-          handlers = fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.constraintRegistryHandler;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
           };
         } comp;
       in
@@ -195,7 +195,7 @@ in
                 resume = param;
                 inherit state;
               };
-            "check-exclusion" =
+            "check-constraint" =
               { param, state }:
               {
                 resume = {
@@ -264,12 +264,12 @@ in
                 inherit state;
               };
           }
-          // fxLib.handlers.adapterRegistryHandler
+          // fxLib.handlers.constraintRegistryHandler
           // fxLib.identity.collectPathsHandler
           // fxLib.handlers.chainHandler;
           state = {
             paths = [ ];
-            adapterRegistry = { };
+            constraintRegistry = { };
             includesChain = [ ];
           };
         } comp;
@@ -397,11 +397,11 @@ in
         decl = fxLib.exclude ref;
         comp = fx.bind (fx.send "chain-push" { identity = "parent"; }) (
           _:
-          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+          fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
             _:
             fx.bind (fx.send "chain-push" { identity = "child"; }) (
               _:
-              fx.send "check-exclusion" {
+              fx.send "check-constraint" {
                 identity = "drop";
                 aspect = null;
               }
@@ -409,11 +409,11 @@ in
           )
         );
         result = fx.handle {
-          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.constraintRegistryHandler;
           state = {
             includesChain = [ ];
-            adapterRegistry = { };
-            adapterFilters = [ ];
+            constraintRegistry = { };
+            constraintFilters = [ ];
           };
         } comp;
       in
@@ -434,13 +434,13 @@ in
         decl = fxLib.exclude ref;
         comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
           _:
-          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+          fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
             _:
             fx.bind (fx.send "chain-pop" null) (
               _:
               fx.bind (fx.send "chain-push" { identity = "b"; }) (
                 _:
-                fx.send "check-exclusion" {
+                fx.send "check-constraint" {
                   identity = "drop";
                   aspect = null;
                 }
@@ -449,11 +449,11 @@ in
           )
         );
         result = fx.handle {
-          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.constraintRegistryHandler;
           state = {
             includesChain = [ ];
-            adapterRegistry = { };
-            adapterFilters = [ ];
+            constraintRegistry = { };
+            constraintFilters = [ ];
           };
         } comp;
       in
@@ -474,13 +474,13 @@ in
         decl = fxLib.exclude.global ref;
         comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
           _:
-          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+          fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
             _:
             fx.bind (fx.send "chain-pop" null) (
               _:
               fx.bind (fx.send "chain-push" { identity = "b"; }) (
                 _:
-                fx.send "check-exclusion" {
+                fx.send "check-constraint" {
                   identity = "drop";
                   aspect = null;
                 }
@@ -489,11 +489,11 @@ in
           )
         );
         result = fx.handle {
-          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.constraintRegistryHandler;
           state = {
             includesChain = [ ];
-            adapterRegistry = { };
-            adapterFilters = [ ];
+            constraintRegistry = { };
+            constraintFilters = [ ];
           };
         } comp;
       in
@@ -514,20 +514,20 @@ in
         };
         comp = fx.bind (fx.send "chain-push" { identity = "parent"; }) (
           _:
-          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+          fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
             _:
-            fx.send "check-exclusion" {
+            fx.send "check-constraint" {
               identity = "drop";
               inherit aspect;
             }
           )
         );
         result = fx.handle {
-          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.constraintRegistryHandler;
           state = {
             includesChain = [ ];
-            adapterRegistry = { };
-            adapterFilters = [ ];
+            constraintRegistry = { };
+            constraintFilters = [ ];
           };
         } comp;
       in
@@ -548,13 +548,13 @@ in
         };
         comp = fx.bind (fx.send "chain-push" { identity = "a"; }) (
           _:
-          fx.bind (fx.send "register-adapter" (decl // { owner = "test"; })) (
+          fx.bind (fx.send "register-constraint" (decl // { owner = "test"; })) (
             _:
             fx.bind (fx.send "chain-pop" null) (
               _:
               fx.bind (fx.send "chain-push" { identity = "b"; }) (
                 _:
-                fx.send "check-exclusion" {
+                fx.send "check-constraint" {
                   identity = "drop";
                   inherit aspect;
                 }
@@ -563,11 +563,11 @@ in
           )
         );
         result = fx.handle {
-          handlers = fxLib.handlers.chainHandler // fxLib.handlers.adapterRegistryHandler;
+          handlers = fxLib.handlers.chainHandler // fxLib.handlers.constraintRegistryHandler;
           state = {
             includesChain = [ ];
-            adapterRegistry = { };
-            adapterFilters = [ ];
+            constraintRegistry = { };
+            constraintFilters = [ ];
           };
         } comp;
       in
@@ -635,12 +635,12 @@ in
                 inherit state;
               };
           }
-          // fxLib.handlers.adapterRegistryHandler
+          // fxLib.handlers.constraintRegistryHandler
           // fxLib.handlers.provideClassHandler
           // fxLib.handlers.chainHandler;
           state = {
             imports = [ ];
-            adapterRegistry = { };
+            constraintRegistry = { };
             includesChain = [ ];
           };
         } comp;

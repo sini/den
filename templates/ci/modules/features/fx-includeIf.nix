@@ -23,9 +23,9 @@ let
         };
     }
     // fxLib.handlers.chainHandler
-    // fxLib.handlers.adapterRegistryHandler
-    // fxLib.adapters.pathSetHandler
-    // fxLib.adapters.collectPathsHandler;
+    // fxLib.handlers.constraintRegistryHandler
+    // fxLib.identity.pathSetHandler
+    // fxLib.identity.collectPathsHandler;
 in
 {
   flake.tests.fx-includeIf = {
@@ -44,7 +44,7 @@ in
           };
           includes = [ ];
         };
-        guarded = fxLib.adapters.includeIf (_: true) [ target ];
+        guarded = fxLib.includeIf (_: true) [ target ];
         parent = {
           name = "root";
           meta = { };
@@ -58,7 +58,7 @@ in
         result = fx.handle {
           handlers = mkPassthroughHandlers fxLib;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
             paths = [ ];
             includesChain = [ ];
           };
@@ -81,7 +81,7 @@ in
           };
           includes = [ ];
         };
-        guarded = fxLib.adapters.includeIf (_: false) [ target ];
+        guarded = fxLib.includeIf (_: false) [ target ];
         parent = {
           name = "root";
           meta = { };
@@ -95,7 +95,7 @@ in
         result = fx.handle {
           handlers = mkPassthroughHandlers fxLib;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
             paths = [ ];
             includesChain = [ ];
           };
@@ -128,7 +128,7 @@ in
           };
           includes = [ ];
         };
-        guarded = fxLib.adapters.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ];
+        guarded = fxLib.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ];
         parent = {
           name = "root";
           meta = { };
@@ -145,7 +145,7 @@ in
         result = fx.handle {
           handlers = mkPassthroughHandlers fxLib;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
             paths = [ ];
             includesChain = [ ];
           };
@@ -176,7 +176,7 @@ in
           };
           includes = [ ];
         };
-        guarded = fxLib.adapters.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ];
+        guarded = fxLib.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ];
         # sops is NOT in includes — guard should fail
         parent = {
           name = "root";
@@ -191,7 +191,7 @@ in
         result = fx.handle {
           handlers = mkPassthroughHandlers fxLib;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
             paths = [ ];
             includesChain = [ ];
           };
@@ -235,8 +235,8 @@ in
           meta = { };
           includes = [
             sops
-            (fxLib.adapters.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ])
-            (fxLib.adapters.includeIf (ctx: !ctx.hasAspect sops) [ ageConf ])
+            (fxLib.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ])
+            (fxLib.includeIf (ctx: !ctx.hasAspect sops) [ ageConf ])
           ];
         };
         comp = fxLib.resolve.resolveDeepEffectful {
@@ -247,7 +247,7 @@ in
         result = fx.handle {
           handlers = mkPassthroughHandlers fxLib;
           state = {
-            adapterRegistry = { };
+            constraintRegistry = { };
             paths = [ ];
             includesChain = [ ];
           };

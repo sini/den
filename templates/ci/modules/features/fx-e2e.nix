@@ -114,7 +114,7 @@ in
           into = _: { };
           provides = { };
           meta = {
-            adapter = fxLib.adapters.excludeAspect wayland;
+            adapter = fxLib.exclude wayland;
           };
           includes = [
             {
@@ -180,7 +180,7 @@ in
           provides = { };
           includes = [
             sops
-            (fxLib.adapters.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ])
+            (fxLib.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ])
           ];
         };
         result = fxLib.resolve.fxResolve {

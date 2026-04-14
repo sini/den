@@ -18,8 +18,8 @@ let
     }
     // fxLib.handlers.chainHandler
     // fxLib.handlers.provideClassHandler
-    // fxLib.handlers.adapterRegistryHandler
-    // fxLib.adapters.pathSetHandler
+    // fxLib.handlers.constraintRegistryHandler
+    // fxLib.identity.pathSetHandler
     // {
       "resolve-include" =
         { param, state }:
@@ -35,7 +35,7 @@ let
         {
           resume = param;
           state = state // {
-            paths = (state.paths or [ ]) ++ (lib.optional (!isExcluded) (fxLib.adapters.aspectPath param));
+            paths = (state.paths or [ ]) ++ (lib.optional (!isExcluded) (fxLib.identity.aspectPath param));
           };
         };
     };
@@ -55,7 +55,7 @@ let
       handlers = defaultHandlers fxLib { inherit ctx class; };
       state = {
         imports = [ ];
-        adapterRegistry = { };
+        constraintRegistry = { };
         paths = [ ];
         includesChain = [ ];
       };
@@ -116,7 +116,7 @@ in
         root = {
           name = "root";
           meta = {
-            adapter = fxLib.adapters.excludeAspect target;
+            adapter = fxLib.exclude target;
           };
           includes = [
             {
@@ -173,7 +173,7 @@ in
         root = {
           name = "root";
           meta = {
-            adapter = fxLib.adapters.substituteAspect old new;
+            adapter = fxLib.substitute old new;
           };
           includes = [
             {
@@ -235,7 +235,7 @@ in
           meta = { };
           includes = [
             sops
-            (fxLib.adapters.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ])
+            (fxLib.includeIf (ctx: ctx.hasAspect sops) [ sopsConf ])
           ];
         };
         result = runPipeline fxLib { } root;
@@ -260,7 +260,7 @@ in
         root = {
           name = "igloo";
           meta = {
-            adapter = fxLib.adapters.excludeAspect wayland;
+            adapter = fxLib.exclude wayland;
           };
           includes = [
             {
@@ -315,7 +315,7 @@ in
         root = {
           name = "root";
           meta = {
-            adapter = fxLib.adapters.excludeAspect target;
+            adapter = fxLib.exclude target;
           };
           includes = [
             {

@@ -22,7 +22,7 @@ in
         };
       in
       {
-        expr = fxLib.adapters.aspectPath a;
+        expr = fxLib.identity.aspectPath a;
         expected = [
           "monitoring"
           "sub"
@@ -40,7 +40,7 @@ in
         };
       in
       {
-        expr = fxLib.adapters.aspectPath a;
+        expr = fxLib.identity.aspectPath a;
         expected = [ "base" ];
       }
     );
@@ -51,7 +51,7 @@ in
         fxLib = den.lib.aspects.fx.init fx;
       in
       {
-        expr = fxLib.adapters.pathKey [
+        expr = fxLib.identity.pathKey [
           "monitoring"
           "sub"
         ];
@@ -65,7 +65,7 @@ in
         fxLib = den.lib.aspects.fx.init fx;
       in
       {
-        expr = fxLib.adapters.toPathSet [
+        expr = fxLib.identity.toPathSet [
           [ "a" ]
           [
             "b"
@@ -90,7 +90,7 @@ in
           };
           includes = [ "x" ];
         };
-        ts = fxLib.adapters.tombstone a { excludedFrom = "parent"; };
+        ts = fxLib.identity.tombstone a { excludedFrom = "parent"; };
       in
       {
         expr = {
