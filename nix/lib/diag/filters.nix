@@ -352,7 +352,7 @@ let
 
   # Adapters view: nodes with style != "default" (i.e. adapter / excluded
   # / replaced) plus immediate neighbors. Empty on configs that don't
-  # use `excludeAspect` / `substituteAspect` / `hasAdapter` — that
+  # use `exclude` / `substitute` / `handlers` — that
   # emptiness itself is a useful signal.
   adaptersOnly = graph: neighborhoodOf (n: (n.style or "default") != "default") graph;
 
@@ -450,14 +450,14 @@ let
   # Attribution-based structural-decision view. Groups excluded nodes
   # by their `perClass.<class>.excludedFrom` field — the full
   # aspectPath identity of the user-declared aspect whose
-  # `meta.adapter` caused the tombstone. The adapter-owner node is
+  # `meta.handleWith` caused the tombstone. The constraint-owner node is
   # shown alongside its direct inclusion-children (survivors and
   # tombstones side by side), so the view reads "for each adapter
   # owner, here are the aspects it decided on". Tombstones keep their
   # `excluded` style (red-dashed); survivors show as default.
   #
-  # Catches `oneOfAspects`, `excludeAspect`, and any custom
-  # meta.adapter that tombstones via `filterIncludes`.
+  # Catches `oneOf`, `exclude`, and any custom
+  # meta.handleWith that tombstones via `filterIncludes`.
   decisionsView =
     graph:
     let

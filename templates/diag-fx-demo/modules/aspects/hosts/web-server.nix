@@ -4,6 +4,6 @@
   # don't forward their config into the build.
   den.aspects.web-server = {
     includes = with den.aspects; [ server ];
-    meta.adapter = den.lib.aspects.fx.excludeAspect den.aspects.monitoring._.nginx-exporter;
+    meta.handleWith = den.lib.aspects.fx.exclude den.aspects.monitoring._.nginx-exporter;
   };
 }

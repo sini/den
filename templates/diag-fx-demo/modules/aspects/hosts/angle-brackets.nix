@@ -7,6 +7,6 @@
       den.aspects.tailscale
       den.aspects.desktop
     ];
-    meta.adapter = den.lib.aspects.fx.excludeAspect den.aspects.tailscale;
+    meta.handleWith = den.lib.aspects.fx.exclude den.aspects.tailscale;
   };
 }

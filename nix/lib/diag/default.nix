@@ -164,17 +164,11 @@ let
           rawPerClass = lib.genAttrs classes' (
             class:
             let
-              comp =
-                nxFx.bind
-                  (fxLib.resolve.resolveDeepEffectful {
-                    ctx = { };
-                    inherit class;
-                    aspect-chain = [ ];
-                  } root)
-                  (
-                    resolved:
-                    nxFx.bind (nxFx.send "resolve-complete" (resolved // { __parent = null; })) (_: nxFx.pure resolved)
-                  );
+              comp = nxFx.bind (fxLib.resolve.resolveDeepEffectful {
+                ctx = { };
+                inherit class;
+                aspect-chain = [ ];
+              } root) (resolved: nxFx.bind (nxFx.send "resolve-complete" resolved) (_: nxFx.pure resolved));
             in
             nxFx.handle {
               handlers =
@@ -182,7 +176,7 @@ let
                   inherit class;
                   ctx = { };
                 }
-                // fxLib.adapters.tracingHandler class
+                // fxLib.trace.tracingHandler class
                 // fxLib.handlers.ctxTraceHandler;
               state = fxLib.resolve.defaultState // {
                 entries = [ ];
@@ -194,7 +188,7 @@ let
         in
         {
           entries = lib.concatMap (c: (rawPerClass.${c}).state.entries) classes';
-          pathsByClass = lib.mapAttrs (_: r: fxLib.adapters.toPathSet (r.state.paths or [ ])) rawPerClass;
+          pathsByClass = lib.mapAttrs (_: r: fxLib.identity.toPathSet (r.state.paths or [ ])) rawPerClass;
           ctxTrace =
             let
               first = rawPerClass.${lib.head classes'};
@@ -392,7 +386,7 @@ let
         let
           incs = staticIncludes value;
           hasFunctorInclude = lib.any (i: !builtins.isAttrs i) incs;
-          hasAdapter = (value.meta.adapter or null) != null;
+          hasConstraint = (value.meta.handleWith or null) != null;
           hasProvides = (value.provides or { }) != { };
           providerChain = value.meta.provider or [ ];
         in
@@ -412,7 +406,7 @@ let
               "trapezoid"
             else
               "rect";
-          style = if hasAdapter then "adapter" else "default";
+          style = if hasConstraint then "adapter" else "default";
           providerPath = providerChain;
           hasClass = true;
         };

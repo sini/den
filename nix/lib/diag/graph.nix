@@ -234,7 +234,7 @@ let
           "replaced"
         else if entry.excluded or false then
           "excluded"
-        else if entry.hasAdapter or false then
+        else if entry.hasConstraint or entry.hasAdapter or false then
           "adapter"
         else
           "default";

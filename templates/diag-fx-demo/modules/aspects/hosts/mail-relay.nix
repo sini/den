@@ -4,6 +4,6 @@
   # equivalent to the POC's host.excludes = [ <monitoring> ].
   den.aspects.mail-relay = {
     includes = with den.aspects; [ relay ];
-    meta.adapter = den.lib.aspects.fx.excludeAspect den.aspects.monitoring;
+    meta.handleWith = den.lib.aspects.fx.exclude den.aspects.monitoring;
   };
 }

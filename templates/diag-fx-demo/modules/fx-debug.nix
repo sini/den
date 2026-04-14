@@ -12,10 +12,10 @@ let
   # FX trace
   fxComp = nxFx.bind
     (fxLib.resolve.resolveDeepEffectful { ctx = {}; class = "nixos"; aspect-chain = []; } legacyRoot)
-    (resolved: nxFx.bind (nxFx.send "resolve-complete" (resolved // { __parent = null; })) (_: nxFx.pure resolved));
+    (resolved: nxFx.bind (nxFx.send "resolve-complete" resolved) (_: nxFx.pure resolved));
   fxResult = nxFx.handle {
     handlers = fxLib.resolve.defaultHandlers { class = "nixos"; ctx = {}; }
-      // fxLib.adapters.tracingHandler "nixos"
+      // fxLib.trace.tracingHandler "nixos"
       // fxLib.handlers.ctxTraceHandler;
     state = fxLib.resolve.defaultState // { entries = []; paths = []; ctxTrace = []; };
   } fxComp;
@@ -31,7 +31,7 @@ let
     map (e: e.parent or "NULL")
       (builtins.filter (e: e.name == name) entries);
 
-  # Also check raw __parent from resolve-complete params
+  # Also check raw entries from resolve-complete params
   fxRawParents = lib.genAttrs aspects (name:
     let matches = builtins.filter (e: e.name == name) fxEntries; in
     map (e: { parent = e.parent or "NULL"; ctxStage = e.ctxStage or "?"; }) matches
