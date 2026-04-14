@@ -15,22 +15,9 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
   multi_desktop --> workstation
-  networking --> workstation
-  regreet --> workstation
-  tailscale --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  networking --> tailscale
-  regreet --> desktop
-  tailscale --> desktop
-  tailscale --> regreet
-  virtualization --> virtualization__podman
   workstation --> desktop
-  workstation --> multi_desktop
   workstation --> networking
   workstation --> virtualization__podman
   workstation --> tailscale
@@ -38,85 +25,34 @@ graph LR
   virtualization__podman -.->|provided-by| virtualization
   end
   subgraph ctx_default["default"]
-  den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
-  den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   alice__to_hosts -.->|provided-by| alice
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
   bob["bob"]:::bob_c
-  demo_shell["demo-shell"]:::demo_shell_c
-  dev_tools["dev-tools"]:::dev_tools_c
   gnome["gnome"]:::gnome_c
   hyprland["hyprland"]:::hyprland_c
-  primary_user["primary-user"]:::primary_user_c
   den__provides__primary_user[/"provides/primary-user"\]:::den__provides__primary_user_c
-  alice --> demo_shell
-  alice --> dev_tools
   alice --> hyprland
-  alice --> primary_user
   alice --> den__provides__primary_user
-  alice --> gnome
-  bob --> dev_tools
   bob --> gnome
-  bob --> primary_user
   bob --> den__provides__primary_user
-  bob --> alice
-  bob --> demo_shell
-  bob --> hyprland
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  demo_shell --> gnome
-  den__provides__primary_user --> demo_shell
-  den__provides__primary_user --> gnome
-  dev_tools --> bob
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> gnome
-  dev_tools --> hyprland
-  gnome --> dev_tools
-  gnome --> alice
-  gnome --> demo_shell
-  gnome --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  hyprland --> gnome
-  primary_user --> demo_shell
-  primary_user --> gnome
   end
 
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef bob_c fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,stroke-width:2px
-  classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef demo_shell_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef gnome_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef multi_desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef virtualization__podman_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
-  classDef primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px

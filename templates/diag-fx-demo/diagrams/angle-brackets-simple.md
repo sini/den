@@ -25,46 +25,17 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  alice --> den__provides__define_user
-  alice --> den__provides__hostname
-  alice --> den__provides__mutual_provider
   angle_brackets --> desktop
   angle_brackets --> networking
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
   angle_brackets -.-x tailscale
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice
-  den__provides__hostname --> alice
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  den__provides__primary_user --> networking
-  desktop --> angle_brackets
-  desktop --> networking
   desktop --> regreet
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  networking --> desktop
-  regreet --> desktop
-  regreet --> networking
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  primary_user --> demo_shell
-  primary_user --> networking
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
-  classDef angle_brackets_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:3px
+  classDef angle_brackets_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef demo_shell_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px

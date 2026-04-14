@@ -18,17 +18,6 @@ graph LR
   bob --> gnome
   bob --> primary_user
   bob --> den__provides__primary_user
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__primary_user --> gnome
-  dev_tools --> bob
-  dev_tools --> gnome
-  gnome --> dev_tools
-  primary_user --> gnome
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef bob_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px

@@ -10,17 +10,8 @@ graph LR
   subgraph ctx_user["user"]
   dev_tools["dev-tools"]:::dev_tools_c
   gnome["gnome"]:::gnome_c
-  primary_user["primary-user"]:::primary_user_c
-  den__provides__primary_user[/"provides/primary-user"\]:::den__provides__primary_user_c
   bob --> dev_tools
   bob --> gnome
-  bob --> primary_user
-  bob --> den__provides__primary_user
-  den__provides__primary_user --> gnome
-  dev_tools --> bob
-  dev_tools --> gnome
-  gnome --> dev_tools
-  primary_user --> gnome
   end
 
 
@@ -28,8 +19,6 @@ graph LR
   classDef bob_c fill:#f38ba8,stroke:#f38ba8,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef gnome_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
 style ctx_user fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px
 ```

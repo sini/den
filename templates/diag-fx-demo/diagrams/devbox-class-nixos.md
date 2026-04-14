@@ -9,7 +9,6 @@ graph LR
 
   subgraph ctx_host["host"]
   monitoring__alerting[/"monitoring/alerting"\]:::monitoring__alerting_c
-  backup["backup"]:::backup_c
   desktop["desktop"]:::desktop_c
   virtualization__docker[/"virtualization/docker"\]:::virtualization__docker_c
   monitoring["monitoring"]:::monitoring_c
@@ -21,58 +20,16 @@ graph LR
   server["server"]:::server_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
-  backup --> server
-  backup --> workstation
-  desktop --> backup
-  desktop --> server
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
-  devbox --> backup
   devbox --> server
   devbox --> workstation
-  monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  regreet --> backup
-  server --> backup
-  virtualization --> backup
-  virtualization__podman --> backup
-  workstation --> backup
-  monitoring --> server
-  monitoring__alerting --> server
-  monitoring__nginx_exporter --> server
-  monitoring__node_exporter --> server
-  networking --> server
-  regreet --> server
-  virtualization --> server
-  virtualization__podman --> server
-  workstation --> server
-  monitoring --> workstation
-  monitoring__alerting --> workstation
-  monitoring__nginx_exporter --> workstation
-  monitoring__node_exporter --> workstation
-  networking --> workstation
-  regreet --> workstation
-  server --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  monitoring --> monitoring__node_exporter
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  networking --> monitoring
-  regreet --> desktop
   server --> monitoring__alerting
-  server --> devbox
   server -.-x virtualization__docker
   server --> monitoring
   server --> networking
   server --> monitoring__nginx_exporter
   server --> monitoring__node_exporter
   server --> virtualization
-  virtualization --> virtualization__podman
   workstation --> desktop
   workstation --> networking
   workstation --> virtualization__podman
@@ -84,61 +41,26 @@ graph LR
   virtualization__docker -.->|provided-by| virtualization
   end
   subgraph ctx_default["default"]
-  den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
-  den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   alice__to_hosts -.->|provided-by| alice
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
-  demo_shell["demo-shell"]:::demo_shell_c
-  dev_tools["dev-tools"]:::dev_tools_c
   hyprland["hyprland"]:::hyprland_c
-  primary_user["primary-user"]:::primary_user_c
   den__provides__primary_user[/"provides/primary-user"\]:::den__provides__primary_user_c
-  alice --> demo_shell
-  alice --> dev_tools
   alice --> hyprland
-  alice --> primary_user
   alice --> den__provides__primary_user
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  primary_user --> demo_shell
   end
 
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef alice_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef demo_shell_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
+  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
-  classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -146,7 +68,6 @@ graph LR
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization__podman_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
-  classDef primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__primary_user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px

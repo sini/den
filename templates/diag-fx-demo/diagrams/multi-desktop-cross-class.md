@@ -13,14 +13,7 @@ graph LR
   gnome["gnome"]:::gnome_c
   hyprland["hyprland"]:::hyprland_c
   alice --> hyprland
-  alice --> gnome
   bob --> gnome
-  bob --> alice
-  bob --> hyprland
-  gnome --> alice
-  gnome --> hyprland
-  hyprland --> alice
-  hyprland --> gnome
   end
 
 

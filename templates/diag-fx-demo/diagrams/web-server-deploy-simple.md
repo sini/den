@@ -10,12 +10,6 @@ graph LR
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
 
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px

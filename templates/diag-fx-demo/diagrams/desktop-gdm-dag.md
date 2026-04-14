@@ -22,13 +22,14 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
+  desktop --> desktop
   desktop --> gdm
   desktop --> host__self_provide_host_
   desktop -.->|replaced| regreet
-  desktop --> virtualization
+  desktop_gdm --> desktop_gdm
   desktop_gdm --> host__self_provide_host_
   desktop_gdm --> workstation
-  gdm --> desktop
+  gdm --> gdm
   host --> alice
   host --> n_default
   host --> default__cross_provide_host_
@@ -46,24 +47,21 @@ graph LR
   host --> host__cross_provide__anon__
   host --> user
   host --> user__cross_provide_host_
-  host__aspect_host_ --> host
-  host__cross_provide__anon__ --> n_default
-  host__self_provide_host_ --> workstation
   networking --> host__self_provide_host_
-  networking --> tailscale
-  tailscale --> desktop
+  networking --> networking
   tailscale --> host__self_provide_host_
+  tailscale --> tailscale
   virtualization --> host__self_provide_host_
-  virtualization --> virtualization__podman
+  virtualization --> virtualization
   virtualization__podman --> host__self_provide_host_
-  virtualization__podman --> workstation
+  virtualization__podman --> virtualization__podman
   workstation --> desktop
-  workstation --> desktop_gdm
   workstation --> host__self_provide_host_
   workstation --> networking
   workstation --> virtualization__podman
   workstation --> tailscale
   workstation --> virtualization
+  workstation --> workstation
   virtualization__podman -.->|provided-by| virtualization
   end
   subgraph ctx_default["default"]
@@ -79,24 +77,20 @@ graph LR
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
   alice__to_hosts --> default__aspect_default_
   alice__to_hosts --> alice__to_hosts
+  n_default --> n_default
   n_default --> default__aspect_default_
   n_default --> den__provides__define_user
   n_default --> den__provides__hostname
   n_default --> den__provides__mutual_provider
-  default__aspect_default_ --> den__provides__define_user
-  default__aspect_default_ --> den__provides__hostname
-  default__aspect_default_ --> den__provides__mutual_provider
-  default__aspect_default_ --> alice__to_hosts
-  default__cross_provide_host_ --> hm_host
   den__provides__define_user --> default__aspect_default_
   den__provides__define_user --> den__provides__default__aspect_default__den__provides
-  den__provides__define_user --> den__provides__mutual_provider
+  den__provides__define_user --> den__provides__define_user
   den__provides__hostname --> default__aspect_default_
   den__provides__hostname --> den__provides__default__aspect_default__den__provides
-  den__provides__hostname --> den__provides__define_user
-  den__provides__mutual_provider --> n_default
+  den__provides__hostname --> den__provides__hostname
   den__provides__mutual_provider --> default__aspect_default_
   den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+  den__provides__mutual_provider --> den__provides__mutual_provider
   den__provides__mutual_provider --> alice__to_hosts
   alice__to_hosts -.->|provided-by| alice
   end
@@ -105,18 +99,16 @@ graph LR
   hm_host__aspect_hm_host_["hm-host/aspect(hm-host)"]:::hm_host__aspect_hm_host__c
   hm_host__cross_provide_host_["hm-host/cross-provide(host)"]:::hm_host__cross_provide_host__c
   hm_host__self_provide_hm_host_["hm-host/self-provide(hm-host)"]:::hm_host__self_provide_hm_host__c
+  hm_host --> hm_host
   hm_host --> hm_host__aspect_hm_host_
-  hm_host__aspect_hm_host_ --> hm_host
-  hm_host__cross_provide_host_ --> hm_user
   end
   subgraph ctx_hm_user["hm-user"]
   hm_user["hm-user"]:::hm_user_c
   hm_user__aspect_hm_user_["hm-user/aspect(hm-user)"]:::hm_user__aspect_hm_user__c
   hm_user__cross_provide_hm_host_["hm-user/cross-provide(hm-host)"]:::hm_user__cross_provide_hm_host__c
   hm_user__self_provide_hm_user_["hm-user/self-provide(hm-user)"]:::hm_user__self_provide_hm_user__c
+  hm_user --> hm_user
   hm_user --> hm_user__aspect_hm_user_
-  hm_user__aspect_hm_user_ --> hm_user
-  hm_user__cross_provide_hm_host_ --> user
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
@@ -129,6 +121,7 @@ graph LR
   user__aspect_user_["user/aspect(user)"]:::user__aspect_user__c
   user__cross_provide_host_["user/cross-provide(host)"]:::user__cross_provide_host__c
   user__self_provide_user_["user/self-provide(user)"]:::user__self_provide_user__c
+  alice --> alice
   alice --> demo_shell
   alice --> dev_tools
   alice --> hyprland
@@ -136,22 +129,13 @@ graph LR
   alice --> den__provides__primary_user
   alice --> user__self_provide_user_
   demo_shell --> demo_shell
-  demo_shell --> hyprland
   demo_shell --> user__self_provide_user_
-  den__provides__primary_user --> demo_shell
   dev_tools --> dev_tools
   dev_tools --> user__self_provide_user_
-  hyprland --> dev_tools
   hyprland --> hyprland
   hyprland --> user__self_provide_user_
-  primary_user --> demo_shell
-  user --> alice
+  user --> user
   user --> user__aspect_user_
-  user__aspect_user_ --> user
-  user__self_provide_user_ --> alice
-  user__self_provide_user_ --> demo_shell
-  user__self_provide_user_ --> dev_tools
-  user__self_provide_user_ --> hyprland
   end
 
 
@@ -166,7 +150,7 @@ graph LR
   classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef demo_shell_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
+  classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hm_host_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -293,6 +277,7 @@ digraph {
   user__self_provide_user_ [label="user/self-provide(user)",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   }
 
+  alice -> alice;
   alice -> demo_shell;
   alice -> dev_tools;
   alice -> hyprland;
@@ -301,44 +286,37 @@ digraph {
   alice -> user__self_provide_user_;
   alice__to_hosts -> default__aspect_default_;
   alice__to_hosts -> alice__to_hosts;
+  n_default -> n_default;
   n_default -> default__aspect_default_;
   n_default -> den__provides__define_user;
   n_default -> den__provides__hostname;
   n_default -> den__provides__mutual_provider;
-  default__aspect_default_ -> den__provides__define_user;
-  default__aspect_default_ -> den__provides__hostname;
-  default__aspect_default_ -> den__provides__mutual_provider;
-  default__aspect_default_ -> alice__to_hosts;
-  default__cross_provide_host_ -> hm_host;
   demo_shell -> demo_shell;
-  demo_shell -> hyprland;
   demo_shell -> user__self_provide_user_;
   den__provides__define_user -> default__aspect_default_;
   den__provides__define_user -> den__provides__default__aspect_default__den__provides;
-  den__provides__define_user -> den__provides__mutual_provider;
+  den__provides__define_user -> den__provides__define_user;
   den__provides__hostname -> default__aspect_default_;
   den__provides__hostname -> den__provides__default__aspect_default__den__provides;
-  den__provides__hostname -> den__provides__define_user;
-  den__provides__mutual_provider -> n_default;
+  den__provides__hostname -> den__provides__hostname;
   den__provides__mutual_provider -> default__aspect_default_;
   den__provides__mutual_provider -> den__provides__default__aspect_default__den__provides;
+  den__provides__mutual_provider -> den__provides__mutual_provider;
   den__provides__mutual_provider -> alice__to_hosts;
-  den__provides__primary_user -> demo_shell;
+  desktop -> desktop;
   desktop -> gdm;
   desktop -> host__self_provide_host_;
   desktop -> regreet [style=dashed,color="#fab387",label="replaced"];
-  desktop -> virtualization;
+  desktop_gdm -> desktop_gdm;
   desktop_gdm -> host__self_provide_host_;
   desktop_gdm -> workstation;
   dev_tools -> dev_tools;
   dev_tools -> user__self_provide_user_;
-  gdm -> desktop;
+  gdm -> gdm;
+  hm_host -> hm_host;
   hm_host -> hm_host__aspect_hm_host_;
-  hm_host__aspect_hm_host_ -> hm_host;
-  hm_host__cross_provide_host_ -> hm_user;
+  hm_user -> hm_user;
   hm_user -> hm_user__aspect_hm_user_;
-  hm_user__aspect_hm_user_ -> hm_user;
-  hm_user__cross_provide_hm_host_ -> user;
   host -> alice;
   host -> n_default;
   host -> default__cross_provide_host_;
@@ -356,35 +334,25 @@ digraph {
   host -> host__cross_provide__anon__;
   host -> user;
   host -> user__cross_provide_host_;
-  host__aspect_host_ -> host;
-  host__cross_provide__anon__ -> n_default;
-  host__self_provide_host_ -> workstation;
-  hyprland -> dev_tools;
   hyprland -> hyprland;
   hyprland -> user__self_provide_user_;
   networking -> host__self_provide_host_;
-  networking -> tailscale;
-  primary_user -> demo_shell;
-  tailscale -> desktop;
+  networking -> networking;
   tailscale -> host__self_provide_host_;
-  user -> alice;
+  tailscale -> tailscale;
+  user -> user;
   user -> user__aspect_user_;
-  user__aspect_user_ -> user;
-  user__self_provide_user_ -> alice;
-  user__self_provide_user_ -> demo_shell;
-  user__self_provide_user_ -> dev_tools;
-  user__self_provide_user_ -> hyprland;
   virtualization -> host__self_provide_host_;
-  virtualization -> virtualization__podman;
+  virtualization -> virtualization;
   virtualization__podman -> host__self_provide_host_;
-  virtualization__podman -> workstation;
+  virtualization__podman -> virtualization__podman;
   workstation -> desktop;
-  workstation -> desktop_gdm;
   workstation -> host__self_provide_host_;
   workstation -> networking;
   workstation -> virtualization__podman;
   workstation -> tailscale;
   workstation -> virtualization;
+  workstation -> workstation;
   virtualization__podman -> virtualization;
   alice__to_hosts -> alice;
 }
@@ -470,6 +438,7 @@ package "user" as stage_user {
   rectangle "user/self-provide(user)" as user__self_provide_user_ #f2cdcd
 }
 
+alice --> alice
 alice --> demo_shell
 alice --> dev_tools
 alice --> hyprland
@@ -478,44 +447,37 @@ alice --> den__provides__primary_user
 alice --> user__self_provide_user_
 alice__to_hosts --> default__aspect_default_
 alice__to_hosts --> alice__to_hosts
+n_default --> n_default
 n_default --> default__aspect_default_
 n_default --> den__provides__define_user
 n_default --> den__provides__hostname
 n_default --> den__provides__mutual_provider
-default__aspect_default_ --> den__provides__define_user
-default__aspect_default_ --> den__provides__hostname
-default__aspect_default_ --> den__provides__mutual_provider
-default__aspect_default_ --> alice__to_hosts
-default__cross_provide_host_ --> hm_host
 demo_shell --> demo_shell
-demo_shell --> hyprland
 demo_shell --> user__self_provide_user_
 den__provides__define_user --> default__aspect_default_
 den__provides__define_user --> den__provides__default__aspect_default__den__provides
-den__provides__define_user --> den__provides__mutual_provider
+den__provides__define_user --> den__provides__define_user
 den__provides__hostname --> default__aspect_default_
 den__provides__hostname --> den__provides__default__aspect_default__den__provides
-den__provides__hostname --> den__provides__define_user
-den__provides__mutual_provider --> n_default
+den__provides__hostname --> den__provides__hostname
 den__provides__mutual_provider --> default__aspect_default_
 den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+den__provides__mutual_provider --> den__provides__mutual_provider
 den__provides__mutual_provider --> alice__to_hosts
-den__provides__primary_user --> demo_shell
+desktop --> desktop
 desktop --> gdm
 desktop --> host__self_provide_host_
 desktop ..> regreet : replaced
-desktop --> virtualization
+desktop_gdm --> desktop_gdm
 desktop_gdm --> host__self_provide_host_
 desktop_gdm --> workstation
 dev_tools --> dev_tools
 dev_tools --> user__self_provide_user_
-gdm --> desktop
+gdm --> gdm
+hm_host --> hm_host
 hm_host --> hm_host__aspect_hm_host_
-hm_host__aspect_hm_host_ --> hm_host
-hm_host__cross_provide_host_ --> hm_user
+hm_user --> hm_user
 hm_user --> hm_user__aspect_hm_user_
-hm_user__aspect_hm_user_ --> hm_user
-hm_user__cross_provide_hm_host_ --> user
 host --> alice
 host --> n_default
 host --> default__cross_provide_host_
@@ -533,35 +495,25 @@ host --> host__aspect_host_
 host --> host__cross_provide__anon__
 host --> user
 host --> user__cross_provide_host_
-host__aspect_host_ --> host
-host__cross_provide__anon__ --> n_default
-host__self_provide_host_ --> workstation
-hyprland --> dev_tools
 hyprland --> hyprland
 hyprland --> user__self_provide_user_
 networking --> host__self_provide_host_
-networking --> tailscale
-primary_user --> demo_shell
-tailscale --> desktop
+networking --> networking
 tailscale --> host__self_provide_host_
-user --> alice
+tailscale --> tailscale
+user --> user
 user --> user__aspect_user_
-user__aspect_user_ --> user
-user__self_provide_user_ --> alice
-user__self_provide_user_ --> demo_shell
-user__self_provide_user_ --> dev_tools
-user__self_provide_user_ --> hyprland
 virtualization --> host__self_provide_host_
-virtualization --> virtualization__podman
+virtualization --> virtualization
 virtualization__podman --> host__self_provide_host_
-virtualization__podman --> workstation
+virtualization__podman --> virtualization__podman
 workstation --> desktop
-workstation --> desktop_gdm
 workstation --> host__self_provide_host_
 workstation --> networking
 workstation --> virtualization__podman
 workstation --> tailscale
 workstation --> virtualization
+workstation --> workstation
 virtualization__podman --> virtualization : provided-by
 alice__to_hosts --> alice : provided-by
 @enduml

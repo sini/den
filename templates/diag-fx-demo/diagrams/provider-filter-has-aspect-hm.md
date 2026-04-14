@@ -18,32 +18,16 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> server
-  monitoring --> backup
-  networking --> backup
-  provider_filter --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  monitoring --> server
-  networking --> server
   provider_filter --> server
-  tailscale --> server
-  virtualization --> server
-  virtualization__docker --> server
-  networking --> monitoring
   server -.-x monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server --> monitoring
   server --> networking
   server -.-x monitoring__nginx_exporter
   server -.-x monitoring__node_exporter
-  server --> provider_filter
   server --> tailscale
   server --> virtualization
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
@@ -53,12 +37,7 @@ graph LR
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
+
   end
   subgraph ctx_user["user"]
   deploy["deploy"]:::deploy_c
@@ -78,7 +57,7 @@ graph LR
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
-  classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
+  classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px

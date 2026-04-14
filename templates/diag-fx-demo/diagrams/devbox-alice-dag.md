@@ -19,6 +19,7 @@ graph LR
   user__aspect_user_["user/aspect(user)"]:::user__aspect_user__c
   user__cross_provide__anon__["user/cross-provide(<anon>)"]:::user__cross_provide__anon___c
   user__self_provide_user_["user/self-provide(user)"]:::user__self_provide_user__c
+  alice --> alice
   alice --> demo_shell
   alice --> dev_tools
   alice --> hyprland
@@ -26,15 +27,11 @@ graph LR
   alice --> den__provides__primary_user
   alice --> user__self_provide_user_
   demo_shell --> demo_shell
-  demo_shell --> hyprland
   demo_shell --> user__self_provide_user_
-  den__provides__primary_user --> demo_shell
   dev_tools --> dev_tools
   dev_tools --> user__self_provide_user_
-  hyprland --> dev_tools
   hyprland --> hyprland
   hyprland --> user__self_provide_user_
-  primary_user --> demo_shell
   user --> alice
   user --> n_default
   user --> default__cross_provide_user_
@@ -42,12 +39,6 @@ graph LR
   user --> user
   user --> user__aspect_user_
   user --> user__cross_provide__anon__
-  user__aspect_user_ --> user
-  user__cross_provide__anon__ --> n_default
-  user__self_provide_user_ --> alice
-  user__self_provide_user_ --> demo_shell
-  user__self_provide_user_ --> dev_tools
-  user__self_provide_user_ --> hyprland
   end
   subgraph ctx_default["default"]
   n_default["default"]:::n_default_c
@@ -61,23 +52,20 @@ graph LR
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
   alice__to_hosts --> default__aspect_default_
   alice__to_hosts --> alice__to_hosts
+  n_default --> n_default
   n_default --> default__aspect_default_
   n_default --> den__provides__define_user
   n_default --> den__provides__hostname
   n_default --> den__provides__mutual_provider
-  default__aspect_default_ --> den__provides__define_user
-  default__aspect_default_ --> den__provides__hostname
-  default__aspect_default_ --> den__provides__mutual_provider
-  default__aspect_default_ --> alice__to_hosts
   den__provides__define_user --> default__aspect_default_
   den__provides__define_user --> den__provides__default__aspect_default__den__provides
-  den__provides__define_user --> den__provides__mutual_provider
+  den__provides__define_user --> den__provides__define_user
   den__provides__hostname --> default__aspect_default_
   den__provides__hostname --> den__provides__default__aspect_default__den__provides
-  den__provides__hostname --> den__provides__define_user
-  den__provides__mutual_provider --> n_default
+  den__provides__hostname --> den__provides__hostname
   den__provides__mutual_provider --> default__aspect_default_
   den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+  den__provides__mutual_provider --> den__provides__mutual_provider
   den__provides__mutual_provider --> alice__to_hosts
   alice__to_hosts -.->|provided-by| alice
   end
@@ -153,6 +141,7 @@ digraph {
   alice__to_hosts [label="alice/to-hosts",shape=trapezium,style=filled,fillcolor="#a6e3a1",color="#a6e3a1",fontcolor="#1e1e2e"];
   }
 
+  alice -> alice;
   alice -> demo_shell;
   alice -> dev_tools;
   alice -> hyprland;
@@ -161,34 +150,27 @@ digraph {
   alice -> user__self_provide_user_;
   alice__to_hosts -> default__aspect_default_;
   alice__to_hosts -> alice__to_hosts;
+  n_default -> n_default;
   n_default -> default__aspect_default_;
   n_default -> den__provides__define_user;
   n_default -> den__provides__hostname;
   n_default -> den__provides__mutual_provider;
-  default__aspect_default_ -> den__provides__define_user;
-  default__aspect_default_ -> den__provides__hostname;
-  default__aspect_default_ -> den__provides__mutual_provider;
-  default__aspect_default_ -> alice__to_hosts;
   demo_shell -> demo_shell;
-  demo_shell -> hyprland;
   demo_shell -> user__self_provide_user_;
   den__provides__define_user -> default__aspect_default_;
   den__provides__define_user -> den__provides__default__aspect_default__den__provides;
-  den__provides__define_user -> den__provides__mutual_provider;
+  den__provides__define_user -> den__provides__define_user;
   den__provides__hostname -> default__aspect_default_;
   den__provides__hostname -> den__provides__default__aspect_default__den__provides;
-  den__provides__hostname -> den__provides__define_user;
-  den__provides__mutual_provider -> n_default;
+  den__provides__hostname -> den__provides__hostname;
   den__provides__mutual_provider -> default__aspect_default_;
   den__provides__mutual_provider -> den__provides__default__aspect_default__den__provides;
+  den__provides__mutual_provider -> den__provides__mutual_provider;
   den__provides__mutual_provider -> alice__to_hosts;
-  den__provides__primary_user -> demo_shell;
   dev_tools -> dev_tools;
   dev_tools -> user__self_provide_user_;
-  hyprland -> dev_tools;
   hyprland -> hyprland;
   hyprland -> user__self_provide_user_;
-  primary_user -> demo_shell;
   user -> alice;
   user -> n_default;
   user -> default__cross_provide_user_;
@@ -196,12 +178,6 @@ digraph {
   user -> user;
   user -> user__aspect_user_;
   user -> user__cross_provide__anon__;
-  user__aspect_user_ -> user;
-  user__cross_provide__anon__ -> n_default;
-  user__self_provide_user_ -> alice;
-  user__self_provide_user_ -> demo_shell;
-  user__self_provide_user_ -> dev_tools;
-  user__self_provide_user_ -> hyprland;
   alice__to_hosts -> alice;
 }
 ```
@@ -258,6 +234,7 @@ package "default" as stage_default {
   card "alice/to-hosts" as alice__to_hosts #a6e3a1
 }
 
+alice --> alice
 alice --> demo_shell
 alice --> dev_tools
 alice --> hyprland
@@ -266,34 +243,27 @@ alice --> den__provides__primary_user
 alice --> user__self_provide_user_
 alice__to_hosts --> default__aspect_default_
 alice__to_hosts --> alice__to_hosts
+n_default --> n_default
 n_default --> default__aspect_default_
 n_default --> den__provides__define_user
 n_default --> den__provides__hostname
 n_default --> den__provides__mutual_provider
-default__aspect_default_ --> den__provides__define_user
-default__aspect_default_ --> den__provides__hostname
-default__aspect_default_ --> den__provides__mutual_provider
-default__aspect_default_ --> alice__to_hosts
 demo_shell --> demo_shell
-demo_shell --> hyprland
 demo_shell --> user__self_provide_user_
 den__provides__define_user --> default__aspect_default_
 den__provides__define_user --> den__provides__default__aspect_default__den__provides
-den__provides__define_user --> den__provides__mutual_provider
+den__provides__define_user --> den__provides__define_user
 den__provides__hostname --> default__aspect_default_
 den__provides__hostname --> den__provides__default__aspect_default__den__provides
-den__provides__hostname --> den__provides__define_user
-den__provides__mutual_provider --> n_default
+den__provides__hostname --> den__provides__hostname
 den__provides__mutual_provider --> default__aspect_default_
 den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+den__provides__mutual_provider --> den__provides__mutual_provider
 den__provides__mutual_provider --> alice__to_hosts
-den__provides__primary_user --> demo_shell
 dev_tools --> dev_tools
 dev_tools --> user__self_provide_user_
-hyprland --> dev_tools
 hyprland --> hyprland
 hyprland --> user__self_provide_user_
-primary_user --> demo_shell
 user --> alice
 user --> n_default
 user --> default__cross_provide_user_
@@ -301,12 +271,6 @@ user --> default__self_provide_default_
 user --> user
 user --> user__aspect_user_
 user --> user__cross_provide__anon__
-user__aspect_user_ --> user
-user__cross_provide__anon__ --> n_default
-user__self_provide_user_ --> alice
-user__self_provide_user_ --> demo_shell
-user__self_provide_user_ --> dev_tools
-user__self_provide_user_ --> hyprland
 alice__to_hosts --> alice : provided-by
 @enduml
 ```

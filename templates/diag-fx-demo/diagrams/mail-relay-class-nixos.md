@@ -9,9 +9,7 @@ graph LR
 
   subgraph ctx_host["host"]
   monitoring__alerting[/"monitoring/alerting"\]:::monitoring__alerting_c
-  backup["backup"]:::backup_c
   virtualization__docker[/"virtualization/docker"\]:::virtualization__docker_c
-  mail["mail"]:::mail_c
   networking["networking"]:::networking_c
   monitoring__nginx_exporter[/"monitoring/nginx-exporter"\]:::monitoring__nginx_exporter_c
   monitoring__node_exporter[/"monitoring/node-exporter"\]:::monitoring__node_exporter_c
@@ -19,45 +17,7 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> mail
-  backup --> relay
-  backup --> server
-  mail --> backup
-  mail_relay --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  relay --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  mail_relay --> mail
-  monitoring__alerting --> mail
-  monitoring__nginx_exporter --> mail
-  monitoring__node_exporter --> mail
-  networking --> mail
-  relay --> mail
-  server --> mail
-  tailscale --> mail
-  virtualization --> mail
-  virtualization__docker --> mail
-  mail --> relay
   mail_relay --> relay
-  monitoring__alerting --> relay
-  monitoring__nginx_exporter --> relay
-  monitoring__node_exporter --> relay
-  networking --> relay
-  server --> relay
-  tailscale --> relay
-  virtualization --> relay
-  virtualization__docker --> relay
-  monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  relay --> mail_relay
-  relay --> networking
   relay --> server
   server --> monitoring__alerting
   server --> virtualization__docker
@@ -66,8 +26,6 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   virtualization__docker -.->|provided-by| virtualization
   end
   subgraph ctx_user["user"]
@@ -78,11 +36,9 @@ graph LR
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
-  classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef deploy_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
-  classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px

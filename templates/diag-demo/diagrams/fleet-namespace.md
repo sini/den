@@ -94,15 +94,15 @@ graph TD
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef alice_dotfiles_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
-  classDef angle_brackets_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:3px
+  classDef angle_brackets_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef backup_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef bob_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
   classDef demo_shell_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef deploy_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef desktop_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
-  classDef desktop_gdm_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:3px
+  classDef desktop_gdm_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
-  classDef devbox_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:3px
+  classDef devbox_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef gdm_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef gnome_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef home_bat_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
@@ -114,17 +114,17 @@ graph TD
   classDef hyprland_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef laptop_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef mail_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
-  classDef mail_relay_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:3px
+  classDef mail_relay_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef multi_desktop_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef networking_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
-  classDef provider_filter_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:3px
+  classDef provider_filter_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef regreet_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef relay_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef sddm_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef tailscale_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
-  classDef web_server_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:3px
+  classDef web_server_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
   classDef workstation_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
 ```

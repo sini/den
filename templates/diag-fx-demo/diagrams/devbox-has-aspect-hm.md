@@ -22,51 +22,11 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
-  backup --> server
-  backup --> workstation
-  desktop --> backup
-  desktop --> server
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
-  devbox --> backup
   devbox --> server
   devbox --> workstation
-  monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  regreet --> backup
-  server --> backup
-  virtualization --> backup
-  virtualization__podman --> backup
-  workstation --> backup
-  monitoring --> server
-  monitoring__alerting --> server
-  monitoring__nginx_exporter --> server
-  monitoring__node_exporter --> server
-  networking --> server
-  regreet --> server
-  virtualization --> server
-  virtualization__podman --> server
-  workstation --> server
-  monitoring --> workstation
-  monitoring__alerting --> workstation
-  monitoring__nginx_exporter --> workstation
-  monitoring__node_exporter --> workstation
-  networking --> workstation
-  regreet --> workstation
-  server --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  monitoring --> monitoring__node_exporter
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  networking --> monitoring
-  regreet --> desktop
   server --> monitoring__alerting
-  server --> devbox
+  server --> backup
   server -.-x virtualization__docker
   server --> monitoring
   server --> networking
@@ -74,7 +34,6 @@ graph LR
   server --> monitoring__node_exporter
   server -.-x tailscale
   server --> virtualization
-  virtualization --> virtualization__podman
   workstation --> desktop
   workstation --> networking
   workstation --> virtualization__podman
@@ -91,18 +50,7 @@ graph LR
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   alice__to_hosts -.->|provided-by| alice
   end
   subgraph ctx_user["user"]
@@ -117,17 +65,6 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  primary_user --> demo_shell
   end
 
 
@@ -139,7 +76,7 @@ graph LR
   classDef demo_shell_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
+  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px

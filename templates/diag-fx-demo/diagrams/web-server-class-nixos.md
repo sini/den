@@ -9,7 +9,6 @@ graph LR
 
   subgraph ctx_host["host"]
   monitoring__alerting[/"monitoring/alerting"\]:::monitoring__alerting_c
-  backup["backup"]:::backup_c
   virtualization__docker[/"virtualization/docker"\]:::virtualization__docker_c
   monitoring["monitoring"]:::monitoring_c
   networking["networking"]:::networking_c
@@ -18,27 +17,6 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> server
-  monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  web_server --> backup
-  monitoring --> server
-  monitoring__alerting --> server
-  monitoring__node_exporter --> server
-  networking --> server
-  tailscale --> server
-  virtualization --> server
-  virtualization__docker --> server
-  web_server --> server
-  monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
-  networking --> monitoring
   server --> monitoring__alerting
   server --> virtualization__docker
   server --> monitoring
@@ -47,9 +25,7 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  server --> web_server
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
+  web_server --> server
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
@@ -63,7 +39,6 @@ graph LR
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
-  classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef deploy_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -73,7 +48,7 @@ graph LR
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
 style ctx_host fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_hm_host fill:#313244,stroke:#6c7086,stroke-width:2px

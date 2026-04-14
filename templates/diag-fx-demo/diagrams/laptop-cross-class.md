@@ -11,7 +11,6 @@ graph LR
   alice["alice"]:::alice_c
   hyprland["hyprland"]:::hyprland_c
   alice --> hyprland
-  hyprland --> alice
   end
 
 

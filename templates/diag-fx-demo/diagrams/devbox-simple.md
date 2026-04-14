@@ -30,59 +30,12 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  alice --> den__provides__define_user
-  alice --> den__provides__hostname
-  alice --> den__provides__mutual_provider
-  backup --> server
-  backup --> workstation
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice
-  den__provides__hostname --> alice
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  desktop --> backup
-  desktop --> server
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  devbox --> backup
   devbox --> server
   devbox --> workstation
-  monitoring --> backup
-  networking --> backup
-  regreet --> backup
-  server --> backup
-  virtualization --> backup
-  workstation --> backup
-  monitoring --> server
-  networking --> server
-  regreet --> server
-  virtualization --> server
-  workstation --> server
-  monitoring --> workstation
-  networking --> workstation
-  regreet --> workstation
-  server --> workstation
-  virtualization --> workstation
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  networking --> monitoring
-  primary_user --> demo_shell
-  regreet --> desktop
   server --> monitoring
-  server --> devbox
+  server --> backup
   server -.-x virtualization
   server --> networking
   server -.-x tailscale
@@ -98,7 +51,7 @@ graph LR
   classDef demo_shell_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef devbox_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:3px
+  classDef devbox_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px

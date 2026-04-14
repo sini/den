@@ -108,34 +108,14 @@ graph LR
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
   angle_brackets -.-x tailscale
-  den__provides__primary_user --> demo_shell
-  den__provides__primary_user --> networking
-  desktop --> angle_brackets
-  desktop --> networking
   desktop --> regreet
-  networking --> desktop
-  regreet --> desktop
-  regreet --> networking
-  primary_user --> demo_shell
-  primary_user --> networking
   end
   subgraph ctx_default["default"]
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
@@ -147,21 +127,12 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
   end
 
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef angle_brackets_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
+  classDef angle_brackets_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef demo_shell_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
@@ -199,20 +170,9 @@ graph LR
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
   desktop --> gdm
-  desktop --> workstation
   desktop -.->|replaced| regreet
-  desktop --> virtualization
   desktop_gdm --> workstation
-  gdm --> desktop
-  networking --> workstation
-  tailscale --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  networking --> tailscale
-  tailscale --> desktop
-  virtualization --> virtualization__podman
   workstation --> desktop
-  workstation --> desktop_gdm
   workstation --> networking
   workstation --> virtualization__podman
   workstation --> tailscale
@@ -223,18 +183,7 @@ graph LR
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
@@ -248,17 +197,6 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  primary_user --> demo_shell
   end
 
 
@@ -267,7 +205,7 @@ graph LR
   classDef den__provides__define_user_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef demo_shell_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
+  classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -311,51 +249,11 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
-  backup --> server
-  backup --> workstation
-  desktop --> backup
-  desktop --> server
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
-  devbox --> backup
   devbox --> server
   devbox --> workstation
-  monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  regreet --> backup
-  server --> backup
-  virtualization --> backup
-  virtualization__podman --> backup
-  workstation --> backup
-  monitoring --> server
-  monitoring__alerting --> server
-  monitoring__nginx_exporter --> server
-  monitoring__node_exporter --> server
-  networking --> server
-  regreet --> server
-  virtualization --> server
-  virtualization__podman --> server
-  workstation --> server
-  monitoring --> workstation
-  monitoring__alerting --> workstation
-  monitoring__nginx_exporter --> workstation
-  monitoring__node_exporter --> workstation
-  networking --> workstation
-  regreet --> workstation
-  server --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  monitoring --> monitoring__node_exporter
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  networking --> monitoring
-  regreet --> desktop
   server --> monitoring__alerting
-  server --> devbox
+  server --> backup
   server -.-x virtualization__docker
   server --> monitoring
   server --> networking
@@ -363,7 +261,6 @@ graph LR
   server --> monitoring__node_exporter
   server -.-x tailscale
   server --> virtualization
-  virtualization --> virtualization__podman
   workstation --> desktop
   workstation --> networking
   workstation --> virtualization__podman
@@ -375,18 +272,7 @@ graph LR
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
@@ -400,17 +286,6 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  primary_user --> demo_shell
   end
 
 
@@ -422,7 +297,7 @@ graph LR
   classDef demo_shell_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef dev_tools_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
+  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
@@ -462,22 +337,9 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
   laptop --> workstation
-  networking --> workstation
-  regreet --> workstation
-  tailscale --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  networking --> tailscale
-  regreet --> desktop
-  tailscale --> desktop
-  tailscale --> regreet
-  virtualization --> virtualization__podman
   workstation --> desktop
-  workstation --> laptop
   workstation --> networking
   workstation --> virtualization__podman
   workstation --> tailscale
@@ -488,18 +350,7 @@ graph LR
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
@@ -513,17 +364,6 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  primary_user --> demo_shell
   end
 
 
@@ -573,47 +413,11 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> mail
-  backup --> relay
-  backup --> server
-  mail --> backup
-  mail_relay --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  relay --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  mail_relay --> mail
-  monitoring__alerting --> mail
-  monitoring__nginx_exporter --> mail
-  monitoring__node_exporter --> mail
-  networking --> mail
-  relay --> mail
-  server --> mail
-  tailscale --> mail
-  virtualization --> mail
-  virtualization__docker --> mail
-  mail --> relay
   mail_relay --> relay
-  monitoring__alerting --> relay
-  monitoring__nginx_exporter --> relay
-  monitoring__node_exporter --> relay
-  networking --> relay
-  server --> relay
-  tailscale --> relay
-  virtualization --> relay
-  virtualization__docker --> relay
-  monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  relay --> mail_relay
-  relay --> networking
+  relay --> mail
   relay --> server
   server --> monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server -.-x monitoring
   server --> networking
@@ -621,19 +425,12 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   end
   subgraph ctx_default["default"]
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
+
   end
   subgraph ctx_user["user"]
   deploy["deploy"]:::deploy_c
@@ -649,7 +446,7 @@ graph LR
   classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -681,22 +478,9 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
   multi_desktop --> workstation
-  networking --> workstation
-  regreet --> workstation
-  tailscale --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  networking --> tailscale
-  regreet --> desktop
-  tailscale --> desktop
-  tailscale --> regreet
-  virtualization --> virtualization__podman
   workstation --> desktop
-  workstation --> multi_desktop
   workstation --> networking
   workstation --> virtualization__podman
   workstation --> tailscale
@@ -707,18 +491,7 @@ graph LR
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
@@ -734,35 +507,10 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  alice --> gnome
   bob --> dev_tools
   bob --> gnome
   bob --> primary_user
   bob --> den__provides__primary_user
-  bob --> alice
-  bob --> demo_shell
-  bob --> hyprland
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  demo_shell --> gnome
-  den__provides__primary_user --> demo_shell
-  den__provides__primary_user --> gnome
-  dev_tools --> bob
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> gnome
-  dev_tools --> hyprland
-  gnome --> dev_tools
-  gnome --> alice
-  gnome --> demo_shell
-  gnome --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  hyprland --> gnome
-  primary_user --> demo_shell
-  primary_user --> gnome
   end
 
 
@@ -812,43 +560,22 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> server
-  monitoring --> backup
-  networking --> backup
-  provider_filter --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  monitoring --> server
-  networking --> server
   provider_filter --> server
-  tailscale --> server
-  virtualization --> server
-  virtualization__docker --> server
-  networking --> monitoring
   server -.-x monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server --> monitoring
   server --> networking
   server -.-x monitoring__nginx_exporter
   server -.-x monitoring__node_exporter
-  server --> provider_filter
   server --> tailscale
   server --> virtualization
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   end
   subgraph ctx_default["default"]
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
+
   end
   subgraph ctx_user["user"]
   deploy["deploy"]:::deploy_c
@@ -868,7 +595,7 @@ graph LR
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
-  classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
+  classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
@@ -897,28 +624,8 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> server
-  monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  web_server --> backup
-  monitoring --> server
-  monitoring__alerting --> server
-  monitoring__node_exporter --> server
-  networking --> server
-  tailscale --> server
-  virtualization --> server
-  virtualization__docker --> server
-  web_server --> server
-  monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
-  networking --> monitoring
   server --> monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server --> monitoring
   server --> networking
@@ -926,20 +633,13 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  server --> web_server
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
+  web_server --> server
   end
   subgraph ctx_default["default"]
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
+
   end
   subgraph ctx_user["user"]
   deploy["deploy"]:::deploy_c
@@ -962,7 +662,7 @@ graph LR
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
 style ctx_host fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_hm_host fill:#313244,stroke:#6c7086,stroke-width:2px

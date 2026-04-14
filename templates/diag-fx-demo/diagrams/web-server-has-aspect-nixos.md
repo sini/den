@@ -18,28 +18,8 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> server
-  monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  web_server --> backup
-  monitoring --> server
-  monitoring__alerting --> server
-  monitoring__node_exporter --> server
-  networking --> server
-  tailscale --> server
-  virtualization --> server
-  virtualization__docker --> server
-  web_server --> server
-  monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
-  networking --> monitoring
   server --> monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server --> monitoring
   server --> networking
@@ -47,9 +27,7 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  server --> web_server
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
+  web_server --> server
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
@@ -59,12 +37,7 @@ graph LR
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
+
   end
   subgraph ctx_user["user"]
   deploy["deploy"]:::deploy_c
@@ -87,7 +60,7 @@ graph LR
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
 style ctx_host fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_hm_host fill:#313244,stroke:#6c7086,stroke-width:2px

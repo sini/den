@@ -7,33 +7,23 @@
 graph LR
   provider_filter([provider-filter]):::root
   monitoring__alerting[/"monitoring/alerting · host"\]:::monitoring__alerting_c
-  backup["backup · host"]:::backup_c
   monitoring["monitoring · host"]:::monitoring_c
   monitoring__nginx_exporter[/"monitoring/nginx-exporter · host"\]:::monitoring__nginx_exporter_c
   monitoring__node_exporter[/"monitoring/node-exporter · host"\]:::monitoring__node_exporter_c
   server["server · host"]:::server_c
 
-  backup --> server
-  monitoring --> backup
-  provider_filter --> backup
-  server --> backup
-  monitoring --> server
-  provider_filter --> server
   server -.-x monitoring__alerting
   server --> monitoring
   server -.-x monitoring__nginx_exporter
   server -.-x monitoring__node_exporter
-  server --> provider_filter
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
-  classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
-  classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
 ```

@@ -18,13 +18,6 @@ graph LR
   regreet["regreet"]:::regreet_c
   virtualization["virtualization"]:::virtualization_c
   desktop --> regreet
-  desktop --> virtualization
-  monitoring --> monitoring__node_exporter
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  networking --> monitoring
-  regreet --> desktop
-  virtualization --> virtualization__podman
   virtualization__podman -.->|provided-by| virtualization
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
@@ -40,7 +33,6 @@ graph LR
   den__provides__primary_user[/"provides/primary-user"\]:::den__provides__primary_user_c
   alice --> hyprland
   alice --> den__provides__primary_user
-  hyprland --> alice
   end
 
 
@@ -48,7 +40,7 @@ graph LR
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef alice_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
+  classDef devbox_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef hyprland_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px

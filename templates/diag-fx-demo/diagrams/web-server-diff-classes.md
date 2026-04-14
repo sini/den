@@ -9,7 +9,6 @@ graph LR
 
   subgraph ctx_host["host"]
   monitoring__alerting[/"monitoring/alerting"\]:::monitoring__alerting_c
-  backup["backup"]:::backup_c
   virtualization__docker[/"virtualization/docker"\]:::virtualization__docker_c
   monitoring["monitoring"]:::monitoring_c
   networking["networking"]:::networking_c
@@ -18,22 +17,9 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> server
-  monitoring --> backup
-  monitoring --> monitoring__node_exporter
-  monitoring --> server
-  monitoring__alerting --> backup
   monitoring__alerting -.->|provided-by| monitoring
-  monitoring__alerting --> server
-  monitoring__alerting --> tailscale
   monitoring__nginx_exporter -.->|provided-by| monitoring
-  monitoring__node_exporter --> backup
   monitoring__node_exporter -.->|provided-by| monitoring
-  monitoring__node_exporter --> server
-  networking --> backup
-  networking --> monitoring
-  networking --> server
-  server --> backup
   server --> monitoring
   server --> monitoring__alerting
   server -.-x monitoring__nginx_exporter
@@ -42,17 +28,7 @@ graph LR
   server --> tailscale
   server --> virtualization
   server --> virtualization__docker
-  server --> web_server
-  tailscale --> backup
-  tailscale --> server
-  tailscale --> virtualization
-  virtualization --> backup
-  virtualization --> server
-  virtualization --> virtualization__docker
-  virtualization__docker --> backup
-  virtualization__docker --> server
   virtualization__docker -.->|provided-by| virtualization
-  web_server --> backup
   web_server --> server
   end
   subgraph ctx_user["user"]
@@ -63,7 +39,6 @@ graph LR
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
-  classDef backup_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef deploy_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization__docker_c fill:#cba6f7,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px
   classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:3px

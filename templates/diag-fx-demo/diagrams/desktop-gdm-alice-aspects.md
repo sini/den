@@ -18,35 +18,13 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  primary_user --> demo_shell
   end
   subgraph ctx_default["default"]
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   end
 
 

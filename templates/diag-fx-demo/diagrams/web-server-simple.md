@@ -17,32 +17,12 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
 
-  backup --> server
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  monitoring --> backup
-  networking --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  web_server --> backup
-  monitoring --> server
-  networking --> server
-  tailscale --> server
-  virtualization --> server
-  web_server --> server
-  monitoring --> tailscale
-  networking --> monitoring
   server --> monitoring
+  server --> backup
   server --> virtualization
   server --> networking
   server --> tailscale
-  server --> web_server
-  tailscale --> virtualization
+  web_server --> server
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef backup_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -55,5 +35,5 @@ graph LR
   classDef server_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
-  classDef web_server_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:3px
+  classDef web_server_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
 ```

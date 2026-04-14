@@ -17,28 +17,8 @@ graph LR
   tailscale["tailscale · host"]:::tailscale_c
   virtualization["virtualization · host"]:::virtualization_c
 
-  backup --> server
-  monitoring --> backup
-  monitoring__alerting --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  web_server --> backup
-  monitoring --> server
-  monitoring__alerting --> server
-  monitoring__node_exporter --> server
-  networking --> server
-  tailscale --> server
-  virtualization --> server
-  virtualization__docker --> server
-  web_server --> server
-  monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
-  networking --> monitoring
   server --> monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server --> monitoring
   server --> networking
@@ -46,9 +26,7 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  server --> web_server
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
+  web_server --> server
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
@@ -65,5 +43,5 @@ graph LR
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
 ```

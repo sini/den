@@ -7,40 +7,11 @@
 graph LR
   mail_relay([mail-relay]):::root
   monitoring__alerting[/"monitoring/alerting · host"\]:::monitoring__alerting_c
-  backup["backup · host"]:::backup_c
-  mail["mail · host"]:::mail_c
   monitoring["monitoring · host"]:::monitoring_c
   monitoring__nginx_exporter[/"monitoring/nginx-exporter · host"\]:::monitoring__nginx_exporter_c
   monitoring__node_exporter[/"monitoring/node-exporter · host"\]:::monitoring__node_exporter_c
-  relay["relay · host"]:::relay_c
   server["server · host"]:::server_c
 
-  backup --> mail
-  backup --> relay
-  backup --> server
-  mail --> backup
-  mail_relay --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  relay --> backup
-  server --> backup
-  mail_relay --> mail
-  monitoring__alerting --> mail
-  monitoring__nginx_exporter --> mail
-  monitoring__node_exporter --> mail
-  relay --> mail
-  server --> mail
-  mail --> relay
-  mail_relay --> relay
-  monitoring__alerting --> relay
-  monitoring__nginx_exporter --> relay
-  monitoring__node_exporter --> relay
-  server --> relay
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  relay --> mail_relay
-  relay --> server
   server --> monitoring__alerting
   server -.-x monitoring
   server --> monitoring__nginx_exporter
@@ -51,12 +22,8 @@ graph LR
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
-  classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
   classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef relay_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
 ```

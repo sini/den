@@ -12,9 +12,6 @@ graph LR
   gnome["gnome"]:::gnome_c
   bob --> dev_tools
   bob --> gnome
-  dev_tools --> bob
-  dev_tools --> gnome
-  gnome --> dev_tools
   end
 
 

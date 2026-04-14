@@ -20,44 +20,6 @@ graph LR
   alice --> demo_shell
   alice --> dev_tools
   alice --> hyprland
-  alice_dotfiles --> alice
-  alice_dotfiles --> demo_shell
-  alice_dotfiles --> dev_tools
-  alice_dotfiles --> hyprland
-  demo_shell --> alice
-  demo_shell --> alice_dotfiles
-  demo_shell --> dev_tools
-  demo_shell --> hyprland
-  dev_tools --> alice
-  dev_tools --> alice_dotfiles
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  home_bat --> alice
-  home_bat --> alice_dotfiles
-  home_bat --> demo_shell
-  home_bat --> dev_tools
-  home_bat --> hyprland
-  home_firefox --> home_slack
-  home_firefox --> alice
-  home_firefox --> alice_dotfiles
-  home_firefox --> demo_shell
-  home_firefox --> dev_tools
-  home_firefox --> hyprland
-  home_git --> home_bat
-  home_git --> alice
-  home_git --> alice_dotfiles
-  home_git --> demo_shell
-  home_git --> dev_tools
-  home_git --> hyprland
-  home_slack --> alice
-  home_slack --> alice_dotfiles
-  home_slack --> demo_shell
-  home_slack --> dev_tools
-  home_slack --> hyprland
-  hyprland --> alice
-  hyprland --> alice_dotfiles
-  hyprland --> demo_shell
-  hyprland --> dev_tools
   end
 
 

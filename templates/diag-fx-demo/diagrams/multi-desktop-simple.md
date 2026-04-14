@@ -29,61 +29,14 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  alice --> gnome
-  alice --> den__provides__define_user
-  alice --> den__provides__hostname
-  alice --> den__provides__mutual_provider
   bob --> dev_tools
   bob --> gnome
   bob --> primary_user
   bob --> den__provides__primary_user
-  bob --> alice
-  bob --> demo_shell
-  bob --> hyprland
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice
-  den__provides__hostname --> alice
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  demo_shell --> gnome
-  den__provides__primary_user --> demo_shell
-  den__provides__primary_user --> gnome
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
-  dev_tools --> bob
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> gnome
-  dev_tools --> hyprland
-  gnome --> dev_tools
-  gnome --> alice
-  gnome --> demo_shell
-  gnome --> hyprland
   multi_desktop --> workstation
-  networking --> workstation
-  regreet --> workstation
-  tailscale --> workstation
-  virtualization --> workstation
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  hyprland --> gnome
-  networking --> tailscale
-  primary_user --> demo_shell
-  primary_user --> gnome
-  regreet --> desktop
-  tailscale --> desktop
-  tailscale --> regreet
   workstation --> desktop
-  workstation --> multi_desktop
   workstation --> networking
   workstation --> virtualization
   workstation --> tailscale

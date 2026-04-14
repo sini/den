@@ -14,15 +14,6 @@ graph LR
   alice --> demo_shell
   alice --> dev_tools
   alice --> hyprland
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
   end
 
 

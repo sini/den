@@ -20,47 +20,11 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  backup --> mail
-  backup --> relay
-  backup --> server
-  mail --> backup
-  mail_relay --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  relay --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  mail_relay --> mail
-  monitoring__alerting --> mail
-  monitoring__nginx_exporter --> mail
-  monitoring__node_exporter --> mail
-  networking --> mail
-  relay --> mail
-  server --> mail
-  tailscale --> mail
-  virtualization --> mail
-  virtualization__docker --> mail
-  mail --> relay
   mail_relay --> relay
-  monitoring__alerting --> relay
-  monitoring__nginx_exporter --> relay
-  monitoring__node_exporter --> relay
-  networking --> relay
-  server --> relay
-  tailscale --> relay
-  virtualization --> relay
-  virtualization__docker --> relay
-  monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  relay --> mail_relay
-  relay --> networking
+  relay --> mail
   relay --> server
   server --> monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server -.-x monitoring
   server --> networking
@@ -68,8 +32,6 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
@@ -79,12 +41,7 @@ graph LR
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
+
   end
   subgraph ctx_user["user"]
   deploy["deploy"]:::deploy_c
@@ -100,7 +57,7 @@ graph LR
   classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px

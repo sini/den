@@ -27,43 +27,10 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  alice --> den__provides__define_user
-  alice --> den__provides__hostname
-  alice --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice
-  den__provides__hostname --> alice
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  den__provides__primary_user --> demo_shell
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> hyprland
   laptop --> workstation
-  networking --> workstation
-  regreet --> workstation
-  tailscale --> workstation
-  virtualization --> workstation
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  networking --> tailscale
-  primary_user --> demo_shell
-  regreet --> desktop
-  tailscale --> desktop
-  tailscale --> regreet
   workstation --> desktop
-  workstation --> laptop
   workstation --> networking
   workstation --> virtualization
   workstation --> tailscale

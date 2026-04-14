@@ -14,6 +14,7 @@ graph LR
   user__aspect_user_["user/aspect(user)"]:::user__aspect_user__c
   user__cross_provide__anon__["user/cross-provide(<anon>)"]:::user__cross_provide__anon___c
   user__self_provide_user_["user/self-provide(user)"]:::user__self_provide_user__c
+  deploy --> deploy
   deploy --> user__self_provide_user_
   user --> n_default
   user --> default__cross_provide_user_
@@ -22,9 +23,6 @@ graph LR
   user --> user
   user --> user__aspect_user_
   user --> user__cross_provide__anon__
-  user__aspect_user_ --> user
-  user__cross_provide__anon__ --> n_default
-  user__self_provide_user_ --> deploy
   end
   subgraph ctx_default["default"]
   n_default["default"]:::n_default_c
@@ -35,22 +33,20 @@ graph LR
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
+  n_default --> n_default
   n_default --> default__aspect_default_
   n_default --> den__provides__define_user
   n_default --> den__provides__hostname
   n_default --> den__provides__mutual_provider
-  default__aspect_default_ --> den__provides__define_user
-  default__aspect_default_ --> den__provides__hostname
-  default__aspect_default_ --> den__provides__mutual_provider
   den__provides__define_user --> default__aspect_default_
   den__provides__define_user --> den__provides__default__aspect_default__den__provides
-  den__provides__define_user --> den__provides__mutual_provider
+  den__provides__define_user --> den__provides__define_user
   den__provides__hostname --> default__aspect_default_
   den__provides__hostname --> den__provides__default__aspect_default__den__provides
-  den__provides__hostname --> den__provides__define_user
-  den__provides__mutual_provider --> n_default
+  den__provides__hostname --> den__provides__hostname
   den__provides__mutual_provider --> default__aspect_default_
   den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+  den__provides__mutual_provider --> den__provides__mutual_provider
   end
 
 
@@ -112,22 +108,21 @@ digraph {
   den__provides__mutual_provider [label="provides/mutual-provider",shape=trapezium,style=filled,fillcolor="#f9e2af",color="#f9e2af",fontcolor="#1e1e2e"];
   }
 
+  n_default -> n_default;
   n_default -> default__aspect_default_;
   n_default -> den__provides__define_user;
   n_default -> den__provides__hostname;
   n_default -> den__provides__mutual_provider;
-  default__aspect_default_ -> den__provides__define_user;
-  default__aspect_default_ -> den__provides__hostname;
-  default__aspect_default_ -> den__provides__mutual_provider;
   den__provides__define_user -> default__aspect_default_;
   den__provides__define_user -> den__provides__default__aspect_default__den__provides;
-  den__provides__define_user -> den__provides__mutual_provider;
+  den__provides__define_user -> den__provides__define_user;
   den__provides__hostname -> default__aspect_default_;
   den__provides__hostname -> den__provides__default__aspect_default__den__provides;
-  den__provides__hostname -> den__provides__define_user;
-  den__provides__mutual_provider -> n_default;
+  den__provides__hostname -> den__provides__hostname;
   den__provides__mutual_provider -> default__aspect_default_;
   den__provides__mutual_provider -> den__provides__default__aspect_default__den__provides;
+  den__provides__mutual_provider -> den__provides__mutual_provider;
+  deploy -> deploy;
   deploy -> user__self_provide_user_;
   user -> n_default;
   user -> default__cross_provide_user_;
@@ -136,9 +131,6 @@ digraph {
   user -> user;
   user -> user__aspect_user_;
   user -> user__cross_provide__anon__;
-  user__aspect_user_ -> user;
-  user__cross_provide__anon__ -> n_default;
-  user__self_provide_user_ -> deploy;
 }
 ```
 
@@ -188,22 +180,21 @@ package "default" as stage_default {
   card "provides/mutual-provider" as den__provides__mutual_provider #f9e2af
 }
 
+n_default --> n_default
 n_default --> default__aspect_default_
 n_default --> den__provides__define_user
 n_default --> den__provides__hostname
 n_default --> den__provides__mutual_provider
-default__aspect_default_ --> den__provides__define_user
-default__aspect_default_ --> den__provides__hostname
-default__aspect_default_ --> den__provides__mutual_provider
 den__provides__define_user --> default__aspect_default_
 den__provides__define_user --> den__provides__default__aspect_default__den__provides
-den__provides__define_user --> den__provides__mutual_provider
+den__provides__define_user --> den__provides__define_user
 den__provides__hostname --> default__aspect_default_
 den__provides__hostname --> den__provides__default__aspect_default__den__provides
-den__provides__hostname --> den__provides__define_user
-den__provides__mutual_provider --> n_default
+den__provides__hostname --> den__provides__hostname
 den__provides__mutual_provider --> default__aspect_default_
 den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+den__provides__mutual_provider --> den__provides__mutual_provider
+deploy --> deploy
 deploy --> user__self_provide_user_
 user --> n_default
 user --> default__cross_provide_user_
@@ -212,8 +203,5 @@ user --> deploy
 user --> user
 user --> user__aspect_user_
 user --> user__cross_provide__anon__
-user__aspect_user_ --> user
-user__cross_provide__anon__ --> n_default
-user__self_provide_user_ --> deploy
 @enduml
 ```

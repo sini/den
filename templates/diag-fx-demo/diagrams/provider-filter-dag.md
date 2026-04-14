@@ -24,8 +24,8 @@ graph LR
   server["server"]:::server_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
+  backup --> backup
   backup --> host__self_provide_host_
-  backup --> server
   host --> n_default
   host --> default__cross_provide_host_
   host --> default__cross_provide_user_
@@ -43,14 +43,12 @@ graph LR
   host --> provider_filter
   host --> user
   host --> user__cross_provide_host_
-  host__aspect_host_ --> host
-  host__cross_provide__anon__ --> n_default
-  host__self_provide_host_ --> backup
-  host__self_provide_host_ --> server
   monitoring --> host__self_provide_host_
+  monitoring --> monitoring
   networking --> host__self_provide_host_
-  networking --> monitoring
+  networking --> networking
   provider_filter --> host__self_provide_host_
+  provider_filter --> provider_filter
   provider_filter --> server
   server -.-x monitoring__alerting
   server --> backup
@@ -60,14 +58,14 @@ graph LR
   server --> networking
   server -.-x monitoring__nginx_exporter
   server -.-x monitoring__node_exporter
-  server --> provider_filter
+  server --> server
   server --> tailscale
   server --> virtualization
   tailscale --> host__self_provide_host_
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
+  tailscale --> tailscale
   virtualization --> host__self_provide_host_
-  virtualization__docker --> backup
+  virtualization --> virtualization
+  virtualization__docker --> virtualization__docker
   virtualization__docker --> host__self_provide_host_
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
@@ -84,41 +82,36 @@ graph LR
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
+  n_default --> n_default
   n_default --> default__aspect_default_
   n_default --> den__provides__define_user
   n_default --> den__provides__hostname
   n_default --> den__provides__mutual_provider
-  default__aspect_default_ --> den__provides__define_user
-  default__aspect_default_ --> den__provides__hostname
-  default__aspect_default_ --> den__provides__mutual_provider
-  default__cross_provide_host_ --> hm_host
   den__provides__define_user --> default__aspect_default_
   den__provides__define_user --> den__provides__default__aspect_default__den__provides
-  den__provides__define_user --> den__provides__mutual_provider
+  den__provides__define_user --> den__provides__define_user
   den__provides__hostname --> default__aspect_default_
   den__provides__hostname --> den__provides__default__aspect_default__den__provides
-  den__provides__hostname --> den__provides__define_user
-  den__provides__mutual_provider --> n_default
+  den__provides__hostname --> den__provides__hostname
   den__provides__mutual_provider --> default__aspect_default_
   den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+  den__provides__mutual_provider --> den__provides__mutual_provider
   end
   subgraph ctx_hm_host["hm-host"]
   hm_host["hm-host"]:::hm_host_c
   hm_host__aspect_hm_host_["hm-host/aspect(hm-host)"]:::hm_host__aspect_hm_host__c
   hm_host__cross_provide_host_["hm-host/cross-provide(host)"]:::hm_host__cross_provide_host__c
   hm_host__self_provide_hm_host_["hm-host/self-provide(hm-host)"]:::hm_host__self_provide_hm_host__c
+  hm_host --> hm_host
   hm_host --> hm_host__aspect_hm_host_
-  hm_host__aspect_hm_host_ --> hm_host
-  hm_host__cross_provide_host_ --> hm_user
   end
   subgraph ctx_hm_user["hm-user"]
   hm_user["hm-user"]:::hm_user_c
   hm_user__aspect_hm_user_["hm-user/aspect(hm-user)"]:::hm_user__aspect_hm_user__c
   hm_user__cross_provide_hm_host_["hm-user/cross-provide(hm-host)"]:::hm_user__cross_provide_hm_host__c
   hm_user__self_provide_hm_user_["hm-user/self-provide(hm-user)"]:::hm_user__self_provide_hm_user__c
+  hm_user --> hm_user
   hm_user --> hm_user__aspect_hm_user_
-  hm_user__aspect_hm_user_ --> hm_user
-  hm_user__cross_provide_hm_host_ --> user
   end
   subgraph ctx_user["user"]
   deploy["deploy"]:::deploy_c
@@ -126,11 +119,10 @@ graph LR
   user__aspect_user_["user/aspect(user)"]:::user__aspect_user__c
   user__cross_provide_host_["user/cross-provide(host)"]:::user__cross_provide_host__c
   user__self_provide_user_["user/self-provide(user)"]:::user__self_provide_user__c
+  deploy --> deploy
   deploy --> user__self_provide_user_
-  user --> deploy
+  user --> user
   user --> user__aspect_user_
-  user__aspect_user_ --> user
-  user__self_provide_user_ --> deploy
   end
 
 
@@ -164,7 +156,7 @@ graph LR
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
-  classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
+  classDef provider_filter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef user_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -264,32 +256,28 @@ digraph {
   user__self_provide_user_ [label="user/self-provide(user)",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   }
 
+  backup -> backup;
   backup -> host__self_provide_host_;
-  backup -> server;
+  n_default -> n_default;
   n_default -> default__aspect_default_;
   n_default -> den__provides__define_user;
   n_default -> den__provides__hostname;
   n_default -> den__provides__mutual_provider;
-  default__aspect_default_ -> den__provides__define_user;
-  default__aspect_default_ -> den__provides__hostname;
-  default__aspect_default_ -> den__provides__mutual_provider;
-  default__cross_provide_host_ -> hm_host;
   den__provides__define_user -> default__aspect_default_;
   den__provides__define_user -> den__provides__default__aspect_default__den__provides;
-  den__provides__define_user -> den__provides__mutual_provider;
+  den__provides__define_user -> den__provides__define_user;
   den__provides__hostname -> default__aspect_default_;
   den__provides__hostname -> den__provides__default__aspect_default__den__provides;
-  den__provides__hostname -> den__provides__define_user;
-  den__provides__mutual_provider -> n_default;
+  den__provides__hostname -> den__provides__hostname;
   den__provides__mutual_provider -> default__aspect_default_;
   den__provides__mutual_provider -> den__provides__default__aspect_default__den__provides;
+  den__provides__mutual_provider -> den__provides__mutual_provider;
+  deploy -> deploy;
   deploy -> user__self_provide_user_;
+  hm_host -> hm_host;
   hm_host -> hm_host__aspect_hm_host_;
-  hm_host__aspect_hm_host_ -> hm_host;
-  hm_host__cross_provide_host_ -> hm_user;
+  hm_user -> hm_user;
   hm_user -> hm_user__aspect_hm_user_;
-  hm_user__aspect_hm_user_ -> hm_user;
-  hm_user__cross_provide_hm_host_ -> user;
   host -> n_default;
   host -> default__cross_provide_host_;
   host -> default__cross_provide_user_;
@@ -307,14 +295,12 @@ digraph {
   host -> provider_filter;
   host -> user;
   host -> user__cross_provide_host_;
-  host__aspect_host_ -> host;
-  host__cross_provide__anon__ -> n_default;
-  host__self_provide_host_ -> backup;
-  host__self_provide_host_ -> server;
   monitoring -> host__self_provide_host_;
+  monitoring -> monitoring;
   networking -> host__self_provide_host_;
-  networking -> monitoring;
+  networking -> networking;
   provider_filter -> host__self_provide_host_;
+  provider_filter -> provider_filter;
   provider_filter -> server;
   server -> monitoring__alerting [style=dashed,color="#f38ba8"];
   server -> backup;
@@ -324,18 +310,16 @@ digraph {
   server -> networking;
   server -> monitoring__nginx_exporter [style=dashed,color="#f38ba8"];
   server -> monitoring__node_exporter [style=dashed,color="#f38ba8"];
-  server -> provider_filter;
+  server -> server;
   server -> tailscale;
   server -> virtualization;
   tailscale -> host__self_provide_host_;
-  tailscale -> virtualization;
-  user -> deploy;
+  tailscale -> tailscale;
+  user -> user;
   user -> user__aspect_user_;
-  user__aspect_user_ -> user;
-  user__self_provide_user_ -> deploy;
-  virtualization -> virtualization__docker;
   virtualization -> host__self_provide_host_;
-  virtualization__docker -> backup;
+  virtualization -> virtualization;
+  virtualization__docker -> virtualization__docker;
   virtualization__docker -> host__self_provide_host_;
   monitoring__node_exporter -> monitoring;
   monitoring__nginx_exporter -> monitoring;
@@ -420,32 +404,28 @@ package "user" as stage_user {
   rectangle "user/self-provide(user)" as user__self_provide_user_ #f2cdcd
 }
 
+backup --> backup
 backup --> host__self_provide_host_
-backup --> server
+n_default --> n_default
 n_default --> default__aspect_default_
 n_default --> den__provides__define_user
 n_default --> den__provides__hostname
 n_default --> den__provides__mutual_provider
-default__aspect_default_ --> den__provides__define_user
-default__aspect_default_ --> den__provides__hostname
-default__aspect_default_ --> den__provides__mutual_provider
-default__cross_provide_host_ --> hm_host
 den__provides__define_user --> default__aspect_default_
 den__provides__define_user --> den__provides__default__aspect_default__den__provides
-den__provides__define_user --> den__provides__mutual_provider
+den__provides__define_user --> den__provides__define_user
 den__provides__hostname --> default__aspect_default_
 den__provides__hostname --> den__provides__default__aspect_default__den__provides
-den__provides__hostname --> den__provides__define_user
-den__provides__mutual_provider --> n_default
+den__provides__hostname --> den__provides__hostname
 den__provides__mutual_provider --> default__aspect_default_
 den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+den__provides__mutual_provider --> den__provides__mutual_provider
+deploy --> deploy
 deploy --> user__self_provide_user_
+hm_host --> hm_host
 hm_host --> hm_host__aspect_hm_host_
-hm_host__aspect_hm_host_ --> hm_host
-hm_host__cross_provide_host_ --> hm_user
+hm_user --> hm_user
 hm_user --> hm_user__aspect_hm_user_
-hm_user__aspect_hm_user_ --> hm_user
-hm_user__cross_provide_hm_host_ --> user
 host --> n_default
 host --> default__cross_provide_host_
 host --> default__cross_provide_user_
@@ -463,14 +443,12 @@ host --> host__cross_provide__anon__
 host --> provider_filter
 host --> user
 host --> user__cross_provide_host_
-host__aspect_host_ --> host
-host__cross_provide__anon__ --> n_default
-host__self_provide_host_ --> backup
-host__self_provide_host_ --> server
 monitoring --> host__self_provide_host_
+monitoring --> monitoring
 networking --> host__self_provide_host_
-networking --> monitoring
+networking --> networking
 provider_filter --> host__self_provide_host_
+provider_filter --> provider_filter
 provider_filter --> server
 server ..x monitoring__alerting
 server --> backup
@@ -480,18 +458,16 @@ server --> monitoring
 server --> networking
 server ..x monitoring__nginx_exporter
 server ..x monitoring__node_exporter
-server --> provider_filter
+server --> server
 server --> tailscale
 server --> virtualization
 tailscale --> host__self_provide_host_
-tailscale --> virtualization
-user --> deploy
+tailscale --> tailscale
+user --> user
 user --> user__aspect_user_
-user__aspect_user_ --> user
-user__self_provide_user_ --> deploy
-virtualization --> virtualization__docker
 virtualization --> host__self_provide_host_
-virtualization__docker --> backup
+virtualization --> virtualization
+virtualization__docker --> virtualization__docker
 virtualization__docker --> host__self_provide_host_
 monitoring__node_exporter --> monitoring : provided-by
 monitoring__nginx_exporter --> monitoring : provided-by

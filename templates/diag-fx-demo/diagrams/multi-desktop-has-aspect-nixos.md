@@ -15,22 +15,9 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   workstation["workstation"]:::workstation_c
-  desktop --> workstation
   desktop --> regreet
-  desktop --> virtualization
   multi_desktop --> workstation
-  networking --> workstation
-  regreet --> workstation
-  tailscale --> workstation
-  virtualization --> workstation
-  virtualization__podman --> workstation
-  networking --> tailscale
-  regreet --> desktop
-  tailscale --> desktop
-  tailscale --> regreet
-  virtualization --> virtualization__podman
   workstation --> desktop
-  workstation --> multi_desktop
   workstation --> networking
   workstation --> virtualization__podman
   workstation --> tailscale
@@ -42,18 +29,7 @@ graph LR
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
-  alice__to_hosts --> den__provides__define_user
-  alice__to_hosts --> den__provides__hostname
-  alice__to_hosts --> den__provides__mutual_provider
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   den__provides__mutual_provider --> alice__to_hosts
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  den__provides__define_user --> alice__to_hosts
-  den__provides__hostname --> alice__to_hosts
   alice__to_hosts -.->|provided-by| alice
   end
   subgraph ctx_user["user"]
@@ -70,35 +46,10 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  alice --> gnome
   bob --> dev_tools
   bob --> gnome
   bob --> primary_user
   bob --> den__provides__primary_user
-  bob --> alice
-  bob --> demo_shell
-  bob --> hyprland
-  demo_shell --> hyprland
-  demo_shell --> alice
-  demo_shell --> dev_tools
-  demo_shell --> gnome
-  den__provides__primary_user --> demo_shell
-  den__provides__primary_user --> gnome
-  dev_tools --> bob
-  dev_tools --> alice
-  dev_tools --> demo_shell
-  dev_tools --> gnome
-  dev_tools --> hyprland
-  gnome --> dev_tools
-  gnome --> alice
-  gnome --> demo_shell
-  gnome --> hyprland
-  hyprland --> dev_tools
-  hyprland --> alice
-  hyprland --> demo_shell
-  hyprland --> gnome
-  primary_user --> demo_shell
-  primary_user --> gnome
   end
 
 

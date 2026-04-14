@@ -8,17 +8,10 @@ graph LR
   desktop_gdm([desktop-gdm]):::root
   desktop["desktop · host"]:::desktop_c
   regreet["regreet · host"]:::regreet_c
-  workstation["workstation · host"]:::workstation_c
 
-  desktop --> workstation
   desktop -.->|replaced| regreet
-  desktop_gdm --> workstation
-  workstation --> desktop
-  workstation --> desktop_gdm
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef desktop_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef desktop_gdm_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:3px
   classDef regreet_c fill:#89b4fa,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
-  classDef workstation_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
 ```

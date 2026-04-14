@@ -31,88 +31,14 @@ graph LR
   alice --> hyprland
   alice --> primary_user
   alice --> den__provides__primary_user
-  alice_dotfiles --> alice
-  alice_dotfiles --> demo_shell
-  alice_dotfiles --> dev_tools
-  alice_dotfiles --> home_dev
-  alice_dotfiles --> home_productivity
-  alice_dotfiles --> hyprland
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
   home --> den__provides__define_user
   home --> den__provides__hostname
   home --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  demo_shell --> alice
-  demo_shell --> alice_dotfiles
-  demo_shell --> dev_tools
-  demo_shell --> home_dev
-  demo_shell --> home_productivity
-  demo_shell --> hyprland
-  den__provides__primary_user --> demo_shell
-  dev_tools --> alice
-  dev_tools --> alice_dotfiles
-  dev_tools --> demo_shell
-  dev_tools --> home_dev
-  dev_tools --> home_productivity
-  dev_tools --> hyprland
   home --> alice
-  home_bat --> home_dev
-  home_bat --> alice
-  home_bat --> alice_dotfiles
-  home_bat --> demo_shell
-  home_bat --> dev_tools
-  home_bat --> home_productivity
-  home_bat --> hyprland
   home_dev --> home_bat
   home_dev --> home_git
-  home_dev --> alice
-  home_dev --> alice_dotfiles
-  home_dev --> demo_shell
-  home_dev --> dev_tools
-  home_dev --> home_productivity
-  home_dev --> hyprland
-  home_firefox --> home_slack
-  home_firefox --> alice
-  home_firefox --> alice_dotfiles
-  home_firefox --> demo_shell
-  home_firefox --> dev_tools
-  home_firefox --> home_dev
-  home_firefox --> home_productivity
-  home_firefox --> hyprland
-  home_git --> home_bat
-  home_git --> alice
-  home_git --> alice_dotfiles
-  home_git --> demo_shell
-  home_git --> dev_tools
-  home_git --> home_dev
-  home_git --> home_productivity
-  home_git --> hyprland
   home_productivity --> home_firefox
   home_productivity --> home_slack
-  home_productivity --> alice
-  home_productivity --> alice_dotfiles
-  home_productivity --> demo_shell
-  home_productivity --> dev_tools
-  home_productivity --> home_dev
-  home_productivity --> hyprland
-  home_slack --> home_productivity
-  home_slack --> alice
-  home_slack --> alice_dotfiles
-  home_slack --> demo_shell
-  home_slack --> dev_tools
-  home_slack --> home_dev
-  home_slack --> hyprland
-  hyprland --> alice
-  hyprland --> alice_dotfiles
-  hyprland --> demo_shell
-  hyprland --> dev_tools
-  hyprland --> home_dev
-  hyprland --> home_productivity
-  primary_user --> demo_shell
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px

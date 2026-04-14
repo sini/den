@@ -9,57 +9,16 @@ graph LR
   monitoring__alerting[/"monitoring/alerting · host"\]:::monitoring__alerting_c
   backup["backup · host"]:::backup_c
   virtualization__docker[/"virtualization/docker · host"\]:::virtualization__docker_c
-  mail["mail · host"]:::mail_c
   monitoring["monitoring · host"]:::monitoring_c
   networking["networking · host"]:::networking_c
   monitoring__nginx_exporter[/"monitoring/nginx-exporter · host"\]:::monitoring__nginx_exporter_c
   monitoring__node_exporter[/"monitoring/node-exporter · host"\]:::monitoring__node_exporter_c
-  relay["relay · host"]:::relay_c
   server["server · host"]:::server_c
   tailscale["tailscale · host"]:::tailscale_c
   virtualization["virtualization · host"]:::virtualization_c
 
-  backup --> mail
-  backup --> relay
-  backup --> server
-  mail --> backup
-  mail_relay --> backup
-  monitoring__alerting --> backup
-  monitoring__nginx_exporter --> backup
-  monitoring__node_exporter --> backup
-  networking --> backup
-  relay --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  virtualization__docker --> backup
-  mail_relay --> mail
-  monitoring__alerting --> mail
-  monitoring__nginx_exporter --> mail
-  monitoring__node_exporter --> mail
-  networking --> mail
-  relay --> mail
-  server --> mail
-  tailscale --> mail
-  virtualization --> mail
-  virtualization__docker --> mail
-  mail --> relay
-  mail_relay --> relay
-  monitoring__alerting --> relay
-  monitoring__nginx_exporter --> relay
-  monitoring__node_exporter --> relay
-  networking --> relay
-  server --> relay
-  tailscale --> relay
-  virtualization --> relay
-  virtualization__docker --> relay
-  monitoring__alerting --> tailscale
-  monitoring__nginx_exporter --> monitoring__alerting
-  monitoring__node_exporter --> monitoring__nginx_exporter
-  relay --> mail_relay
-  relay --> networking
-  relay --> server
   server --> monitoring__alerting
+  server --> backup
   server --> virtualization__docker
   server -.-x monitoring
   server --> networking
@@ -67,8 +26,6 @@ graph LR
   server --> monitoring__node_exporter
   server --> tailscale
   server --> virtualization
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__nginx_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
@@ -78,13 +35,11 @@ graph LR
   classDef monitoring__alerting_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef backup_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef virtualization__docker_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
-  classDef mail_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef mail_relay_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#89b4fa,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef networking_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__nginx_exporter_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef relay_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef server_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px

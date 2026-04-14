@@ -15,11 +15,6 @@ graph LR
   monitoring__node_exporter[/"monitoring/node-exporter"\]:::monitoring__node_exporter_c
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
-  monitoring --> monitoring__node_exporter
-  monitoring__alerting --> tailscale
-  networking --> monitoring
-  tailscale --> virtualization
-  virtualization --> virtualization__docker
   monitoring__node_exporter -.->|provided-by| monitoring
   monitoring__alerting -.->|provided-by| monitoring
   virtualization__docker -.->|provided-by| virtualization
@@ -39,7 +34,7 @@ graph LR
   classDef monitoring__node_exporter_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef tailscale_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
   classDef virtualization_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
-  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:3px
+  classDef web_server_c fill:#cba6f7,stroke:#cba6f7,color:#1e1e2e,stroke-width:2px
 style ctx_host fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_default fill:#313244,stroke:#6c7086,stroke-width:2px
 style ctx_hm_host fill:#313244,stroke:#6c7086,stroke-width:2px

@@ -15,12 +15,6 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
   desktop --> regreet
-  desktop --> virtualization
-  networking --> tailscale
-  regreet --> desktop
-  tailscale --> desktop
-  tailscale --> regreet
-  virtualization --> virtualization__podman
   virtualization__podman -.->|provided-by| virtualization
   end
   subgraph ctx_default["default"]
@@ -35,16 +29,8 @@ graph LR
   den__provides__primary_user[/"provides/primary-user"\]:::den__provides__primary_user_c
   alice --> hyprland
   alice --> den__provides__primary_user
-  alice --> gnome
   bob --> gnome
   bob --> den__provides__primary_user
-  bob --> alice
-  bob --> hyprland
-  den__provides__primary_user --> gnome
-  gnome --> alice
-  gnome --> hyprland
-  hyprland --> alice
-  hyprland --> gnome
   end
 
 

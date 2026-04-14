@@ -19,46 +19,14 @@ graph LR
   tailscale["tailscale"]:::tailscale_c
   virtualization["virtualization"]:::virtualization_c
 
-  backup --> mail
-  backup --> relay
-  backup --> server
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
-  mail --> backup
-  mail_relay --> backup
-  monitoring --> backup
-  networking --> backup
-  relay --> backup
-  server --> backup
-  tailscale --> backup
-  virtualization --> backup
-  mail_relay --> mail
-  monitoring --> mail
-  networking --> mail
-  relay --> mail
-  server --> mail
-  tailscale --> mail
-  virtualization --> mail
-  mail --> relay
   mail_relay --> relay
-  monitoring --> relay
-  networking --> relay
-  server --> relay
-  tailscale --> relay
-  virtualization --> relay
-  monitoring --> tailscale
-  relay --> mail_relay
-  relay --> networking
+  relay --> mail
   relay --> server
   server --> monitoring
+  server --> backup
   server --> virtualization
   server --> networking
   server --> tailscale
-  tailscale --> virtualization
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef backup_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
@@ -66,7 +34,7 @@ graph LR
   classDef deploy_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef den__provides__hostname_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef mail_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
-  classDef mail_relay_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:3px
+  classDef mail_relay_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-width:2px
   classDef monitoring_c fill:#fab387,stroke:#f38ba8,color:#1e1e2e,stroke-dasharray: 5 5,stroke-width:2px
   classDef den__provides__mutual_provider_c fill:#f9e2af,stroke:#f9e2af,color:#1e1e2e,stroke-dasharray: 3 3,stroke-width:1px
   classDef networking_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px

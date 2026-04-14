@@ -16,22 +16,12 @@ graph LR
   bob --> gnome
   bob --> primary_user
   bob --> den__provides__primary_user
-  den__provides__primary_user --> gnome
-  dev_tools --> bob
-  dev_tools --> gnome
-  gnome --> dev_tools
-  primary_user --> gnome
   end
   subgraph ctx_default["default"]
   den__provides__define_user[/"provides/define-user"\]:::den__provides__define_user_c
   den__provides__hostname[/"provides/hostname"\]:::den__provides__hostname_c
   den__provides__mutual_provider[/"provides/mutual-provider"\]:::den__provides__mutual_provider_c
-  den__provides__mutual_provider --> den__provides__define_user
-  den__provides__mutual_provider --> den__provides__hostname
-  den__provides__hostname --> den__provides__define_user
-  den__provides__define_user --> den__provides__hostname
-  den__provides__define_user --> den__provides__mutual_provider
-  den__provides__hostname --> den__provides__mutual_provider
+
   end
 
 

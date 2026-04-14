@@ -20,15 +20,14 @@ graph LR
   den__provides__primary_user[/"provides/primary-user"\]:::den__provides__primary_user_c
   regreet["regreet"]:::regreet_c
   tailscale["tailscale"]:::tailscale_c
+  angle_brackets --> angle_brackets
   angle_brackets --> desktop
   angle_brackets --> host__self_provide_host_
   angle_brackets --> networking
   angle_brackets --> primary_user
   angle_brackets --> den__provides__primary_user
   angle_brackets -.-x tailscale
-  den__provides__primary_user --> demo_shell
-  den__provides__primary_user --> networking
-  desktop --> angle_brackets
+  desktop --> desktop
   desktop --> host__self_provide_host_
   desktop --> regreet
   host --> alice
@@ -48,16 +47,10 @@ graph LR
   host --> host__cross_provide__anon__
   host --> user
   host --> user__cross_provide_host_
-  host__aspect_host_ --> host
-  host__cross_provide__anon__ --> n_default
-  host__self_provide_host_ --> desktop
-  host__self_provide_host_ --> networking
   networking --> host__self_provide_host_
   networking --> networking
-  primary_user --> demo_shell
-  primary_user --> networking
-  regreet --> desktop
   regreet --> host__self_provide_host_
+  regreet --> regreet
   end
   subgraph ctx_default["default"]
   n_default["default"]:::n_default_c
@@ -72,24 +65,20 @@ graph LR
   alice__to_hosts[/"alice/to-hosts"\]:::alice__to_hosts_c
   alice__to_hosts --> default__aspect_default_
   alice__to_hosts --> alice__to_hosts
+  n_default --> n_default
   n_default --> default__aspect_default_
   n_default --> den__provides__define_user
   n_default --> den__provides__hostname
   n_default --> den__provides__mutual_provider
-  default__aspect_default_ --> den__provides__define_user
-  default__aspect_default_ --> den__provides__hostname
-  default__aspect_default_ --> den__provides__mutual_provider
-  default__aspect_default_ --> alice__to_hosts
-  default__cross_provide_host_ --> hm_host
   den__provides__define_user --> default__aspect_default_
   den__provides__define_user --> den__provides__default__aspect_default__den__provides
-  den__provides__define_user --> den__provides__mutual_provider
+  den__provides__define_user --> den__provides__define_user
   den__provides__hostname --> default__aspect_default_
   den__provides__hostname --> den__provides__default__aspect_default__den__provides
-  den__provides__hostname --> den__provides__define_user
-  den__provides__mutual_provider --> n_default
+  den__provides__hostname --> den__provides__hostname
   den__provides__mutual_provider --> default__aspect_default_
   den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+  den__provides__mutual_provider --> den__provides__mutual_provider
   den__provides__mutual_provider --> alice__to_hosts
   alice__to_hosts -.->|provided-by| alice
   end
@@ -98,18 +87,16 @@ graph LR
   hm_host__aspect_hm_host_["hm-host/aspect(hm-host)"]:::hm_host__aspect_hm_host__c
   hm_host__cross_provide_host_["hm-host/cross-provide(host)"]:::hm_host__cross_provide_host__c
   hm_host__self_provide_hm_host_["hm-host/self-provide(hm-host)"]:::hm_host__self_provide_hm_host__c
+  hm_host --> hm_host
   hm_host --> hm_host__aspect_hm_host_
-  hm_host__aspect_hm_host_ --> hm_host
-  hm_host__cross_provide_host_ --> hm_user
   end
   subgraph ctx_hm_user["hm-user"]
   hm_user["hm-user"]:::hm_user_c
   hm_user__aspect_hm_user_["hm-user/aspect(hm-user)"]:::hm_user__aspect_hm_user__c
   hm_user__cross_provide_hm_host_["hm-user/cross-provide(hm-host)"]:::hm_user__cross_provide_hm_host__c
   hm_user__self_provide_hm_user_["hm-user/self-provide(hm-user)"]:::hm_user__self_provide_hm_user__c
+  hm_user --> hm_user
   hm_user --> hm_user__aspect_hm_user_
-  hm_user__aspect_hm_user_ --> hm_user
-  hm_user__cross_provide_hm_host_ --> user
   end
   subgraph ctx_user["user"]
   alice["alice"]:::alice_c
@@ -120,6 +107,7 @@ graph LR
   user__aspect_user_["user/aspect(user)"]:::user__aspect_user__c
   user__cross_provide_host_["user/cross-provide(host)"]:::user__cross_provide_host__c
   user__self_provide_user_["user/self-provide(user)"]:::user__self_provide_user__c
+  alice --> alice
   alice --> demo_shell
   alice --> dev_tools
   alice --> hyprland
@@ -127,26 +115,19 @@ graph LR
   alice --> den__provides__primary_user
   alice --> user__self_provide_user_
   demo_shell --> demo_shell
-  demo_shell --> hyprland
   demo_shell --> user__self_provide_user_
   dev_tools --> dev_tools
   dev_tools --> user__self_provide_user_
-  hyprland --> dev_tools
   hyprland --> hyprland
   hyprland --> user__self_provide_user_
-  user --> alice
+  user --> user
   user --> user__aspect_user_
-  user__aspect_user_ --> user
-  user__self_provide_user_ --> alice
-  user__self_provide_user_ --> demo_shell
-  user__self_provide_user_ --> dev_tools
-  user__self_provide_user_ --> hyprland
   end
 
 
   classDef root fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,font-weight:bold
   classDef alice_c fill:#f2cdcd,stroke:#f2cdcd,color:#1e1e2e,stroke-width:2px
-  classDef angle_brackets_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:3px
+  classDef angle_brackets_c fill:#89b4fa,stroke:#89b4fa,color:#1e1e2e,stroke-width:2px
   classDef n_default_c fill:#fab387,stroke:#fab387,color:#1e1e2e,stroke-width:2px
   classDef default__aspect_default__c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
   classDef den__provides__default__aspect_default__den__provides_c fill:#a6e3a1,stroke:#a6e3a1,color:#1e1e2e,stroke-width:2px
@@ -274,6 +255,7 @@ digraph {
   user__self_provide_user_ [label="user/self-provide(user)",shape=box,style=filled,fillcolor="#f2cdcd",color="#f2cdcd",fontcolor="#1e1e2e"];
   }
 
+  alice -> alice;
   alice -> demo_shell;
   alice -> dev_tools;
   alice -> hyprland;
@@ -282,47 +264,39 @@ digraph {
   alice -> user__self_provide_user_;
   alice__to_hosts -> default__aspect_default_;
   alice__to_hosts -> alice__to_hosts;
+  angle_brackets -> angle_brackets;
   angle_brackets -> desktop;
   angle_brackets -> host__self_provide_host_;
   angle_brackets -> networking;
   angle_brackets -> primary_user;
   angle_brackets -> den__provides__primary_user;
   angle_brackets -> tailscale [style=dashed,color="#f38ba8"];
+  n_default -> n_default;
   n_default -> default__aspect_default_;
   n_default -> den__provides__define_user;
   n_default -> den__provides__hostname;
   n_default -> den__provides__mutual_provider;
-  default__aspect_default_ -> den__provides__define_user;
-  default__aspect_default_ -> den__provides__hostname;
-  default__aspect_default_ -> den__provides__mutual_provider;
-  default__aspect_default_ -> alice__to_hosts;
-  default__cross_provide_host_ -> hm_host;
   demo_shell -> demo_shell;
-  demo_shell -> hyprland;
   demo_shell -> user__self_provide_user_;
   den__provides__define_user -> default__aspect_default_;
   den__provides__define_user -> den__provides__default__aspect_default__den__provides;
-  den__provides__define_user -> den__provides__mutual_provider;
+  den__provides__define_user -> den__provides__define_user;
   den__provides__hostname -> default__aspect_default_;
   den__provides__hostname -> den__provides__default__aspect_default__den__provides;
-  den__provides__hostname -> den__provides__define_user;
-  den__provides__mutual_provider -> n_default;
+  den__provides__hostname -> den__provides__hostname;
   den__provides__mutual_provider -> default__aspect_default_;
   den__provides__mutual_provider -> den__provides__default__aspect_default__den__provides;
+  den__provides__mutual_provider -> den__provides__mutual_provider;
   den__provides__mutual_provider -> alice__to_hosts;
-  den__provides__primary_user -> demo_shell;
-  den__provides__primary_user -> networking;
-  desktop -> angle_brackets;
+  desktop -> desktop;
   desktop -> host__self_provide_host_;
   desktop -> regreet;
   dev_tools -> dev_tools;
   dev_tools -> user__self_provide_user_;
+  hm_host -> hm_host;
   hm_host -> hm_host__aspect_hm_host_;
-  hm_host__aspect_hm_host_ -> hm_host;
-  hm_host__cross_provide_host_ -> hm_user;
+  hm_user -> hm_user;
   hm_user -> hm_user__aspect_hm_user_;
-  hm_user__aspect_hm_user_ -> hm_user;
-  hm_user__cross_provide_hm_host_ -> user;
   host -> alice;
   host -> angle_brackets;
   host -> n_default;
@@ -340,26 +314,14 @@ digraph {
   host -> host__cross_provide__anon__;
   host -> user;
   host -> user__cross_provide_host_;
-  host__aspect_host_ -> host;
-  host__cross_provide__anon__ -> n_default;
-  host__self_provide_host_ -> desktop;
-  host__self_provide_host_ -> networking;
-  hyprland -> dev_tools;
   hyprland -> hyprland;
   hyprland -> user__self_provide_user_;
   networking -> host__self_provide_host_;
   networking -> networking;
-  primary_user -> demo_shell;
-  primary_user -> networking;
-  regreet -> desktop;
   regreet -> host__self_provide_host_;
-  user -> alice;
+  regreet -> regreet;
+  user -> user;
   user -> user__aspect_user_;
-  user__aspect_user_ -> user;
-  user__self_provide_user_ -> alice;
-  user__self_provide_user_ -> demo_shell;
-  user__self_provide_user_ -> dev_tools;
-  user__self_provide_user_ -> hyprland;
   alice__to_hosts -> alice;
 }
 ```
@@ -440,6 +402,7 @@ package "user" as stage_user {
   rectangle "user/self-provide(user)" as user__self_provide_user_ #f2cdcd
 }
 
+alice --> alice
 alice --> demo_shell
 alice --> dev_tools
 alice --> hyprland
@@ -448,47 +411,39 @@ alice --> den__provides__primary_user
 alice --> user__self_provide_user_
 alice__to_hosts --> default__aspect_default_
 alice__to_hosts --> alice__to_hosts
+angle_brackets --> angle_brackets
 angle_brackets --> desktop
 angle_brackets --> host__self_provide_host_
 angle_brackets --> networking
 angle_brackets --> primary_user
 angle_brackets --> den__provides__primary_user
 angle_brackets ..x tailscale
+n_default --> n_default
 n_default --> default__aspect_default_
 n_default --> den__provides__define_user
 n_default --> den__provides__hostname
 n_default --> den__provides__mutual_provider
-default__aspect_default_ --> den__provides__define_user
-default__aspect_default_ --> den__provides__hostname
-default__aspect_default_ --> den__provides__mutual_provider
-default__aspect_default_ --> alice__to_hosts
-default__cross_provide_host_ --> hm_host
 demo_shell --> demo_shell
-demo_shell --> hyprland
 demo_shell --> user__self_provide_user_
 den__provides__define_user --> default__aspect_default_
 den__provides__define_user --> den__provides__default__aspect_default__den__provides
-den__provides__define_user --> den__provides__mutual_provider
+den__provides__define_user --> den__provides__define_user
 den__provides__hostname --> default__aspect_default_
 den__provides__hostname --> den__provides__default__aspect_default__den__provides
-den__provides__hostname --> den__provides__define_user
-den__provides__mutual_provider --> n_default
+den__provides__hostname --> den__provides__hostname
 den__provides__mutual_provider --> default__aspect_default_
 den__provides__mutual_provider --> den__provides__default__aspect_default__den__provides
+den__provides__mutual_provider --> den__provides__mutual_provider
 den__provides__mutual_provider --> alice__to_hosts
-den__provides__primary_user --> demo_shell
-den__provides__primary_user --> networking
-desktop --> angle_brackets
+desktop --> desktop
 desktop --> host__self_provide_host_
 desktop --> regreet
 dev_tools --> dev_tools
 dev_tools --> user__self_provide_user_
+hm_host --> hm_host
 hm_host --> hm_host__aspect_hm_host_
-hm_host__aspect_hm_host_ --> hm_host
-hm_host__cross_provide_host_ --> hm_user
+hm_user --> hm_user
 hm_user --> hm_user__aspect_hm_user_
-hm_user__aspect_hm_user_ --> hm_user
-hm_user__cross_provide_hm_host_ --> user
 host --> alice
 host --> angle_brackets
 host --> n_default
@@ -506,26 +461,14 @@ host --> host__aspect_host_
 host --> host__cross_provide__anon__
 host --> user
 host --> user__cross_provide_host_
-host__aspect_host_ --> host
-host__cross_provide__anon__ --> n_default
-host__self_provide_host_ --> desktop
-host__self_provide_host_ --> networking
-hyprland --> dev_tools
 hyprland --> hyprland
 hyprland --> user__self_provide_user_
 networking --> host__self_provide_host_
 networking --> networking
-primary_user --> demo_shell
-primary_user --> networking
-regreet --> desktop
 regreet --> host__self_provide_host_
-user --> alice
+regreet --> regreet
+user --> user
 user --> user__aspect_user_
-user__aspect_user_ --> user
-user__self_provide_user_ --> alice
-user__self_provide_user_ --> demo_shell
-user__self_provide_user_ --> dev_tools
-user__self_provide_user_ --> hyprland
 alice__to_hosts --> alice : provided-by
 @enduml
 ```
