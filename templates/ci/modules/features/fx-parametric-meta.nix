@@ -157,7 +157,7 @@ in
         } comp;
       in
       {
-        # child's __parent should be "root" (the parent's pathKey)
+        # child's parent should be "root" (derived from includesChain)
         expr = builtins.elem "root" result.state.parents;
         expected = true;
       }
