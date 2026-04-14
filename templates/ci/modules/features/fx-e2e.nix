@@ -114,7 +114,7 @@ in
           into = _: { };
           provides = { };
           meta = {
-            adapter = fxLib.exclude wayland;
+            handleWith = fxLib.exclude wayland;
           };
           includes = [
             {

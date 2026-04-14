@@ -15,6 +15,7 @@ let
       name = self.name or "<anon>";
       meta = {
         adapter = meta.adapter or null;
+        handleWith = meta.handleWith or null;
         provider = meta.provider or [ ];
       };
     }

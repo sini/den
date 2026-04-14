@@ -86,7 +86,7 @@ in
       }
     );
 
-    # Adapter: meta.adapter excludes a child via stateful registry.
+    # Adapter: meta.handleWith excludes a child via stateful registry.
     test-adapter-excludes-child = denTest (
       { den, ... }:
       let
@@ -100,7 +100,7 @@ in
         parent = {
           name = "parent";
           meta = {
-            adapter = fxLib.exclude target;
+            handleWith = fxLib.exclude target;
           };
           includes = [
             {
@@ -413,13 +413,13 @@ in
         parent = {
           name = "root";
           meta = {
-            adapter = fxLib.exclude targetA;
+            handleWith = fxLib.exclude targetA;
           };
           includes = [
             {
               name = "inner";
               meta = {
-                adapter = fxLib.exclude targetB;
+                handleWith = fxLib.exclude targetB;
               };
               includes = [
                 {

@@ -231,7 +231,7 @@ in
         parent = {
           name = "root";
           meta = {
-            adapter = fxLib.exclude target;
+            handleWith = fxLib.exclude target;
           };
           includes = [
             {
@@ -590,7 +590,7 @@ in
         parent = {
           name = "root";
           meta = {
-            adapter = fxLib.exclude target;
+            handleWith = fxLib.exclude target;
           };
           includes = [
             {

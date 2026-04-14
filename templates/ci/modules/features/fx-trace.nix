@@ -86,7 +86,7 @@ in
           name = "root";
           meta = {
             provider = [ ];
-            adapter = fxLib.exclude target;
+            handleWith = fxLib.exclude target;
           };
           includes = [
             {

@@ -39,6 +39,7 @@ let
       name = aspectVal.name or "<anon>";
       meta = {
         adapter = meta.adapter or null;
+        handleWith = meta.handleWith or null;
         provider = meta.provider or [ ];
       }
       // lib.optionalAttrs isParametric { inherit isParametric fnArgNames; };
@@ -122,7 +123,7 @@ let
 
   # Effectful tree walk. Returns Computation aspect.
   # Emits resolve-include before and resolve-complete after each child.
-  # meta.adapter registers via register-adapter effect; check-exclusion
+  # meta.handleWith registers via register-constraint effect; check-constraint
   # queries the registry for each child.
   resolveDeepEffectful =
     {
@@ -171,7 +172,7 @@ let
                   }) (_: fx.pure null)
                 else
                   fx.pure null;
-              rawAdapter = resolved.meta.adapter or null;
+              rawAdapter = resolved.meta.handleWith or null;
               # Accept single record or list of records. Skip legacy function adapters.
               adapterList =
                 if rawAdapter == null then

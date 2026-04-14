@@ -116,7 +116,7 @@ in
           into = _: { };
           provides = { };
           meta = {
-            adapter = fxLib.exclude target;
+            handleWith = fxLib.exclude target;
           };
           includes = [
             {

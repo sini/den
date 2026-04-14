@@ -116,7 +116,7 @@ in
         root = {
           name = "root";
           meta = {
-            adapter = fxLib.exclude target;
+            handleWith = fxLib.exclude target;
           };
           includes = [
             {
@@ -173,7 +173,7 @@ in
         root = {
           name = "root";
           meta = {
-            adapter = fxLib.substitute old new;
+            handleWith = fxLib.substitute old new;
           };
           includes = [
             {
@@ -260,7 +260,7 @@ in
         root = {
           name = "igloo";
           meta = {
-            adapter = fxLib.exclude wayland;
+            handleWith = fxLib.exclude wayland;
           };
           includes = [
             {
@@ -315,7 +315,7 @@ in
         root = {
           name = "root";
           meta = {
-            adapter = fxLib.exclude target;
+            handleWith = fxLib.exclude target;
           };
           includes = [
             {
