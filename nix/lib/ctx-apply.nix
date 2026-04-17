@@ -77,6 +77,19 @@ let
     in
     [ args ] ++ lib.concatMap expandOne intoList;
 
+  # Tag an include with its context stage for tracing.
+  tagStage =
+    stage: kind: aspectName: val:
+    if builtins.isAttrs val then
+      val
+      // {
+        __ctxStage = stage;
+        __ctxKind = kind;
+        __ctxAspect = aspectName;
+      }
+    else
+      val;
+
   buildIncludes =
     item:
     let
@@ -87,11 +100,20 @@ let
       # aspectToEffect to re-attach it after parametric resolution, attempting
       # to call the function without the original context args.
       stripped = builtins.removeAttrs item.self [ "into" ];
+      stage = item.key;
+    in
+    let
+      aspect =
+        if isFirst then parametric.fixedTo item.ctx stripped else parametric.atLeast stripped item.ctx;
+      selfProv = selfProvider item.ctx;
+      crossProv = crossProvider item.ctx;
     in
     [
-      (if isFirst then parametric.fixedTo item.ctx stripped else parametric.atLeast stripped item.ctx)
-      (selfProvider item.ctx)
-      (crossProvider item.ctx)
+      (tagStage stage "aspect" (item.self.name or "<anon>") aspect)
+      (tagStage stage "self-provide" (item.self.name or "<anon>") selfProv)
+      (tagStage stage "cross-provide" (
+        if item.prev != null then item.prev.name or "<anon>" else "<anon>"
+      ) crossProv)
     ];
 
   assembleIncludes =
@@ -109,15 +131,47 @@ let
       result = [ ];
     } items).result;
 
+  # Serializable summary of traversal items for tracing.
+  traceItem =
+    item:
+    let
+      ctx = if builtins.isAttrs item.ctx then item.ctx else { };
+      ctxKeys = builtins.attrNames ctx;
+      entityNames = lib.concatMap (
+        k:
+        let
+          v = ctx.${k} or null;
+        in
+        lib.optional (builtins.isAttrs v && v ? name) {
+          kind = k;
+          name = v.name;
+          aspect = v.aspect or v.name;
+        }
+      ) ctxKeys;
+    in
+    {
+      key = item.key;
+      selfName = item.self.name or "<anon>";
+      prevName = if item.prev == null then null else item.prev.name or "<anon>";
+      hasSelfProvider = (item.self.provides or { }) ? ${item.self.name or ""};
+      hasCrossProvider = item.prev != null && (item.prev.provides or { }) ? ${item.key};
+      inherit ctxKeys entityNames;
+      provideNames = builtins.attrNames (item.self.provides or { });
+    };
+
   ctxApply =
     self: ctx:
-    parametric.withIdentity self {
-      includes = assembleIncludes (traverse {
+    let
+      items = traverse {
         prev = null;
         prevCtx = null;
         key = self.name;
         inherit self ctx;
-      });
+      };
+    in
+    parametric.withIdentity self {
+      includes = assembleIncludes items;
+      __ctxTrace = builtins.map traceItem items;
     };
 
 in
