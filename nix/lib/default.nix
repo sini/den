@@ -34,6 +34,7 @@ let
     lastFunctionTo = ./last-function-to.nix;
     strict = ./strict.nix;
     fx = ./fx.nix;
+    diag = ./diag;
   };
 in
 den-lib
