@@ -55,7 +55,7 @@ let
   renderUtil = import ./render-util.nix { inherit lib themes; };
   capture = import ./capture.nix { inherit den lib inputs; };
   graphLib = import ./graph.nix { inherit lib util; };
-  filtersLib = import ./filters.nix { inherit lib util graphLib; };
+  filtersLib = import ./filters { inherit lib util graphLib; };
   mermaid = import ./mermaid.nix {
     inherit
       lib
