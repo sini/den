@@ -59,7 +59,9 @@ let
     in
     fx.seq (map (c: fx.send "register-constraint" (c // { inherit owner; })) allConstraints);
 
-  # Fold includes through emit-include effects.
+  # Fold includes through emit-include effects, tagging each with its
+  # positional index so the handler can derive stable identities for
+  # anonymous includes (parentIdentity/<anon>:index).
   emitIncludes =
     incs:
     let
