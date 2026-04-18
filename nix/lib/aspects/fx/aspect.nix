@@ -57,9 +57,9 @@ let
     in
     fx.seq (map (c: fx.send "register-constraint" (c // { inherit owner; })) allConstraints);
 
-  # Fold includes through emit-include effects, tagging each with its
-  # positional index so the handler can derive stable identities for
-  # anonymous includes (parentIdentity/<anon>:index).
+  # Fold includes through emit-include effects.
+  # If parent has __ctx, propagate it to children so nested parametric
+  # includes get context values via bind.fn's preProvided mechanism.
   emitIncludes =
     incs:
     let
@@ -80,6 +80,18 @@ let
           );
     in
     go 0 (fx.pure [ ]);
+
+  emitIncludesWithCtx =
+    ctx: incs:
+    let
+      tagChild =
+        child:
+        if ctx != { } && builtins.isAttrs child && !(child ? __ctx) then
+          child // { __ctx = ctx; }
+        else
+          child;
+    in
+    emitIncludes (map tagChild incs);
 
   # Emit into-transition effects for each key in aspect.into.
   # into is a function ctx → attrset. We pass the unevaluated function
@@ -129,13 +141,17 @@ let
   resolveChildren =
     aspect:
     { isMeaningful, nodeIdentity }:
+    let
+      parentCtx = aspect.__ctx or { };
+      emitIncs = if parentCtx != { } then emitIncludesWithCtx parentCtx else emitIncludes;
+    in
     fx.bind
       (chainWrap nodeIdentity isMeaningful (
         fx.bind (emitSelfProvide aspect) (
           selfProvResults:
           fx.bind (emitTransitions aspect) (
             transitionResults:
-            fx.bind (emitIncludes (aspect.includes or [ ])) (
+            fx.bind (emitIncs (aspect.includes or [ ])) (
               children: fx.pure (selfProvResults ++ transitionResults ++ children)
             )
           )
@@ -190,8 +206,12 @@ let
     if isParametric then
       let
         fn = aspect.__functor aspect;
+        # __ctx carries pre-provided context values from parametric.fixedTo/bindCtx.
+        # bind.fn uses these directly instead of sending effects — no scoped handler
+        # needed. Remaining args (class, etc.) go through effects as normal.
+        preProvided = aspect.__ctx or { };
       in
-      fx.bind (fx.bind.fn { } fn) (
+      fx.bind (fx.bind.fn preProvided fn) (
         resolved:
         aspectToEffect (
           {
