@@ -108,7 +108,10 @@ let
         };
         pass = condNode.meta.guard guardCtx;
       in
-      if pass then emitIncludes { } condNode.meta.aspects else tombstoneAll condNode.meta.aspects
+      if pass then
+        emitIncludes { parentCtx = { }; } condNode.meta.aspects
+      else
+        tombstoneAll condNode.meta.aspects
     );
 
   # Exclude: create tombstone and emit resolve-complete.

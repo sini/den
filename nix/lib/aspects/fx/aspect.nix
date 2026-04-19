@@ -65,7 +65,11 @@ let
   # positional index and parent __ctx so the handler can derive stable
   # identities and propagate context to children.
   emitIncludes =
-    parentCtx: incs:
+    {
+      parentCtx,
+      parentCtxId ? null,
+    }:
+    incs:
     let
       len = builtins.length incs;
       go =
@@ -76,10 +80,13 @@ let
           go (idx + 1) (
             fx.bind acc (
               results:
-              fx.bind (fx.send "emit-include" {
-                child = builtins.elemAt incs idx;
-                inherit idx parentCtx;
-              }) (childResults: fx.pure (results ++ childResults))
+              fx.bind (fx.send "emit-include" (
+                {
+                  child = builtins.elemAt incs idx;
+                  inherit idx parentCtx;
+                }
+                // lib.optionalAttrs (parentCtxId != null) { inherit parentCtxId; }
+              )) (childResults: fx.pure (results ++ childResults))
             )
           );
     in
@@ -162,9 +169,10 @@ let
         selfProvResults:
         fx.bind (emitTransitions aspect) (
           transitionResults:
-          fx.bind (emitIncludes ctx (aspect.includes or [ ])) (
-            children: fx.pure (selfProvResults ++ transitionResults ++ children)
-          )
+          fx.bind (emitIncludes {
+            parentCtx = ctx;
+            parentCtxId = ctxId;
+          } (aspect.includes or [ ])) (children: fx.pure (selfProvResults ++ transitionResults ++ children))
         )
       );
     in
