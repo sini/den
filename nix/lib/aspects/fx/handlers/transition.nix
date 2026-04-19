@@ -64,6 +64,8 @@ let
               [ v.name ]
             else if builtins.isString v then
               [ v ]
+            else if builtins.isInt v || builtins.isFloat v then
+              [ (toString v) ]
             else
               [ k ]
           ) (builtins.attrNames newCtx)
@@ -184,6 +186,8 @@ let
                         [ v.name ]
                       else if builtins.isString v then
                         [ v ]
+                      else if builtins.isInt v || builtins.isFloat v then
+                        [ (toString v) ]
                       else
                         [ k ]
                     ) (builtins.attrNames newCtx)
