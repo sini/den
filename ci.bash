@@ -3,7 +3,8 @@
 # Uses nix-eval-jobs with $(nproc) workers
 # NOTE: Ignores tests with expectedError
 #
-set -euo pipefail
+# Redirect stdout to null IF you only want to see failures
+set -aeuo pipefail
 
 system="x86_64-linux"
 if test -n "${1:-}"; then
@@ -57,17 +58,19 @@ nix-eval-jobs \
 
 total=$(cat "$results" | wc -l)
 pass=$(jq -r 'select(.name != null and (.name | startswith("PASS-"))) | "."' "$results" | wc -l)
-fail=$(jq -r 'select(.name != null and (.name | startswith("PASS-") | not)) | "."' "$results" | wc -l)
 
 
-if [ "$pass" -eq "$total" ]; then
-  echo "🎉 ${pass}/${total} successful"
+if [ "$(expr "$total" - "$pass")" -eq "0" ]; then
+  echo "🎉 ${pass}/${total} successful" >&2
   rm "$results" || true
 else
-  echo "😢 ${pass}/${total} successful"
-  echo
-  echo "💥 FAILURES (${fail}):"
-  jq -r 'select(.name != null and (.name | startswith("PASS-") |  not)) | "❌ '"${postSuite}"'" + .attr' "$results"
+  echo "😢 ${pass}/${total} successful" >&2
+  echo >&2
+  echo "💥 FAILURES ($(expr "$total" - "$pass")):" >&2
+  echo "For details run with \`just ci-deep <suite>\`" >&2
+  echo "where <suite> does not include \`.test-xyz\`" >&2
+  echo >&2
+  jq -r 'select(.error != null) | "❌ '"${postSuite}"'" + .attr' "$results" >&2
   rm "$results" || true
   exit 1
 fi
