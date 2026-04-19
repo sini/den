@@ -112,7 +112,7 @@ let
       crossProvider = sourceProvides.${targetKey} or null;
       # Emit cross-provider result by tagging with __ctx and resolving directly.
       emitCrossProvider =
-        scopedCtx: prevResults:
+        scopedCtx: ctxId: prevResults:
         if crossProvider != null then
           let
             crossResult = crossProvider scopedCtx;
@@ -125,10 +125,15 @@ let
                   __functor = _: crossResult;
                   __functionArgs = lib.functionArgs crossResult;
                   __ctx = scopedCtx;
+                  __ctxId = ctxId;
                   includes = [ ];
                 }
               else
-                crossResult // { __ctx = scopedCtx; };
+                crossResult
+                // {
+                  __ctx = scopedCtx;
+                  __ctxId = ctxId;
+                };
           in
           fx.bind (aspectToEffect wrapped) (crossResolved: fx.pure (prevResults ++ [ crossResolved ]))
         else
@@ -160,13 +165,31 @@ let
               innerResults:
               let
                 scopedCtx = currentCtx // newCtx;
+                # Compute ctxId for cross-provider identity (same derivation
+                # as resolveContextValue uses for the target aspect).
+                ctxNames = lib.concatStringsSep "," (
+                  lib.sort (a: b: a < b) (
+                    lib.concatMap (
+                      k:
+                      let
+                        v = newCtx.${k};
+                      in
+                      if builtins.isAttrs v && v ? name then
+                        [ v.name ]
+                      else if builtins.isString v then
+                        [ v ]
+                      else
+                        [ k ]
+                    ) (builtins.attrNames newCtx)
+                  )
+                );
                 withTarget =
                   if targetAspect != null then
                     resolveContextValue currentCtx targetAspect innerResults newCtx
                   else
                     fx.pure innerResults;
               in
-              fx.bind withTarget (targetResults: emitCrossProvider scopedCtx targetResults)
+              fx.bind withTarget (targetResults: emitCrossProvider scopedCtx ctxNames targetResults)
             )
           ) (fx.pure results) transition.contexts
       );
