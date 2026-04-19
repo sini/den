@@ -17,14 +17,23 @@ let
   };
 
   # Normalize into defs: function defs pass through. Attrset defs become
-  # functions that call each value with ctx (into values are functions
-  # like { system }: [...] that need ctx to produce fanout lists).
+  # functions that call each value with ctx. Recurses into nested attrsets
+  # so into.ns.inner = lib.singleton works (calls inner fn with ctx).
   normalize =
     def:
     if lib.isFunction def then
       def
     else
-      ctx: builtins.mapAttrs (_: v: if lib.isFunction v then v ctx else v) def;
+      ctx:
+      builtins.mapAttrs (
+        _: v:
+        if lib.isFunction v then
+          v ctx
+        else if builtins.isAttrs v then
+          (normalize v) ctx
+        else
+          v
+      ) def;
 
   ctxSubmodule = lib.types.submodule {
     imports = den.lib.aspects.types.aspectType.getSubModules;

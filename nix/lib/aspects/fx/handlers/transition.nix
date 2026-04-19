@@ -106,7 +106,7 @@ let
     sourceAspect: currentCtx: results: transition:
     let
       key = lib.concatStringsSep "/" transition.path;
-      targetKey = lib.last transition.path;
+      targetKey = lib.concatStringsSep "." transition.path;
       targetAspect = lib.attrByPath transition.path null (den.ctx or { });
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
