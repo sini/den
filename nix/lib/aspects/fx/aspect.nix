@@ -258,14 +258,36 @@ let
               // lib.optionalAttrs (aspect ? provides) { inherit (aspect) provides; };
               # If resolved is still a function (curried provider), wrap it
               # as another parametric level for the next bind.fn pass.
+              # Exception: submodule functions ({ config, lib, ... }: ...) are
+              # NixOS modules, not parametric — merge them through the type system.
+              isResolvedSubmoduleFn =
+                lib.isFunction resolved
+                && !builtins.isAttrs resolved
+                && den.lib.canTake.upTo {
+                  inherit lib;
+                  config = true;
+                  options = true;
+                } resolved;
               next =
                 if lib.isFunction resolved && !builtins.isAttrs resolved then
-                  base
-                  // {
-                    __functor = _: resolved;
-                    __functionArgs = lib.functionArgs resolved;
-                    includes = [ ];
-                  }
+                  if isResolvedSubmoduleFn then
+                    # Submodule fn: merge through aspect type to get proper attrset
+                    let
+                      merged = den.lib.aspects.types.aspectType.merge (aspect.meta.loc or [ (aspect.name or "<anon>") ]) [
+                        {
+                          file = aspect.meta.file or "<parametric>";
+                          value = resolved;
+                        }
+                      ];
+                    in
+                    base // builtins.removeAttrs merged [ "meta" ]
+                  else
+                    base
+                    // {
+                      __functor = _: resolved;
+                      __functionArgs = lib.functionArgs resolved;
+                      includes = [ ];
+                    }
                 else
                   base // builtins.removeAttrs resolved [ "meta" ];
               # Propagate __ctx and __ctxId so children inherit context and identity.

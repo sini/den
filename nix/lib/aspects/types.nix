@@ -82,8 +82,17 @@ let
             ) defs
           )
         else if hasFns then
-          # All functions: use lastFunctionTo merge (last def wins).
-          (lastFunctionTo (providerType cnf)).merge loc defs
+          # All functions: submodule fns get wrapped into an aspect envelope
+          # (preserving loc for identity); parametric fns use lastFunctionTo.
+          let
+            subFns = builtins.filter (d: isSubmoduleFn d.value) defs;
+            paramFns = builtins.filter (d: !isSubmoduleFn d.value) defs;
+          in
+          if subFns != [ ] then
+            # Submodule functions: merge through aspectType so they get aspectMeta (real loc/name)
+            at.merge loc subFns
+          else
+            (lastFunctionTo (providerType cnf)).merge loc paramFns
         else
           at.merge loc defs;
     };
