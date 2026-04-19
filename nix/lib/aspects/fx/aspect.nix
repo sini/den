@@ -19,6 +19,7 @@ let
     "__functionArgs"
     "__ctx"
     "__ctxId"
+    "__parametricResolved"
     "_module"
   ];
 
@@ -32,6 +33,7 @@ let
           class = k;
           identity = nodeIdentity;
           module = aspect.${k};
+          contextDependent = aspect.__parametricResolved or false;
         }
       ) classKeys
     );
@@ -329,7 +331,10 @@ let
               tagged =
                 next
                 // lib.optionalAttrs (ctx != { } || resolvedCtx != { }) { __ctx = ctx // resolvedCtx; }
-                // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; };
+                // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
+                // {
+                  __parametricResolved = true;
+                };
             in
             aspectToEffect tagged
           )

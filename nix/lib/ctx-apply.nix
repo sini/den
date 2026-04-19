@@ -20,6 +20,7 @@ let
     "__functor"
     "__functionArgs"
     "__ctx"
+    "__parametricResolved"
     "_module"
   ];
 

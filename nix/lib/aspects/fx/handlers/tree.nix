@@ -166,7 +166,12 @@ let
               # Strip __ctxId suffix from identity for module keying.
               # Static aspects produce the same module regardless of context,
               # so nixos@shared-tools should dedup with nixos@shared-tools/{igloo,tux}.
-              baseIdentity = lib.head (lib.splitString "/{" identity);
+              # Strip __ctxId suffix for static aspects so the same aspect
+              # included from multiple contexts deduplicates (e.g. shared-tools
+              # from both {igloo} and {tux}). Parametric resolutions produce
+              # different modules per context, so their ctxId must be preserved.
+              baseIdentity =
+                if param.contextDependent or false then identity else lib.head (lib.splitString "/{" identity);
               loc = "${param.class}@${baseIdentity}";
               # Named aspects get a key for NixOS module-level dedup: two
               # resolve calls emitting the same aspect:class produce the
