@@ -115,7 +115,13 @@ let
         scopedCtx: ctxId: prevResults:
         if crossProvider != null then
           let
-            crossResult = crossProvider scopedCtx;
+            # Call crossProvider with only the args it accepts, not the full
+            # scopedCtx. Curried providers (e.g. { name }: { shout }: ...) take
+            # the source ctx first; extra keys would cause unexpected-arg errors.
+            crossProviderArgs = lib.functionArgs crossProvider;
+            crossCtx =
+              if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
+            crossResult = crossProvider crossCtx;
             # Wrap bare functions as parametric aspects for aspectToEffect.
             wrapped =
               if lib.isFunction crossResult && !builtins.isAttrs crossResult then

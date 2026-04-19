@@ -97,9 +97,14 @@ let
   # to the handler which evaluates it with the current context.
   emitTransitions =
     aspect:
-    if aspect ? into then
+    let
+      # into can be on the aspect directly (non-ctx aspects with into option)
+      # or in meta.into (ctxApply stores it there to survive freeform deferredModule).
+      intoFn = aspect.meta.into or aspect.into or null;
+    in
+    if intoFn != null && lib.isFunction intoFn then
       fx.send "into-transition" {
-        intoFn = aspect.into;
+        inherit intoFn;
         self = aspect;
       }
     else
