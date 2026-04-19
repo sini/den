@@ -136,23 +136,38 @@ let
     if provides ? ${name} then
       let
         _t = builtins.trace "emitSelfProvide: ${name} __parentCtx=${toString (builtins.attrNames ctx)} providerArgs=${toString (builtins.attrNames providerArgs)}";
+        # Positional-arg providers (_: { funny... }) can't be resolved via
+        # bind.fn (no named args). Call them directly with ctx — this mirrors
+        # the old ctxApply behavior where provides.${name} was called inline.
+        isPositionalFn = lib.isFunction innerFn && providerArgs == { };
+        providerMeta = {
+          provider = (aspect.meta.provider or [ ]) ++ [ name ];
+          selfProvide = true;
+        };
+        include =
+          if isPositionalFn then
+            let
+              resolved = innerFn ctx;
+            in
+            (if builtins.isAttrs resolved then resolved else { })
+            // {
+              inherit name;
+              meta = providerMeta;
+              includes = (if builtins.isAttrs resolved then resolved.includes or [ ] else [ ]);
+            }
+            // lib.optionalAttrs (aspect ? __ctxId) { __ctxId = aspect.__ctxId; }
+          else
+            {
+              inherit name;
+              __parentCtx = ctx;
+              meta = providerMeta;
+              __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
+              __functionArgs = providerArgs;
+              includes = [ ];
+            }
+            // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; };
       in
-      _t (
-        fx.send "emit-include" (
-          {
-            inherit name;
-            __parentCtx = ctx;
-            meta = {
-              provider = (aspect.meta.provider or [ ]) ++ [ name ];
-              selfProvide = true;
-            };
-            __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
-            __functionArgs = providerArgs;
-            includes = [ ];
-          }
-          // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; }
-        )
-      )
+      _t (fx.send "emit-include" include)
     else
       fx.pure [ ];
 
