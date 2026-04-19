@@ -103,7 +103,29 @@ let
           else if functorWithArgs != [ ] then
             at.merge loc functorWithArgs
           else
-            (lastFunctionTo (providerType cnf)).merge loc paramFns
+            let
+              fn = (lib.last paramFns).value;
+            in
+            # Attrsets with default __functor (already-evaluated aspect submodules)
+            # must pass through unchanged — wrapping would destroy their includes
+            # and name. Only wrap actual bare functions (raw lambdas) that need
+            # identity for hasAspect lookups.
+            if builtins.isAttrs fn then
+              fn
+            else
+              let
+                args = lib.functionArgs fn;
+                nameFromLoc = lib.last loc;
+              in
+              {
+                name = nameFromLoc;
+                meta = {
+                  provider = cnf.providerPrefix or [ ];
+                };
+                __functor = _: fn;
+                __functionArgs = args;
+                includes = [ ];
+              }
         else
           at.merge loc defs;
     };
