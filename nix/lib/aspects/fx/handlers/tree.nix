@@ -74,8 +74,20 @@ let
           inherit state;
         };
         # Find first in-scope constraint for this identity (first-registered wins).
+        # Also check prefix matches: excluding "monitoring" cascades to "monitoring/node-exporter".
         entries = registry.${identity} or [ ];
-        scopedEntries = builtins.filter inScope entries;
+        prefixEntries =
+          let
+            parts = lib.splitString "/" identity;
+            # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
+            prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
+              builtins.length parts - 1
+            );
+            getEntries = p: registry.${p} or [ ];
+          in
+          if builtins.length parts > 1 then builtins.concatMap getEntries prefixes else [ ];
+        allEntries = entries ++ prefixEntries;
+        scopedEntries = builtins.filter inScope allEntries;
         firstEntry = if scopedEntries == [ ] then null else builtins.head scopedEntries;
       in
       if firstEntry != null then

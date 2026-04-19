@@ -200,10 +200,24 @@ let
             if allAvailable then
               fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ])
             else
-              fx.bind (fx.send "defer-include" {
-                inherit child;
-                requiredArgs = unresolvedKeys;
-              }) (_: fx.pure [ ])
+              # Emit a resolve-complete for the deferred child so it appears in traces,
+              # then defer-include it for later resolution when context widens.
+              let
+                stub = {
+                  name = child.name or "<anon>";
+                  meta = (child.meta or { }) // {
+                    deferred = true;
+                  };
+                  includes = [ ];
+                };
+              in
+              fx.bind (fx.send "resolve-complete" stub) (
+                _:
+                fx.bind (fx.send "defer-include" {
+                  inherit child;
+                  requiredArgs = unresolvedKeys;
+                }) (_: fx.pure [ ])
+              )
           )
         )
       )
