@@ -62,8 +62,21 @@ let
           else
             child
             // {
-              __functor = _: if builtins.isFunction innerFn then innerFn else _: innerFn;
-              __functionArgs = innerArgs;
+              # Preserve original __functor for wrappers that need self (e.g. perCtx
+              # reads self.__ctx). Only replace with unwrapped innerFn when the child
+              # uses the default aspect functor.
+              __functor =
+                if child ? __functionArgs && (child.__functionArgs or { }) != { } then
+                  child.__functor
+                else
+                  _: if builtins.isFunction innerFn then innerFn else _: innerFn;
+              # Preserve explicit __functionArgs if already set (e.g. by perHost/perUser
+              # wrappers). Only override with innerArgs if child has no explicit args.
+              __functionArgs =
+                let
+                  explicit = child.__functionArgs or { };
+                in
+                if explicit != { } then explicit else innerArgs;
               includes = child.includes or [ ];
             }
         else

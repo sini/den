@@ -268,6 +268,33 @@ let
                   config = true;
                   options = true;
                 } resolved;
+              # Required args from the original parametric function — used for
+              # exact-match context guarding on the resolved child.
+              requiredArgs = builtins.filter (n: !userArgs.${n}) (builtins.attrNames userArgs);
+              # Forward-wrap: when a parametric fn resolves to a static attrset,
+              # add a __functor that enforces exact context match. This makes
+              # { host }: expr only fire at host level (not user level where
+              # ctx also has user). Also propagates identity (name) from the
+              # original aspect so the child isn't anonymous for constraints.
+              forwardWrap =
+                child:
+                if requiredArgs != [ ] then
+                  child
+                  // {
+                    __functor =
+                      _: newCtx:
+                      let
+                        ctxKeys = builtins.sort builtins.lessThan (builtins.attrNames newCtx);
+                        reqKeys = builtins.sort builtins.lessThan requiredArgs;
+                      in
+                      if ctxKeys == reqKeys then child // { __ctx = newCtx; } else { };
+                    # NOTE: no __functionArgs here — that would make aspectToEffect
+                    # treat this as parametric again, causing infinite recursion.
+                    # The __functor is only used when the child is later called
+                    # via ctxApply or transition, not during pipeline resolution.
+                  }
+                else
+                  child;
               next =
                 if lib.isFunction resolved && !builtins.isAttrs resolved then
                   if isResolvedSubmoduleFn then
@@ -289,7 +316,7 @@ let
                       includes = [ ];
                     }
                 else
-                  base // builtins.removeAttrs resolved [ "meta" ];
+                  forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
               # Propagate __ctx and __ctxId so children inherit context and identity.
               # Merge parent ctx WITH resolved result's __ctx (from fixedTo/expands)
               # so pinned values aren't overwritten by parent context.

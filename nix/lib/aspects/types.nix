@@ -181,6 +181,14 @@ let
             default = { };
           };
 
+          __functionArgs = lib.mkOption {
+            internal = true;
+            visible = false;
+            description = "Named args for parametric resolution — signals bind.fn what to resolve";
+            type = lib.types.lazyAttrsOf lib.types.bool;
+            default = { };
+          };
+
           provides = lib.mkOption {
             description = "Providers of aspect for other aspects";
             defaultText = lib.literalExpression "{ }";
