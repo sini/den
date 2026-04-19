@@ -41,6 +41,12 @@ let
             innerFn = child.__functor child;
             # innerFn may be a function (parametric) or a value (factory functor).
             innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
+            # NixOS module functions are deferred modules, not parametric aspects.
+            # Heuristic: any function accepting ONLY module-system args (lib, config,
+            # options) is treated as a module. Functions with extra args (host, user)
+            # are parametric. Edge case: { config, ... }: is classified as module —
+            # if a parametric aspect genuinely takes only { config }, wrap it in an
+            # aspect envelope with explicit __functionArgs instead.
             # NixOS module functions wrapped in functors (e.g. by the type system's
             # default __functor) should be normalized, not treated as parametric.
             isModuleFn =
@@ -64,6 +70,11 @@ let
           let
             args = lib.functionArgs child;
             # NixOS module functions are deferred modules, not parametric aspects.
+            # Heuristic: any function accepting ONLY module-system args (lib, config,
+            # options) is treated as a module. Functions with extra args (host, user)
+            # are parametric. Edge case: { config, ... }: is classified as module —
+            # if a parametric aspect genuinely takes only { config }, wrap it in an
+            # aspect envelope with explicit __functionArgs instead.
             isModuleFn = den.lib.canTake.upTo {
               lib = true;
               config = true;
@@ -109,7 +120,10 @@ let
         pass = condNode.meta.guard guardCtx;
       in
       if pass then
-        emitIncludes { parentCtx = { }; } condNode.meta.aspects
+        emitIncludes {
+          parentCtx = condNode.__ctx or { };
+          parentCtxId = condNode.__ctxId or null;
+        } condNode.meta.aspects
       else
         tombstoneAll condNode.meta.aspects
     );
@@ -195,12 +209,13 @@ let
 
   # Derive a stable name for anonymous aspects from parent chain + index.
   nameAnon =
-    state: idx:
+    state: idx: ctxId:
     let
       chain = state.includesChain or [ ];
       parent = if chain == [ ] then "<root>" else lib.last chain;
+      suffix = if ctxId != null then "/${ctxId}" else "";
     in
-    "${parent}/<anon>:${toString idx}";
+    "${parent}/<anon>:${toString idx}${suffix}";
 
   isMeaningfulName =
     name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
@@ -228,7 +243,7 @@ let
         # Replace anonymous names with parent+index derived identity.
         child =
           if idx != null && !(isMeaningfulName (withCtx.name or "<anon>")) then
-            withCtx // { name = nameAnon state idx; }
+            withCtx // { name = nameAnon state idx (withCtx.__ctxId or null); }
           else
             withCtx;
         _ti = builtins.trace "includeHandler: name=${child.name or "?"} parentCtx=${toString (builtins.attrNames parentCtx)} __ctx=${

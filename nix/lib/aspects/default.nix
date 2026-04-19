@@ -17,6 +17,12 @@ let
       functorArgs = if isFunctor then builtins.functionArgs (resolved.__functor resolved) else { };
       needsWrap = isFunctor && functorArgs != { };
       bareFnArgs = if isBareFn then lib.functionArgs resolved else { };
+      # NixOS module functions are deferred modules, not parametric aspects.
+      # Heuristic: any function accepting ONLY module-system args (lib, config,
+      # options) is treated as a module. Functions with extra args (host, user)
+      # are parametric. Edge case: { config, ... }: is classified as module —
+      # if a parametric aspect genuinely takes only { config }, wrap it in an
+      # aspect envelope with explicit __functionArgs instead.
       # NixOS module functions ({ config, lib, ... }: ...) should be normalized
       # through the type system, not wrapped as parametric aspects.
       isModuleFn =

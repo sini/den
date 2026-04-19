@@ -47,8 +47,12 @@ let
     let
       scopedCtx = parentCtx // newCtx;
       # __ctxId differentiates fan-out contexts with the same target aspect.
-      # Used by identity.aspectPath for NixOS module dedup keys.
-      # Derive from entity names in newCtx (e.g. host.name, user.name).
+      # Derives identity from entity names (v.name for attrsets) or string
+      # values in newCtx. Assumes all context values are either:
+      # - Entities with a .name attribute (host, user objects)
+      # - Strings (like system = "x86_64-linux")
+      # - Other attrsets (fallback: uses the key name, may collide if two
+      #   contexts share key names but differ in non-name values)
       ctxNames = lib.concatStringsSep "," (
         lib.sort (a: b: a < b) (
           lib.concatMap (
