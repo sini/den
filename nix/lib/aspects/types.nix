@@ -82,15 +82,26 @@ let
             ) defs
           )
         else if hasFns then
-          # All functions: submodule fns get wrapped into an aspect envelope
-          # (preserving loc for identity); parametric fns use lastFunctionTo.
+          # All functions: submodule fns and functor attrsets with explicit
+          # __functionArgs merge through aspectType (preserving loc/name/identity).
+          # Bare parametric fns use lastFunctionTo.
           let
             subFns = builtins.filter (d: isSubmoduleFn d.value) defs;
-            paramFns = builtins.filter (d: !isSubmoduleFn d.value) defs;
+            # Functor attrsets with explicit __functionArgs (e.g. perCtx wrappers)
+            # need aspectType merge for name/identity preservation.
+            functorWithArgs = builtins.filter (
+              d: builtins.isAttrs d.value && d.value ? __functor && (d.value.__functionArgs or { }) != { }
+            ) defs;
+            paramFns = builtins.filter (
+              d:
+              !isSubmoduleFn d.value
+              && !(builtins.isAttrs d.value && d.value ? __functor && (d.value.__functionArgs or { }) != { })
+            ) defs;
           in
           if subFns != [ ] then
-            # Submodule functions: merge through aspectType so they get aspectMeta (real loc/name)
             at.merge loc subFns
+          else if functorWithArgs != [ ] then
+            at.merge loc functorWithArgs
           else
             (lastFunctionTo (providerType cnf)).merge loc paramFns
         else
