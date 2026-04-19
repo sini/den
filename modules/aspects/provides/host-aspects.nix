@@ -16,7 +16,7 @@ let
 
   from-host =
     { host, user }:
-      lib.genAttrs (user.classes or [ "homeManager" ]) (class: den.lib.aspects.resolve class host.aspect)
+      lib.genAttrs (user.classes or [ "homeManager" ]) (class: den.lib.aspects.resolve class host.aspect);
 in
 {
   den.provides.host-aspects = {
