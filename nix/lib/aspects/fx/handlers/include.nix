@@ -134,8 +134,8 @@ let
       in
       if pass then
         emitIncludes {
-          parentCtx = condNode.__ctx or { };
-          parentCtxId = condNode.__ctxId or null;
+          __parentCtx = condNode.__ctx or { };
+          __parentCtxId = condNode.__ctxId or null;
         } condNode.meta.aspects
       else
         tombstoneAll condNode.meta.aspects
@@ -250,16 +250,16 @@ let
   isMeaningfulName =
     name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
 
-  # The handler. param is { child, idx, parentCtx? } from emitIncludes.
+  # The handler. param is { child, idx, __parentCtx? } from emitIncludes.
   includeHandler = {
     "emit-include" =
       { param, state }:
       let
         rawChild = param.child or param;
         idx = param.idx or null;
-        parentCtx = param.parentCtx or { };
+        parentCtx = param.__parentCtx or { };
         wrapped = wrapChild rawChild;
-        parentCtxId = param.parentCtxId or null;
+        parentCtxId = param.__parentCtxId or null;
         # Propagate parent's __ctx and __ctxId to child.
         withCtx =
           if parentCtx != { } then

@@ -20,6 +20,8 @@ let
     "__ctx"
     "__ctxId"
     "__parametricResolved"
+    "__parentCtx"
+    "__parentCtxId"
     "_module"
   ];
 
@@ -68,8 +70,8 @@ let
   # identities and propagate context to children.
   emitIncludes =
     {
-      parentCtx,
-      parentCtxId ? null,
+      __parentCtx,
+      __parentCtxId ? null,
     }:
     incs:
     let
@@ -85,9 +87,9 @@ let
               fx.bind (fx.send "emit-include" (
                 {
                   child = builtins.elemAt incs idx;
-                  inherit idx parentCtx;
+                  inherit idx __parentCtx;
                 }
-                // lib.optionalAttrs (parentCtxId != null) { inherit parentCtxId; }
+                // lib.optionalAttrs (__parentCtxId != null) { inherit __parentCtxId; }
               )) (childResults: fx.pure (results ++ childResults))
             )
           );
@@ -133,13 +135,13 @@ let
     in
     if provides ? ${name} then
       let
-        _t = builtins.trace "emitSelfProvide: ${name} parentCtx=${toString (builtins.attrNames ctx)} providerArgs=${toString (builtins.attrNames providerArgs)}";
+        _t = builtins.trace "emitSelfProvide: ${name} __parentCtx=${toString (builtins.attrNames ctx)} providerArgs=${toString (builtins.attrNames providerArgs)}";
       in
       _t (
         fx.send "emit-include" (
           {
             inherit name;
-            parentCtx = ctx;
+            __parentCtx = ctx;
             meta = {
               provider = (aspect.meta.provider or [ ]) ++ [ name ];
               selfProvide = true;
@@ -148,7 +150,7 @@ let
             __functionArgs = providerArgs;
             includes = [ ];
           }
-          // lib.optionalAttrs (aspect ? __ctxId) { parentCtxId = aspect.__ctxId; }
+          // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; }
         )
       )
     else
@@ -165,7 +167,7 @@ let
       comp;
 
   # Resolve children, assemble the result, and emit resolve-complete.
-  # Propagates __ctx to children via emitIncludes parentCtx parameter.
+  # Propagates __ctx to children via emitIncludes __parentCtx parameter.
   resolveChildren =
     aspect:
     { isMeaningful, nodeIdentity }:
@@ -177,8 +179,8 @@ let
         fx.bind (emitTransitions aspect) (
           transitionResults:
           fx.bind (emitIncludes {
-            parentCtx = ctx;
-            parentCtxId = ctxId;
+            __parentCtx = ctx;
+            __parentCtxId = ctxId;
           } (aspect.includes or [ ])) (children: fx.pure (selfProvResults ++ transitionResults ++ children))
         )
       );
