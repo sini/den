@@ -164,6 +164,14 @@ let
             default = [ ];
           };
 
+          __ctx = lib.mkOption {
+            internal = true;
+            visible = false;
+            description = "Context values for parametric child resolution (set by fixedTo/expands/transitions)";
+            type = lib.types.lazyAttrsOf lib.types.unspecified;
+            default = { };
+          };
+
           provides = lib.mkOption {
             description = "Providers of aspect for other aspects";
             defaultText = lib.literalExpression "{ }";

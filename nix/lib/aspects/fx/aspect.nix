@@ -269,9 +269,12 @@ let
                 else
                   base // builtins.removeAttrs resolved [ "meta" ];
               # Propagate __ctx and __ctxId so children inherit context and identity.
+              # Merge parent ctx WITH resolved result's __ctx (from fixedTo/expands)
+              # so pinned values aren't overwritten by parent context.
+              resolvedCtx = if builtins.isAttrs resolved then resolved.__ctx or { } else { };
               tagged =
                 next
-                // lib.optionalAttrs (ctx != { }) { __ctx = ctx; }
+                // lib.optionalAttrs (ctx != { } || resolvedCtx != { }) { __ctx = ctx // resolvedCtx; }
                 // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; };
             in
             aspectToEffect tagged
