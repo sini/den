@@ -156,8 +156,9 @@
 
             expr = lib.sort lib.lessThan igloo.test;
 
-            # We expect double inclusion of atLeast-host because it is included by both user contexts
+            # We expect double inclusion of atLeast-host, owned, and static because they are included by both user contexts
             expected = [
+              "inner-owned"
               "inner-owned"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-atLeast-host-igloo"
@@ -168,6 +169,8 @@
               "inner-parametric-include-igloo"
               "inner-parametric-include-igloo"
               "inner-static-nixos"
+              "inner-static-nixos"
+              "outer-owned"
               "outer-owned"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-atLeast-host-igloo"
@@ -177,6 +180,7 @@
               "outer-parametric-exactly-host-user-igloo-tux"
               "outer-parametric-include-igloo"
               "outer-parametric-include-igloo"
+              "outer-static-nixos"
               "outer-static-nixos"
             ];
           }
@@ -210,13 +214,17 @@
             expr = lib.sort lib.lessThan igloo.test;
             expected = [
               "inner-nested-parametric-igloo"
+              "inner-owned"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-exactly-host-igloo"
               "inner-parametric-include-igloo"
+              "inner-static-nixos"
               "outer-nested-parametric-igloo"
+              "outer-owned"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-exactly-host-igloo"
               "outer-parametric-include-igloo"
+              "outer-static-nixos"
             ];
           }
         );
@@ -251,10 +259,42 @@
 
             expr = lib.sort lib.lessThan igloo.test;
             expected = [
+              "inner-nested-parametric-igloo"
+              "inner-nested-parametric-igloo"
+              "inner-owned"
+              "inner-owned"
+              "inner-parametric-atLeast-host-igloo"
+              "inner-parametric-atLeast-host-igloo"
+              "inner-parametric-atLeast-user-gnu"
+              "inner-parametric-atLeast-user-tux"
+              "inner-parametric-exactly-host-igloo"
+              "inner-parametric-exactly-host-igloo"
               "inner-parametric-exactly-host-user-igloo-gnu"
               "inner-parametric-exactly-host-user-igloo-tux"
+              "inner-parametric-exactly-user-gnu"
+              "inner-parametric-exactly-user-tux"
+              "inner-parametric-include-igloo"
+              "inner-parametric-include-igloo"
+              "inner-static-nixos"
+              "inner-static-nixos"
+              "outer-nested-parametric-igloo"
+              "outer-nested-parametric-igloo"
+              "outer-owned"
+              "outer-owned"
+              "outer-parametric-atLeast-host-igloo"
+              "outer-parametric-atLeast-host-igloo"
+              "outer-parametric-atLeast-user-gnu"
+              "outer-parametric-atLeast-user-tux"
+              "outer-parametric-exactly-host-igloo"
+              "outer-parametric-exactly-host-igloo"
               "outer-parametric-exactly-host-user-igloo-gnu"
               "outer-parametric-exactly-host-user-igloo-tux"
+              "outer-parametric-exactly-user-gnu"
+              "outer-parametric-exactly-user-tux"
+              "outer-parametric-include-igloo"
+              "outer-parametric-include-igloo"
+              "outer-static-nixos"
+              "outer-static-nixos"
             ];
           }
         );
@@ -289,13 +329,17 @@
             expr = lib.sort lib.lessThan igloo.test;
             expected = [
               "inner-nested-parametric-igloo"
+              "inner-owned"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-exactly-host-igloo"
               "inner-parametric-include-igloo"
+              "inner-static-nixos"
               "outer-nested-parametric-igloo"
+              "outer-owned"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-exactly-host-igloo"
               "outer-parametric-include-igloo"
+              "outer-static-nixos"
             ];
           }
         );
@@ -332,6 +376,8 @@
             expected = [
               "inner-nested-parametric-igloo"
               "inner-nested-parametric-igloo"
+              "inner-owned"
+              "inner-owned"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-atLeast-user-gnu"
@@ -340,8 +386,12 @@
               "inner-parametric-exactly-host-user-igloo-tux"
               "inner-parametric-include-igloo"
               "inner-parametric-include-igloo"
+              "inner-static-nixos"
+              "inner-static-nixos"
               "outer-nested-parametric-igloo"
               "outer-nested-parametric-igloo"
+              "outer-owned"
+              "outer-owned"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-atLeast-user-gnu"
@@ -350,6 +400,8 @@
               "outer-parametric-exactly-host-user-igloo-tux"
               "outer-parametric-include-igloo"
               "outer-parametric-include-igloo"
+              "outer-static-nixos"
+              "outer-static-nixos"
             ];
           }
         );
@@ -382,13 +434,17 @@
             expr = lib.sort lib.lessThan igloo.test;
             expected = [
               "inner-nested-parametric-igloo"
+              "inner-owned"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-exactly-host-igloo"
               "inner-parametric-include-igloo"
+              "inner-static-nixos"
               "outer-nested-parametric-igloo"
+              "outer-owned"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-exactly-host-igloo"
               "outer-parametric-include-igloo"
+              "outer-static-nixos"
             ];
           }
         );
@@ -425,6 +481,8 @@
             expected = [
               "inner-nested-parametric-igloo"
               "inner-nested-parametric-igloo"
+              "inner-owned"
+              "inner-owned"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-atLeast-host-igloo"
               "inner-parametric-atLeast-user-gnu"
@@ -437,8 +495,12 @@
               "inner-parametric-exactly-user-tux"
               "inner-parametric-include-igloo"
               "inner-parametric-include-igloo"
+              "inner-static-nixos"
+              "inner-static-nixos"
               "outer-nested-parametric-igloo"
               "outer-nested-parametric-igloo"
+              "outer-owned"
+              "outer-owned"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-atLeast-host-igloo"
               "outer-parametric-atLeast-user-gnu"
@@ -451,6 +513,8 @@
               "outer-parametric-exactly-user-tux"
               "outer-parametric-include-igloo"
               "outer-parametric-include-igloo"
+              "outer-static-nixos"
+              "outer-static-nixos"
             ];
           }
         );
