@@ -2,6 +2,28 @@
 ctxApply:
 let
 
+  # Deep merge for into results: recurse into nested attrsets,
+  # concatenate lists at leaves (multiple into defs contribute
+  # context values to the same target).
+  mergeInto =
+    a: b:
+    a
+    // builtins.mapAttrs (
+      k: vb:
+      if a ? ${k} then
+        let
+          va = a.${k};
+        in
+        if builtins.isList va && builtins.isList vb then
+          va ++ vb
+        else if builtins.isAttrs va && builtins.isAttrs vb then
+          mergeInto va vb
+        else
+          vb
+      else
+        vb
+    ) b;
+
   # into values are functions: ctx → { targetName = [ctxValues]; ... }
   # Non-function defs are normalized to functions during merge.
   intoCtxType = lib.types.mkOptionType {
@@ -13,7 +35,7 @@ let
       let
         normalized = map (d: d // { value = normalize d.value; }) defs;
       in
-      ctx: lib.foldl' (acc: d: lib.recursiveUpdate acc (d.value ctx)) { } normalized;
+      ctx: lib.foldl' (acc: d: mergeInto acc (d.value ctx)) { } normalized;
   };
 
   # Normalize into defs: function defs pass through. Attrset defs become
