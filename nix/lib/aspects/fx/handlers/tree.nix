@@ -163,7 +163,11 @@ let
           else
             let
               identity = param.identity or "<anon>";
-              loc = "${param.class}@${identity}";
+              # Strip __ctxId suffix from identity for module keying.
+              # Static aspects produce the same module regardless of context,
+              # so nixos@shared-tools should dedup with nixos@shared-tools/{igloo,tux}.
+              baseIdentity = lib.head (lib.splitString "/{" identity);
+              loc = "${param.class}@${baseIdentity}";
               # Named aspects get a key for NixOS module-level dedup: two
               # resolve calls emitting the same aspect:class produce the
               # same key, so the module system keeps only the first.
