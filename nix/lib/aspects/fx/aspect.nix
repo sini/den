@@ -148,14 +148,28 @@ let
           if isPositionalFn then
             let
               resolved = innerFn ctx;
+              resolvedArgs = if lib.isFunction resolved then lib.functionArgs resolved else { };
             in
-            (if builtins.isAttrs resolved then resolved else { })
-            // {
-              inherit name;
-              meta = providerMeta;
-              includes = (if builtins.isAttrs resolved then resolved.includes or [ ] else [ ]);
-            }
-            // lib.optionalAttrs (aspect ? __ctxId) { __ctxId = aspect.__ctxId; }
+            if lib.isFunction resolved && !builtins.isAttrs resolved then
+              # Resolved to a bare function (e.g. _: osFwd where osFwd = { host }: ...).
+              # Wrap as parametric include for bind.fn resolution.
+              {
+                inherit name;
+                __parentCtx = ctx;
+                meta = providerMeta;
+                __functor = _: resolved;
+                __functionArgs = resolvedArgs;
+                includes = [ ];
+              }
+              // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; }
+            else
+              (if builtins.isAttrs resolved then resolved else { })
+              // {
+                inherit name;
+                meta = providerMeta;
+                includes = (if builtins.isAttrs resolved then resolved.includes or [ ] else [ ]);
+              }
+              // lib.optionalAttrs (aspect ? __ctxId) { __ctxId = aspect.__ctxId; }
           else
             {
               inherit name;
