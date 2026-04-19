@@ -18,6 +18,7 @@ let
     "__functor"
     "__functionArgs"
     "__ctx"
+    "__ctxId"
     "_module"
   ];
 
@@ -121,17 +122,20 @@ let
         _t = builtins.trace "emitSelfProvide: ${name} parentCtx=${toString (builtins.attrNames ctx)} providerArgs=${toString (builtins.attrNames providerArgs)}";
       in
       _t (
-        fx.send "emit-include" {
-          inherit name;
-          parentCtx = ctx;
-          meta = {
-            provider = (aspect.meta.provider or [ ]) ++ [ name ];
-            selfProvide = true;
-          };
-          __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
-          __functionArgs = providerArgs;
-          includes = [ ];
-        }
+        fx.send "emit-include" (
+          {
+            inherit name;
+            parentCtx = ctx;
+            meta = {
+              provider = (aspect.meta.provider or [ ]) ++ [ name ];
+              selfProvide = true;
+            };
+            __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
+            __functionArgs = providerArgs;
+            includes = [ ];
+          }
+          // lib.optionalAttrs (aspect ? __ctxId) { parentCtxId = aspect.__ctxId; }
+        )
       )
     else
       fx.pure [ ];
@@ -153,6 +157,7 @@ let
     { isMeaningful, nodeIdentity }:
     let
       ctx = aspect.__ctx or { };
+      ctxId = aspect.__ctxId or null;
       childResolution = fx.bind (emitSelfProvide aspect) (
         selfProvResults:
         fx.bind (emitTransitions aspect) (
@@ -255,8 +260,11 @@ let
                   }
                 else
                   base // builtins.removeAttrs resolved [ "meta" ];
-              # Propagate __ctx so children inherit context.
-              tagged = next // lib.optionalAttrs (ctx != { }) { __ctx = ctx; };
+              # Propagate __ctx and __ctxId so children inherit context and identity.
+              tagged =
+                next
+                // lib.optionalAttrs (ctx != { }) { __ctx = ctx; }
+                // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; };
             in
             aspectToEffect tagged
           )

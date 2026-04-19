@@ -46,8 +46,29 @@ let
     parentCtx: targetAspect: results: newCtx:
     let
       scopedCtx = parentCtx // newCtx;
+      # __ctxId differentiates fan-out contexts with the same target aspect.
+      # Used by identity.aspectPath for NixOS module dedup keys.
+      # Derive from entity names in newCtx (e.g. host.name, user.name).
+      ctxNames = lib.concatStringsSep "," (
+        lib.sort (a: b: a < b) (
+          lib.concatMap (
+            k:
+            let
+              v = newCtx.${k};
+            in
+            if builtins.isAttrs v && v ? name then
+              [ v.name ]
+            else if builtins.isString v then
+              [ v ]
+            else
+              [ k ]
+          ) (builtins.attrNames newCtx)
+        )
+      );
+      ctxId = ctxNames;
       tagged = targetAspect // {
         __ctx = scopedCtx;
+        __ctxId = ctxId;
       };
       _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} __ctx=${toString (builtins.attrNames scopedCtx)}";
     in
