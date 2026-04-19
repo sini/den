@@ -76,7 +76,28 @@ let
       };
       _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} __ctx=${toString (builtins.attrNames scopedCtx)}";
     in
-    _t (fx.bind (aspectToEffect tagged) (childResult: fx.pure (results ++ [ childResult ])));
+    _t (
+      fx.bind (aspectToEffect tagged) (
+        childResult:
+        # Drain deferred includes now satisfiable with the new context.
+        fx.bind (fx.send "drain-deferred" scopedCtx) (
+          satisfiable:
+          builtins.foldl' (
+            acc: d:
+            fx.bind acc (
+              prevResults:
+              let
+                deferredTagged = d.child // {
+                  __ctx = scopedCtx;
+                  __ctxId = ctxId;
+                };
+              in
+              fx.bind (aspectToEffect deferredTagged) (resolved: fx.pure (prevResults ++ [ resolved ]))
+            )
+          ) (fx.pure (results ++ [ childResult ])) satisfiable
+        )
+      )
+    );
 
   # Resolve a single transition: look up target aspect, check dedup, resolve each context value.
   # Also emits cross-providers: if sourceAspect.provides.${targetKey} exists,

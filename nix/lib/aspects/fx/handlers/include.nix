@@ -200,7 +200,10 @@ let
             if allAvailable then
               fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ])
             else
-              fx.pure [ ]
+              fx.bind (fx.send "defer-include" {
+                inherit child;
+                requiredArgs = unresolvedKeys;
+              }) (_: fx.pure [ ])
           )
         )
       )

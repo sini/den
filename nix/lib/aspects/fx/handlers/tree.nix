@@ -182,11 +182,50 @@ let
         );
     };
 
+  # Accumulates parametric includes whose args aren't available yet.
+  # Deferred includes are drained by drain-deferred when context widens.
+  deferredIncludeHandler = {
+    "defer-include" =
+      { param, state }:
+      {
+        resume = [ ];
+        state = state // {
+          # Thunk chain to survive deepSeq (same pattern as imports).
+          deferredIncludes = x: ((state.deferredIncludes or (_: [ ])) x) ++ [ param ];
+        };
+      };
+  };
+
+  # Partitions deferred includes into satisfiable (args now in ctx) and
+  # remaining. Returns satisfiable list — caller resolves via aspectToEffect.
+  drainDeferredHandler = {
+    "drain-deferred" =
+      { param, state }:
+      let
+        ctx = param;
+        # Unwrap thunk chain.
+        deferred = (state.deferredIncludes or (_: [ ])) null;
+        satisfiable = builtins.filter (d: builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs) deferred;
+        remaining = builtins.filter (
+          d: !(builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs)
+        ) deferred;
+      in
+      {
+        resume = satisfiable;
+        state = state // {
+          # Re-wrap remaining as thunk chain.
+          deferredIncludes = _: remaining;
+        };
+      };
+  };
+
 in
 {
   inherit
     constraintRegistryHandler
     chainHandler
     classCollectorHandler
+    deferredIncludeHandler
+    drainDeferredHandler
     ;
 }
