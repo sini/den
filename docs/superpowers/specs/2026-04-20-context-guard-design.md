@@ -9,11 +9,17 @@ by the default functor (`self: ctx: self // { __ctx = ctx; }`).
 
 The `__ctx` attribute serves two roles today:
 
-1. **Propagation** (parent -> child) — already replaced by `__scope`/`__scopeHandlers`
+1. **Propagation** (parent -> child) — already replaced by `__scopeHandlers`
 2. **Self-identification** (what context was I resolved with) — read by guards via `self.__ctx`
 
 Role 2 can be eliminated by moving guard checks into the pipeline handler system,
 where `__scopeHandlers` keys already represent the current context level.
+
+Additionally, aspects carry both `__scope` (an opaque pre-applied
+`scope.stateful` closure) and `__scopeHandlers` (the inspectable handler
+attrset). `__scope` is redundant — it can be derived from `__scopeHandlers`
+at point of use via `fx.effects.scope.stateful handlers`. Consolidating to
+`__scopeHandlers` alone gives a single inspectable source of truth.
 
 ## Design
 
@@ -184,7 +190,43 @@ Changes to identity:
 default = self: _: self;
 ```
 
-No `__ctx` stamping. Context flows through `__scope`/`__scopeHandlers`.
+No `__ctx` stamping. Context flows through `__scopeHandlers`.
+
+### __scope removal — single source of truth
+
+`__scope` is `scope.stateful __scopeHandlers` pre-applied. Every site that
+reads `__scope` can derive it from `__scopeHandlers` at point of use.
+
+**Producers (stop creating `__scope`):**
+
+- `ctx-apply.nix`: only stamp `__scopeHandlers = constantHandler ctx`
+- `transition.nix`: only stamp `__scopeHandlers` on target aspects
+- `aspectToEffect` tagged block: only propagate `__scopeHandlers`
+- `parametric.nix` shims: only stamp `__scopeHandlers`
+
+**Consumers (derive scope from handlers):**
+
+- `aspectToEffect` (aspect.nix:274-284): wrap `bind.fn` in scope at point of use:
+  ```nix
+  scopeHandlers = aspect.__scopeHandlers or null;
+  resolveFn =
+    if scopeHandlers != null
+    then fx.effects.scope.stateful scopeHandlers (fx.bind.fn {} fn)
+    else fx.bind.fn {} fn;
+  ```
+
+- `emitSelfProvide` (aspect.nix:131): same pattern for provider resolution
+
+- `compileStatic` (aspect.nix:213): passes `__parentScopeHandlers` to
+  `emitIncludes` (already does this; stop passing `__parentScope`)
+
+- `includeHandler` (include.nix:262-269): propagate `parentScopeHandlers` only.
+  Stop propagating `parentScope`.
+
+- `default.nix:62`: drop `__scope` preservation during wrapping
+
+**Structural keys:** Remove `"__scope"` from `structuralKeys` in `aspect.nix`
+and `ctx-apply.nix`.
 
 ### resolvedCtx removal (aspect.nix)
 
@@ -193,37 +235,30 @@ functor's return value and composed it into the scope chain. This served two
 purposes:
 
 1. **Default functor echo** — re-injected the resolved args into the child's
-   scope. Redundant: the parent `__scope`/`__scopeHandlers` already provides
+   scope. Redundant: the parent `__scopeHandlers` already provides
    these args to children.
 
 2. **Deprecated `fixedTo`/`expands`** — stamped `__ctx` on aspects before
    pipeline entry. The extraction converted this to scope handlers.
 
 With the identity functor, purpose 1 is gone. For purpose 2, the deprecated
-shims are updated to stamp `__scope`/`__scopeHandlers` directly:
+shims are updated to stamp `__scopeHandlers` directly:
 
 ```nix
 # parametric.nix — fixedTo shim
 parametric.fixedTo.__functor = _: ctx: aspect:
   warn "fixedTo is deprecated" (
-    aspect // {
-      __scope = fx.effects.scope.stateful (constantHandler ctx);
-      __scopeHandlers = constantHandler ctx;
-    }
+    aspect // { __scopeHandlers = constantHandler ctx; }
   );
 
 # parametric.nix — expands shim
 parametric.expands = attrs: aspect:
   let
     existingHandlers = aspect.__scopeHandlers or {};
-    newHandlers = constantHandler attrs;
-    merged = existingHandlers // newHandlers;
+    merged = existingHandlers // constantHandler attrs;
   in
   warn "expands is deprecated" (
-    aspect // {
-      __scope = fx.effects.scope.stateful merged;
-      __scopeHandlers = merged;
-    }
+    aspect // { __scopeHandlers = merged; }
   );
 ```
 
@@ -233,7 +268,6 @@ Lines 366-383 simplify to passing through the parent's scope unchanged:
 ```nix
 tagged =
   next
-  // lib.optionalAttrs (scopeFn != null) { __scope = scopeFn; }
   // lib.optionalAttrs (scopeHandlers != null) { __scopeHandlers = scopeHandlers; }
   // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
   // { __parametricResolved = true; };
@@ -242,12 +276,13 @@ tagged =
 ### What stays
 
 - `__ctx` on ctxApply results — seeds `state.currentCtx` for `into` functions
-- `__ctx` stamps from transition handler — transitions set `__ctx` on children
-  for entry-point seeding when results re-enter `fxResolveTree`
-- `__scopeHandlers` propagation — the effectful source of truth for context
+- `__ctx` stamps from transition handler — for entry-point seeding when results
+  re-enter `fxResolveTree`
+- `__scopeHandlers` propagation — the single source of truth for context
 
 ### What's removed
 
+- `__scope` (opaque pre-applied closure) — derived from `__scopeHandlers` at use
 - `__functor`-based guards in `take.nix`, `perCtx`, `forwardWrap`
 - `self.__ctx` reads in guard code
 - `__ctx` stamping in the default functor
@@ -259,9 +294,12 @@ tagged =
 
 | File | Change |
 |------|--------|
+| `nix/lib/aspects/fx/handlers/include.nix` | `keepChild`: guard-aware resolution via `emitIncludes` |
+| `nix/lib/aspects/fx/aspect.nix` | Remove `__scope` reads, derive from `__scopeHandlers`; `forwardWrap`: metadata; remove `resolvedCtx` block |
+| `nix/lib/aspects/fx/handlers/transition.nix` | Stop stamping `__scope`, only stamp `__scopeHandlers` |
+| `nix/lib/ctx-apply.nix` | Stop stamping `__scope`, only stamp `__scopeHandlers` |
+| `nix/lib/aspects/default.nix` | Drop `__scope` preservation during wrapping |
 | `modules/context/perHost-perUser.nix` | Replace functor guard with `meta.contextGuard` |
 | `nix/lib/take.nix` | Replace functor guard with `meta.contextGuard`; deprecate custom pred |
-| `nix/lib/aspects/fx/aspect.nix` | `forwardWrap`: metadata instead of functor; remove `resolvedCtx` block |
-| `nix/lib/aspects/fx/handlers/include.nix` | `keepChild`: guard-aware resolution via `emitIncludes` |
-| `nix/lib/aspects/types.nix` | Default functor: `self: _: self` |
-| `nix/lib/parametric.nix` | Update shims to stamp `__scope`/`__scopeHandlers` instead of `__ctx` |
+| `nix/lib/aspects/types.nix` | Default functor: `self: _: self`; remove `__scope` from structuralKeys |
+| `nix/lib/parametric.nix` | Update shims to stamp `__scopeHandlers` instead of `__ctx` |
