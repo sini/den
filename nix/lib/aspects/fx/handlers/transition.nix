@@ -1,16 +1,15 @@
-# into-transition handler — processes context transitions via scope.run.
+# into-transition handler — processes context transitions via handler-closures.
 # Handles: into-transition
 # Sends: ctx-seen (dedup), resolve-complete (missing transition tombstone),
-#        then aspectToEffect with scoped context handlers.
-# Cross-providers: if source.provides.${targetKey} exists, resolved inside
-#   the same scope.run as the target aspect.
+#        then aspectToEffect with __scope-tagged target aspects.
+# Cross-providers: if source.provides.${targetKey} exists, tagged and resolved alongside.
 # State reads: currentCtx
 # External dependency: den.ctx (context aspect registry, looked up by transition path)
 #
-# Context propagation: scope.run installs constantHandler for the subtree.
-# Parametric aspect args (host, user, etc.) resolve from the scoped handlers
-# (deep handler semantics propagate through emit-include rotation).
-# scope.run (not scope.stateful) preserves outer handler state.
+# Context propagation: transitions tag target aspects with __scope — a partially
+# applied scope.stateful (handler-closure). aspectToEffect applies __scope around
+# bind.fn so parametric args (host, user, etc.) resolve from the captured handlers.
+# The closure carries context across pipeline boundaries (separate fxResolve calls).
 # __ctxId is preserved for fan-out identity/dedup.
 {
   lib,
@@ -43,8 +42,8 @@ let
       ) attrset
     );
 
-  # Resolve a single context value (called inside scope.run).
-  # Context args (host, user, etc.) resolve from scoped constantHandler.
+  # Resolve a single context value by tagging the target aspect with __ctx
+  # and resolving it directly. No scope.run — context flows as data.
   resolveContextValue =
     parentCtx: targetAspect: results: newCtx:
     let
@@ -75,10 +74,15 @@ let
         )
       );
       ctxId = ctxNames;
+      # Handler-closure: partially applied scope.stateful that captures context.
+      # aspectToEffect applies this around bind.fn to resolve parametric args.
+      scopeFn = fx.effects.scope.stateful (constantHandler scopedCtx);
       tagged = targetAspect // {
+        __scope = scopeFn;
+        __ctx = scopedCtx;
         __ctxId = ctxId;
       };
-      _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} ctx=${toString (builtins.attrNames scopedCtx)}";
+      _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} scope=${toString (builtins.attrNames scopedCtx)}";
     in
     _t (
       fx.bind (aspectToEffect tagged) (
@@ -92,6 +96,8 @@ let
               prevResults:
               let
                 deferredTagged = d.child // {
+                  __scope = scopeFn;
+                  __ctx = scopedCtx;
                   __ctxId = ctxId;
                 };
               in
@@ -113,9 +119,9 @@ let
       targetAspect = lib.attrByPath transition.path null (den.ctx or { });
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
-      # Emit cross-provider result (resolved inside the same scope.run).
+      # Emit cross-provider result by tagging with __scope and resolving.
       emitCrossProvider =
-        scopedCtx: ctxId: prevResults:
+        scopedCtx: scopeFn: ctxId: prevResults:
         if crossProvider != null then
           let
             # Call crossProvider with only the args it accepts, not the full
@@ -133,12 +139,16 @@ let
                   meta = { };
                   __functor = _: crossResult;
                   __functionArgs = lib.functionArgs crossResult;
+                  __scope = scopeFn;
+                  __ctx = scopedCtx;
                   __ctxId = ctxId;
                   includes = [ ];
                 }
               else
                 crossResult
                 // {
+                  __scope = scopeFn;
+                  __ctx = scopedCtx;
                   __ctxId = ctxId;
                 };
           in
@@ -192,23 +202,20 @@ let
                     ) (builtins.attrNames newCtx)
                   )
                 );
-                # Target resolution + cross-provider inside one scope.run
-                # so parametric args resolve from scoped constantHandler.
-                # First update state.currentCtx so nested transitions' intoFn
-                # receives accumulated context (wrapped in thunk for deepSeq).
+                # Build handler-closure for this transition context.
+                scopeFn = fx.effects.scope.stateful (constantHandler scopedCtx);
+                # Update state.currentCtx so nested transitions' intoFn
+                # receives accumulated context.
                 updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
                 withTarget =
                   if targetAspect != null then
                     resolveContextValue currentCtx targetAspect innerResults newCtx
                   else
                     fx.pure innerResults;
-                scopedBody = fx.bind updateCtx (
-                  _: fx.bind withTarget (targetResults: emitCrossProvider scopedCtx ctxNames targetResults)
-                );
               in
-              fx.effects.scope.run {
-                handlers = constantHandler scopedCtx;
-              } scopedBody
+              fx.bind updateCtx (
+                _: fx.bind withTarget (targetResults: emitCrossProvider scopedCtx scopeFn ctxNames targetResults)
+              )
             )
           ) (fx.pure results) transition.contexts
       );
@@ -220,8 +227,8 @@ let
         sourceAspect = param.self;
         # currentCtx is wrapped in a thunk (_: ctx) to survive deepSeq.
         rootCtx = (state.currentCtx or (_: { })) null;
-        # Nested transitions inherit parent context from the outer scope's
-        # handlers (scope.run). rootCtx feeds the into function only.
+        # rootCtx feeds the into function. Nested transitions get parent
+        # context from __scope handler-closures, not from data merging.
         currentCtx = rootCtx;
         intoResult = param.intoFn currentCtx;
         transitions = flattenInto intoResult [ ];

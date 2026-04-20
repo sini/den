@@ -17,6 +17,7 @@ let
     "into"
     "__functor"
     "__functionArgs"
+    "__scope"
     "__ctx"
     "__ctxId"
     "__parametricResolved"
@@ -260,18 +261,23 @@ let
     let
       userArgs = aspect.__functionArgs or { };
       isParametric = userArgs != { } && aspect ? __functor;
+      scopeFn = aspect.__scope or null;
       ctx = aspect.__ctx or { };
     in
     if isParametric then
       let
         fn = aspect.__functor aspect;
-        _t = builtins.trace "aspectToEffect: name=${aspect.name or "?"} parametric args=${toString (builtins.attrNames userArgs)} __ctx=${toString (builtins.attrNames ctx)}";
-        # If __ctx is present, scope bind.fn with constantHandler so context
-        # args (host, user) resolve from __ctx. Other args (class, aspect-chain)
-        # rotate to root constantHandler. Scope is ONLY around bind.fn —
-        # the resume is a plain value, no state isolation.
+        _t = builtins.trace "aspectToEffect: name=${aspect.name or "?"} parametric args=${toString (builtins.attrNames userArgs)} scope=${
+          if scopeFn != null then "yes" else "no"
+        } __ctx=${toString (builtins.attrNames ctx)}";
+        # Apply handler-closure (__scope) if present, otherwise fall back to
+        # __ctx with scope.run. __scope is a partially applied scope.stateful
+        # that captures context handlers. scope.run builds handlers from __ctx.
+        # Both are only around bind.fn — the resume is a plain value.
         resolveFn =
-          if ctx != { } then
+          if scopeFn != null then
+            scopeFn (fx.bind.fn { } fn)
+          else if ctx != { } then
             fx.effects.scope.run {
               handlers = constantHandler ctx;
             } (fx.bind.fn { } fn)
@@ -355,13 +361,23 @@ let
                     }
                 else
                   forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
-              # Propagate __ctx and __ctxId so children inherit context and identity.
+              # Propagate __scope, __ctx and __ctxId so children inherit context.
               # Merge parent ctx WITH resolved result's __ctx (from fixedTo/expands)
               # so pinned values aren't overwritten by parent context.
               resolvedCtx = if builtins.isAttrs resolved then resolved.__ctx or { } else { };
+              mergedCtx = ctx // resolvedCtx;
+              # Compose __scope with resolved ctx if needed.
+              resolvedScope =
+                if resolvedCtx != { } && scopeFn != null then
+                  comp: scopeFn (fx.effects.scope.stateful (constantHandler resolvedCtx) comp)
+                else if resolvedCtx != { } then
+                  fx.effects.scope.stateful (constantHandler resolvedCtx)
+                else
+                  scopeFn;
               tagged =
                 next
-                // lib.optionalAttrs (ctx != { } || resolvedCtx != { }) { __ctx = ctx // resolvedCtx; }
+                // lib.optionalAttrs (resolvedScope != null) { __scope = resolvedScope; }
+                // lib.optionalAttrs (mergedCtx != { }) { __ctx = mergedCtx; }
                 // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
                 // {
                   __parametricResolved = true;

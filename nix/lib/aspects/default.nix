@@ -59,6 +59,7 @@ let
             meta = resolved.meta or { };
             includes = resolved.includes or [ ];
           }
+          // lib.optionalAttrs (resolved ? __scope) { inherit (resolved) __scope; }
         else
           resolved;
       # Extract __ctx from ctxApply-tagged aspects. These carry context values

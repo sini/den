@@ -19,8 +19,10 @@ let
     let
       # Tag host.aspect with user context so parametric includes like
       # { user }: ... can resolve during host-aspects re-resolution.
+      ctx = { inherit host user; };
       aspectWithCtx = host.aspect // {
-        __ctx = { inherit host user; };
+        __ctx = ctx;
+        __scope = den.lib.fx.effects.scope.stateful (den.lib.aspects.fx.handlers.constantHandler ctx);
       };
     in
     lib.genAttrs (user.classes or [ "homeManager" ]) (
