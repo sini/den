@@ -249,3 +249,13 @@ modules/outputs/
 - **Class key** — A top-level key on an aspect that names a class: `nixos`, `homeManager`, `hjem`, etc. The classCollector only keeps modules for the target class.
 - **Transition** — An `into` declaration that fans out to child contexts. `host.into.user` creates one resolution per user on the host.
 - **Capability** (future) — Generalization of class keys. Any named activation point: a class, a feature flag, an entity name. Not yet implemented.
+
+## TL;DR
+
+This branch deletes den's legacy recursive resolver (~450 lines across 4 files) and makes the fx effects pipeline the only pipeline. The fx handlers — previously stubs that delegated to legacy code — now own everything: include resolution, transitions, parametric args, context propagation, dedup, constraints.
+
+The biggest user-visible change: `parametric.fixedTo`/`parametric.exactly` wrappers are gone from providers. Context flows through the pipeline natively instead of being pinned manually.
+
+**458/464 tests pass.** The 6 remaining failures are all about context not crossing resolution boundaries (forward mechanism starts fresh pipelines, sibling hosts can't share config). The spec proposes fixing this with `scope.stateful` (now that deep handlers work) and a two-phase `provide-to` mechanism for cross-entity forwarding.
+
+Net code change: +1118 / -1161 lines across 37 files. The pipeline grew (handlers do more), but the legacy layer it replaced was larger. `parametric.nix` went from 177 to 26 lines. `ctxApply` went from 124 to 56. The adapter layer (349 lines) is gone entirely.
