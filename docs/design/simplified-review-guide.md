@@ -44,13 +44,16 @@ New: computation emits event → handler catches it → decides what to do
 ```
 
 **Handlers** — Each handler catches one type of effect:
-- `constantHandler` — provides context values (host, user, class) when asked
+- `constantHandler` — provides context values (host, user, class) when asked via effects
 - `classCollectorHandler` — collects NixOS/HM modules that match the target class
-- `includeHandler` — processes child aspects (wraps, resolves, recurses)
-- `transitionHandler` — handles `into` transitions (host→user fan-out)
+- `includeHandler` — processes child aspects (wraps, resolves, recurses). Resume is a computation, not a plain value — this is how handler-driven recursion works
+- `transitionHandler` — handles `into` transitions (host→user fan-out, cross-providers)
 - `constraintRegistryHandler` — manages exclude/substitute rules
 - `chainHandler` — tracks parent→child provenance
-- `collectPathsHandler` — records which aspects were resolved (for `hasAspect`)
+- `collectPathsHandler` / `pathSetHandler` — records which aspects were resolved (for `hasAspect` and `includeIf` guards)
+- `ctxSeenHandler` — dedup for transitions (don't re-resolve the same ctx target)
+- `deferredIncludeHandler` / `drainDeferredHandler` — parks parametric includes whose args aren't available yet, resolves them later when context widens
+- `fx.effects.state.handler` — nix-effects state effect handler (from the library, not den)
 
 **The trampoline** — The interpreter loop from `nix-effects`. Takes a computation and a handler set. Runs the computation step by step. When it hits an effect, calls the matching handler, gets a resume value, continues. Uses `genericClosure` for stack safety (no recursion limit).
 
@@ -62,7 +65,9 @@ New: computation emits event → handler catches it → decides what to do
 3. flake-system has into.flake-os → fans out per host (igloo, iceberg)
 4. Each host's aspects are compiled via aspectToEffect
 5. Parametric aspects ({ host }: ...) get their args resolved via bind.fn
-   → bind.fn sends a "host" effect → constantHandler provides the host entity
+   → bind.fn sends a "host" effect
+   → a scoped constantHandler (built from the aspect's `__ctx`) provides the host entity
+   (with scope.stateful, this scoping happens automatically for the entire subtree)
 6. Each resolved aspect's class keys (nixos, homeManager) are emitted
 7. classCollectorHandler collects matching modules
 8. Result: list of NixOS modules for this host
@@ -76,7 +81,21 @@ The branch tried two approaches for providing context (host, user) to nested asp
 
 **Context as data (__ctx tagging):** Tag each aspect with `__ctx = { host, user }`. When `aspectToEffect` sees `__ctx`, it wraps only the `bind.fn` call in a scoped handler. Simpler, but context doesn't propagate to children's includes automatically.
 
-The branch currently uses ctx-as-data. The spec proposes going back to scoped handlers now that nix-effects has **deep handler semantics** (commit `23965f1`) — the bug that broke scope.run is fixed.
+The branch currently uses ctx-as-data. The spec proposes going back to scoped handlers (`scope.stateful`) now that nix-effects has **deep handler semantics** (commit `23965f1`) — the bug that broke scope.run is fixed.
+
+### Why `__ctx` and `__parentCtx` exist (and why they should go away)
+
+These are **workarounds for broken scope.run**, not permanent architecture:
+
+- `__ctx` — A tag on aspect attrsets carrying context values (`{ host, user }`). Exists because `scope.run`/`scope.stateful` lost context during effect rotation. In the proper design, scoped handlers provide these values to the entire subtree.
+- `__parentCtx` — Manual plumbing to propagate `__ctx` from parent to children's includes. In the proper design, scoped handlers propagate naturally — children inherit parent handlers.
+
+**If `scope.stateful` works with deep handlers, both go away.**
+
+Some `__`-prefixed tags **stay** because they serve identity/dedup, not context:
+
+- `__ctxId` — Distinguishes fan-out instances (`tux/{igloo}` vs `tux/{iceberg}`). Without it, module dedup collapses distinct fan-out results. Stays, but computed by the transition handler instead of derived from `__ctx`.
+- `__parametricResolved` — Tells `classCollectorHandler` whether to preserve `__ctxId` in module keys. Parametric resolutions produce different content per context and must not dedup. Stays.
 
 ## What this branch changed (commit by commit, grouped)
 
@@ -162,7 +181,7 @@ nix/lib/aspects/fx/
     tree.nix        — classCollector, constraints, chain tracking, deferred includes
 
 nix/lib/
-  ctx-types.nix     — intoCtxType (into option merge), ctxSubmodule, ctxTreeType
+  ctx-types.nix     — ctxTreeType (exports); internally uses intoCtxType for into merge, ctxSubmodule for ctx nodes
   ctx-apply.nix     — ctxApply (__functor for ctx nodes)
   forward.nix       — forwardEach (class-to-class forwarding)
   aspects/
