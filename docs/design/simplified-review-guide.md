@@ -111,21 +111,39 @@ This branch **removes the legacy pipeline entirely** and makes the fx pipeline s
 | `resolve.nix` | 68 | Legacy recursive resolve function |
 | `statics.nix` | 32 | Static aspect handling |
 | `fxPipeline.nix` | 11 | Feature gate (no longer needed) |
-| `parametric.nix` | 195→~40 | Gutted — fx pipeline handles parametric resolution natively |
+| `parametric.nix` | 177→26 | Gutted — fx pipeline handles parametric resolution natively via `bind.fn` |
 
 ### What was rearchitected
 
 The fx handlers on main were stubs that delegated to legacy code. This branch made them own their full responsibility:
 
-**`include.nix`** (grew from ~50 to ~310 lines): The include handler now owns ALL include resolution — child wrapping (`wrapChild`), parametric detection, NixOS module function normalization, constraint checking, deferred includes for unresolvable args, and context propagation. On main, most of this lived in `adapters.nix`.
+**`include.nix`** (189→311 lines): The include handler now owns ALL include resolution — child wrapping (`wrapChild`), parametric detection, NixOS module function normalization, constraint checking, deferred includes for unresolvable args, and context propagation. On main, most of this lived in `adapters.nix`.
 
-**`transition.nix`** (grew from ~30 to ~230 lines): The transition handler now implements full ctx-as-data transitions — fan-out to multiple context values, cross-provider resolution, ctx-seen dedup, and deferred include draining. On main, transitions delegated to `ctxApply` and the legacy resolver.
+**`transition.nix`** (101→232 lines): The transition handler now implements full ctx-as-data transitions — fan-out to multiple context values, cross-provider resolution, ctx-seen dedup, and deferred include draining. On main, transitions delegated to `ctxApply` and the legacy resolver.
 
-**`aspect.nix`** (grew from ~80 to ~360 lines): The aspect compiler now handles parametric resolution via `bind.fn` effects, forward wrapping for exact-match context guards, self-provide with positional-arg support, class emission, and constraint registration. On main, parametric resolution lived in `parametric.nix`.
+**`aspect.nix`** (221→390 lines): The aspect compiler now handles parametric resolution via `bind.fn` effects, forward wrapping for exact-match context guards, self-provide with positional-arg support, class emission, and constraint registration. On main, parametric resolution lived in `parametric.nix`.
 
-**`ctxApply`** (simplified from ~160 to ~55 lines): On main, `ctxApply` did resolution — it called the provider function, merged results, handled transitions. Now it's just a bridge: tags the aspect with `__ctx` and preserves `into`/`provides`/`includes` for the pipeline to handle natively.
+**`ctxApply`** (124→56 lines): On main, `ctxApply` did resolution — it called the provider function, merged results, handled transitions. Now it's just a bridge: tags the aspect with `__ctx` and preserves `into`/`provides`/`includes` for the pipeline to handle natively.
 
 **`types.nix`** (~210 lines changed): `providerType` reworked to wrap bare parametric functions with identity (name, meta.provider) from their declaration location. This enables `hasAspect` lookups on provider refs. On main, provider functions were opaque lambdas.
+
+**`tree.nix`** (constraint cascading): `check-constraint` now uses prefix matching on identity paths, so excluding `monitoring` cascades to `monitoring/node-exporter`.
+
+### Provider simplification across modules
+
+The most widespread change across `modules/`: removal of `parametric.fixedTo` and `parametric.exactly` wrappers from provider definitions. These existed to pin context values for the legacy resolver. With the fx pipeline's `__ctx` propagation (and eventually `scope.stateful`), providers are plain attrsets:
+
+```nix
+# Before (on main):
+den.ctx.host.provides.host = { host }: parametric.fixedTo { inherit host; } host.aspect;
+
+# After (this branch):
+den.ctx.host.provides.host = { host }: host.aspect;
+```
+
+Affected: `host-aspects.nix`, `mutual-provider.nix`, `user-shell.nix`, `host.nix`, `user.nix`, `define-user.nix`, `inputs.nix`, `self.nix`, and more. The `__ctx` tag on the resolved aspect carries context that `fixedTo` used to pin explicitly.
+
+Also: `namespace.nix` now strips `__functor` and `__ctx` from namespace denfuls to prevent pipeline-internal tags from leaking into namespace definitions.
 
 **`has-aspect.nix`** (rewritten): Now uses the fx pipeline's `pathSet` (accumulated during resolution via `collectPathsHandler`) instead of running a separate legacy resolve.
 
