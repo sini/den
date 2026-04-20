@@ -210,30 +210,73 @@ is unnecessary because `bind.fn` never passes extra args. A function asking for
 `{ host }` gets `{ host }` at both host and user levels — the presence of
 `user` in the handler scope is invisible to the function.
 
-### Static aspects and identity shims
+### Static aspects and the optional-arg pattern
 
 Some user code wraps static attrsets in `perHost` (e.g., `perHost { nixos = ...; }`).
-The identity shim returns these unchanged. This is safe because the transition
-structure provides context-level gating: a `perHost`-wrapped aspect is an include
-of a HOST-level ctx node. Host-level includes resolve once at host level and do
-not re-enter at user level — user level only processes its own includes from the
-user ctx node. Deferred includes only re-fire when they were actually deferred
-(args not yet available), which doesn't apply to static attrsets (no args to
-defer on).
+For cases where transition structure alone doesn't prevent wrong-level resolution
+(e.g., perHost aspects in shared includes lists), the shim uses the optional-arg
+pattern: declare deeper context keys as optional, check which resolved.
 
-The pipeline structure (which ctx node includes what) is the source of truth for
-context-level affinity, not the guard wrappers.
+nix-effects `bind.fn` now skips optional args when no handler exists (commit
+c7931d7), letting Nix defaults kick in. The shim functor checks whether deeper
+keys resolved — if so, returns `{}` (wrong level).
+
+### Remove `__functor`/`__functionArgs` from aspect submodule type (next step)
+
+The aspect submodule in `types.nix` currently declares `__functor` and
+`__functionArgs` as options with defaults. This causes every submodule-evaluated
+aspect to carry these attributes, which creates two problems:
+
+1. **Infinite re-entry in forwardWrap.** When a parametric aspect resolves
+   via `bind.fn`, the result carries `__functor`/`__functionArgs` from the
+   submodule defaults. `aspectToEffect` sees it as parametric again → loops.
+   Current workaround: `forwardWrap` strips them.
+
+2. **`__ctx` stamping in the default functor.** The default
+   `self: ctx: self // { __ctx = ctx; }` is the old context-forwarding
+   mechanism. Removing it eliminates `__ctx` from the parametric resolution
+   path entirely.
+
+Neither option serves a purpose in the handler-based model:
+
+- **`__functor`** is only needed on EXPLICITLY parametric aspects. Bare
+  functions get wrapped by `fxResolveTree`. Functor attrsets carry their
+  own. The submodule default adds it to every aspect unnecessarily.
+
+- **`__functionArgs`** defaults to `{}`. Only meaningful when explicitly
+  set. The submodule default is a no-op that pollutes the attrset.
+
+Removing both options makes:
+- `forwardWrap` true identity (no `__functor` to strip)
+- `isParametric` false for all submodule-evaluated non-parametric aspects
+- Resolved results naturally route to `compileStatic`
+- The infinite re-entry class of bugs eliminated structurally
+
+**This requires cascading changes** across the pipeline. Sites that assume
+aspects are callable via `__functor` (wrapChild, emitSelfProvide,
+fxResolveTree wrapping, include.nix normalization) need updating. This is
+the next implementation phase.
 
 ## Files changed
 
+### Already implemented
+
 | File | Change |
 |------|--------|
-| `nix/lib/aspects/fx/aspect.nix` | `forwardWrap`: identity; remove `__scope` reads, derive from `__scopeHandlers`; remove `resolvedCtx` block |
-| `nix/lib/aspects/fx/handlers/include.nix` | Remove `meta.contextGuard` handling from `keepChild`; stop propagating `__parentScope` |
+| `nix/lib/aspects/fx/handlers/include.nix` | `keepChild`: removed `meta.contextGuard` branch (not needed) |
+| `nix/lib/aspects/fx/aspect.nix` | `forwardWrap`: strips `__functor`/`__functionArgs`; derive scope from `__scopeHandlers` |
+| `modules/context/perHost-perUser.nix` | Optional-arg pattern shim + deprecation warning |
+| `nix/lib/take.nix` | Identity shims + deprecation warnings |
+| `templates/ci/flake.lock` | Updated nix-effects (optional arg support in bind.fn) |
+
+### Remaining (next phase)
+
+| File | Change |
+|------|--------|
+| `nix/lib/aspects/types.nix` | Remove `__functor` and `__functionArgs` options from submodule |
+| `nix/lib/aspects/fx/aspect.nix` | `forwardWrap`: true identity; cascade fixes for missing `__functor` |
+| `nix/lib/aspects/fx/handlers/include.nix` | `wrapChild`: stop assuming aspects have `__functor`; stop propagating `__parentScope` |
 | `nix/lib/aspects/fx/handlers/transition.nix` | Stop stamping `__scope`, only stamp `__scopeHandlers` |
 | `nix/lib/ctx-apply.nix` | Stop stamping `__scope`, only stamp `__scopeHandlers` |
 | `nix/lib/aspects/default.nix` | Drop `__scope` preservation during wrapping |
-| `modules/context/perHost-perUser.nix` | Identity + deprecation warning |
-| `nix/lib/take.nix` | Identity + deprecation warning |
-| `nix/lib/aspects/types.nix` | Default functor: `self: _: self` |
 | `nix/lib/parametric.nix` | Update shims to stamp `__scopeHandlers` instead of `__ctx` |
