@@ -199,15 +199,16 @@ let
             hasExtras = builtins.any (k: !(builtins.elem k guardKeys)) scopeKeys;
           in
           if guardType == "exactly" then
-            if scopeKeys == guardKeys then "match"
-            else if allGuardKeysPresent && hasExtras then "drop"
-            else "defer"
+            if scopeKeys == guardKeys then
+              "match"
+            else if allGuardKeysPresent && hasExtras then
+              "drop"
+            else
+              "defer"
           else if guardType == "atLeast" then
-            if allGuardKeysPresent then "match"
-            else "defer"
+            if allGuardKeysPresent then "match" else "defer"
           else if guardType == "upTo" then
-            if anyGuardKeyPresent then "match"
-            else "defer"
+            if anyGuardKeyPresent then "match" else "defer"
           else
             builtins.throw "contextGuard: unknown type '${guardType}'"
         else
@@ -220,7 +221,9 @@ let
           __parentCtxId = child.__ctxId or null;
         } [ guard.aspect ]
       else if guardMatch == "drop" then
-        builtins.trace "contextGuard: DROP ${child.name or "?"} (type=${guard.type}, scopeKeys=${toString (builtins.attrNames childScopeHandlers)})" (fx.pure [])
+        builtins.trace
+          "contextGuard: DROP ${child.name or "?"} (type=${guard.type}, scopeKeys=${toString (builtins.attrNames childScopeHandlers)})"
+          (fx.pure [ ])
       else
         # defer: emit stub + defer-include for later resolution
         let

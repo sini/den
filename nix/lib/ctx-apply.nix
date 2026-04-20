@@ -54,8 +54,9 @@ let
       meta.into = self.into or (_: { });
       provides = self.provides or { };
       includes = self.includes or [ ];
-      # Handler-closure for parametric arg resolution. aspectToEffect
-      # applies this around bind.fn.
+      # Carry context to the pipeline entry point (seeds state.currentCtx
+      # for into functions). __scope handles parametric arg resolution.
+      __ctx = ctx;
       __scope = fx.effects.scope.stateful (constantHandler ctx);
       __scopeHandlers = constantHandler ctx;
     };

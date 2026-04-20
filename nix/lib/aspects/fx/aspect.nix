@@ -17,6 +17,7 @@ let
     "into"
     "__functor"
     "__functionArgs"
+    "__ctx"
     "__scope"
     "__scopeHandlers"
     "__ctxId"
@@ -127,8 +128,8 @@ let
       name = aspect.name or "<anon>";
       provides = aspect.provides or { };
       providerVal = provides.${name};
-      scopeFn = aspect.__scope or null;
       scopeHandlers = aspect.__scopeHandlers or null;
+      scopeFn = if scopeHandlers != null then fx.effects.scope.stateful scopeHandlers else null;
       # Entry-point ctx for positional-arg providers only.
       ctx = aspect.__ctx or { };
       # Extract real function args for bind.fn resolution.
@@ -204,13 +205,13 @@ let
       comp;
 
   # Resolve children, assemble the result, and emit resolve-complete.
-  # Propagates __scope (handler-closure) to children via emitIncludes.
+  # Propagates __scopeHandlers to children via emitIncludes.
   resolveChildren =
     aspect:
     { isMeaningful, nodeIdentity }:
     let
-      scopeFn = aspect.__scope or null;
       scopeHandlers = aspect.__scopeHandlers or null;
+      scopeFn = if scopeHandlers != null then fx.effects.scope.stateful scopeHandlers else null;
       ctxId = aspect.__ctxId or null;
       childResolution = fx.bind (emitSelfProvide aspect) (
         selfProvResults:
@@ -270,7 +271,8 @@ let
     let
       userArgs = aspect.__functionArgs or { };
       isParametric = userArgs != { } && aspect ? __functor;
-      scopeFn = aspect.__scope or null;
+      scopeHandlers = aspect.__scopeHandlers or null;
+      scopeFn = if scopeHandlers != null then fx.effects.scope.stateful scopeHandlers else null;
     in
     if isParametric then
       let
@@ -278,9 +280,7 @@ let
         _t = builtins.trace "aspectToEffect: name=${aspect.name or "?"} parametric args=${toString (builtins.attrNames userArgs)} scope=${
           if scopeFn != null then "yes" else "no"
         }";
-        # Apply handler-closure (__scope) around bind.fn so parametric args
-        # resolve from captured handlers. Without __scope, args resolve
-        # from root constantHandler only (class, aspect-chain, etc.).
+        # Derive scope from __scopeHandlers at point of use.
         resolveFn = if scopeFn != null then scopeFn (fx.bind.fn { } fn) else fx.bind.fn { } fn;
       in
       _t (
@@ -315,26 +315,27 @@ let
               # exact-match context guarding on the resolved child.
               requiredArgs = builtins.filter (n: !userArgs.${n}) (builtins.attrNames userArgs);
               # Forward-wrap: when a parametric fn resolves to a static attrset,
-              # add a __functor that enforces exact context match. This makes
-              # { host }: expr only fire at host level (not user level where
-              # ctx also has user). Also propagates identity (name) from the
-              # original aspect so the child isn't anonymous for constraints.
+              # annotate with meta.contextGuard so keepChild enforces exact context
+              # match when the child later appears as an include.
+              # IMPORTANT: strip __functor/__functionArgs so aspectToEffect routes
+              # to compileStatic — otherwise it re-enters the parametric path and
+              # infinite-loops. The guard.aspect holds the original child for
+              # re-emission by keepChild at the right context level.
               forwardWrap =
                 child:
                 if requiredArgs != [ ] then
-                  child
+                  builtins.removeAttrs child [
+                    "__functor"
+                    "__functionArgs"
+                  ]
                   // {
-                    __functor =
-                      _: newCtx:
-                      let
-                        ctxKeys = builtins.sort builtins.lessThan (builtins.attrNames newCtx);
-                        reqKeys = builtins.sort builtins.lessThan requiredArgs;
-                      in
-                      if ctxKeys == reqKeys then child // { __ctx = newCtx; } else { };
-                    # NOTE: no __functionArgs here — that would make aspectToEffect
-                    # treat this as parametric again, causing infinite recursion.
-                    # The __functor is only used when the child is later called
-                    # via ctxApply or transition, not during pipeline resolution.
+                    meta = (child.meta or { }) // {
+                      contextGuard = {
+                        type = "exactly";
+                        keys = builtins.sort builtins.lessThan requiredArgs;
+                        aspect = child;
+                      };
+                    };
                   }
                 else
                   child;

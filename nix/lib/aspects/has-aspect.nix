@@ -39,7 +39,7 @@ let
           tree;
       result = den.lib.aspects.fx.pipeline.fxFullResolve {
         inherit class;
-        ctx = { };
+        ctx = normalized.__ctx or { };
         self = normalized;
       };
     in

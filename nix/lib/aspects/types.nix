@@ -206,7 +206,6 @@ let
             default = [ ];
           };
 
-
           __functionArgs = lib.mkOption {
             internal = true;
             visible = false;
