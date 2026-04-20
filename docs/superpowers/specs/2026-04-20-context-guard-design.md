@@ -1,186 +1,106 @@
-# Pipeline-native context guards
+# Remove context guards — handler-based resolution makes them unnecessary
 
 ## Problem
 
-Context-level guards (`perHost`, `perUser`, `take.exactly`, `forwardWrap`) use
-`__functor` to check whether an aspect should resolve at a given context level.
-This couples guard logic to functor mechanics and requires `__ctx` data-stamping
-by the default functor (`self: ctx: self // { __ctx = ctx; }`).
+Context-level guards (`perHost`, `perUser`, `take.exactly`, `forwardWrap`) exist
+because the old manual-context-forwarding model called functions directly with a
+context attrset. A function `{ host }: expr` called at user level received
+`{ host, user }` — extra keys leaked through. Guards prevented firing at the
+wrong level.
 
-The `__ctx` attribute serves two roles today:
+Under handler-based resolution, `bind.fn` compiles `{ host, user }: expr` into
+chained effect requests. Each arg is resolved independently from scoped handlers.
+A function asking for `{ host }` gets exactly `{ host }` — never `user`, even
+if `user` is in scope. The `exactly/atLeast/upTo` distinction is meaningless.
 
-1. **Propagation** (parent -> child) — already replaced by `__scopeHandlers`
-2. **Self-identification** (what context was I resolved with) — read by guards via `self.__ctx`
-
-Role 2 can be eliminated by moving guard checks into the pipeline handler system,
-where `__scopeHandlers` keys already represent the current context level.
-
-Additionally, aspects carry both `__scope` (an opaque pre-applied
-`scope.stateful` closure) and `__scopeHandlers` (the inspectable handler
-attrset). `__scope` is redundant — it can be derived from `__scopeHandlers`
-at point of use via `fx.effects.scope.stateful handlers`. Consolidating to
-`__scopeHandlers` alone gives a single inspectable source of truth.
+Additionally, `__ctx` data-stamping and `__scope` closures are redundant with
+`__scopeHandlers`, which is the single inspectable source of truth.
 
 ## Design
 
-### Guard metadata
+### No guard mechanism in the pipeline
 
-Aspects annotate themselves with `meta.contextGuard` instead of implementing
-guard logic in `__functor`:
+The pipeline is agnostic to legacy guard patterns. No `meta.contextGuard`, no
+context-key-set matching, no `exactly/atLeast/upTo` awareness. Resolution
+relies entirely on:
 
-```nix
-meta.contextGuard = {
-  type = "exactly";       # | "atLeast" | "upTo"
-  keys = [ "host" ];      # sorted required context keys
-  aspect = innerAspect;   # what to resolve on match (may be function or attrset)
-};
-```
+1. `keepChild` defers until required args have handlers (`has-handler` probing)
+2. `bind.fn` resolves exactly the declared args from scoped handlers
+3. First context level to satisfy all args wins (natural from deferral)
 
-Combined with `__functionArgs` which signals `keepChild` what minimum keys are
-needed before the guard can even be evaluated.
+### Deprecation shims at the boundary
 
-### keepChild logic (include.nix)
-
-Current gate: `isParametric = childArgs != {} && child ? __functor`.
-
-New: also handle children with `meta.contextGuard`:
-
-```
-guard = child.meta.contextGuard or null
-
-if guard != null:
-  scopeKeys = sort(attrNames childScopeHandlers)
-
-  "exactly":
-    scopeKeys == guard.keys                        -> match: emitIncludes [guard.aspect]
-    all guard.keys in scopeKeys (but has extras)   -> drop:  fx.pure []  (with trace)
-    else                                           -> defer: defer-include
-
-  "atLeast":
-    all guard.keys in scopeKeys     -> match
-    else                            -> defer
-
-  "upTo":
-    any guard.key in scopeKeys      -> match
-    else                            -> defer
-```
-
-On match, re-emit `guard.aspect` via `emitIncludes` with propagated scope/ctxId.
-This follows the `resolveConditional` pattern: guard checks condition, inner
-aspects re-enter the full handler chain (check-constraint, keepChild, etc.).
-
-On drop (exactly guard with extra keys), emit a trace line for debugging and
-return `fx.pure []`. The aspect is excluded — it belongs to a different
-context level.
-
-### Consumer changes
+Legacy APIs become identity wrappers with deprecation warnings. They reshape
+user code to pass through the pipeline unchanged.
 
 #### perCtx (perHost-perUser.nix)
 
-Before:
 ```nix
-perCtx = requiredKeys: aspect: {
-  includes = [{
-    __functor = self: _:
-      let ctx = self.__ctx or {};
-          ctxKeys = sort (attrNames ctx);
-      in if ctxKeys == reqKeysSorted
-         then if isParametric then aspect ctx else aspect
-         else {};
-    __functionArgs = { ${minKey} = false; };
-    includes = [];
-  }];
-};
+perCtx = requiredKeys: aspect:
+  lib.warn "den.lib.perCtx is deprecated — handler-based resolution makes context guards unnecessary"
+    aspect;
+
+perHost = perCtx [ "host" ];
+perUser = perCtx [ "host" "user" ];
+perHome = perCtx [ "home" ];
 ```
 
-After:
-```nix
-perCtx = requiredKeys: aspect: {
-  includes = [{
-    __functionArgs = { ${minKey} = false; };
-    meta.contextGuard = {
-      type = "exactly";
-      keys = reqKeysSorted;
-      inherit aspect;
-    };
-    name = "<guard:${lib.concatStringsSep "," reqKeysSorted}>";
-    includes = [];
-  }];
-};
-```
-
-No `__functor`. The pipeline handles the guard check and resolution.
+`perHost myAspect` → warns, returns `myAspect` unchanged. The pipeline resolves
+it when `host` is available in handlers. No guard check needed.
 
 #### take.nix
 
-Before:
-```nix
-guard = pred: fn: {
-  __functor = self: _:
-    let ctx = self.__ctx or {};
-    in if pred ctx fn then fn ctx else {};
-  __functionArgs = { ${minKey} = false; };
-  includes = [];
-};
-```
-
-After:
 ```nix
 take.exactly = fn:
-  let
-    args = lib.functionArgs fn;
-    requiredKeys = builtins.filter (k: !args.${k}) (builtins.attrNames args);
-    sortedKeys = builtins.sort builtins.lessThan requiredKeys;
-    minKey = builtins.head sortedKeys;
-  in {
-    __functionArgs = { ${minKey} = false; };
-    meta.contextGuard = {
-      type = "exactly";
-      keys = sortedKeys;
-      aspect = fn;
-    };
-    includes = [];
-  };
+  lib.warn "den.lib.take.exactly is deprecated — bind.fn resolves args from handlers"
+    fn;
+
+take.atLeast = fn:
+  lib.warn "den.lib.take.atLeast is deprecated — bind.fn resolves args from handlers"
+    fn;
+
+take.upTo = fn:
+  lib.warn "den.lib.take.upTo is deprecated — bind.fn resolves args from handlers"
+    fn;
+
+take.__functor = _: _pred: _adapter: fn:
+  lib.warn "den.lib.take custom predicate is deprecated"
+    fn;
 ```
 
-`take.atLeast` and `take.upTo` use `type = "atLeast"` / `type = "upTo"`.
-
-The generic `take.__functor` (custom predicate form) is deprecated.
+All forms become identity + warning. The inner function passes through as a
+normal parametric aspect.
 
 #### forwardWrap (aspect.nix)
 
-Before:
 ```nix
-forwardWrap = child:
-  if requiredArgs != [] then
-    child // {
-      __functor = _: newCtx:
-        let ctxKeys = sort (attrNames newCtx);
-            reqKeys = sort requiredArgs;
-        in if ctxKeys == reqKeys then child // { __ctx = newCtx; } else {};
-    }
-  else child;
+forwardWrap = child: child;
 ```
 
-After:
+Identity. Under handler-based resolution, the pipeline's deferral mechanism
+handles context-level gating. No `__functor` guard or `meta.contextGuard`
+needed.
+
+#### parametric.nix (fixedTo/expands)
+
 ```nix
-forwardWrap = child:
-  if requiredArgs != [] then
-    child // {
-      __functionArgs = lib.genAttrs requiredArgs (_: false);
-      meta = (child.meta or {}) // {
-        contextGuard = {
-          type = "exactly";
-          keys = builtins.sort builtins.lessThan requiredArgs;
-          aspect = child;
-        };
-      };
-    }
-  else child;
+parametric.fixedTo.__functor = _: ctx: aspect:
+  warn "fixedTo is deprecated" (
+    aspect // { __scopeHandlers = constantHandler ctx; }
+  );
+
+parametric.expands = attrs: aspect:
+  let
+    existingHandlers = aspect.__scopeHandlers or {};
+    merged = existingHandlers // constantHandler attrs;
+  in
+  warn "expands is deprecated" (
+    aspect // { __scopeHandlers = merged; }
+  );
 ```
 
-No `__functor`. The `__functionArgs` makes `keepChild` defer until context is
-available. The `meta.contextGuard` makes it exact-match.
+These reshape the legacy `__ctx` stamping into `__scopeHandlers` so the
+pipeline can consume them.
 
 ### Default functor (types.nix)
 
@@ -202,11 +122,10 @@ reads `__scope` can derive it from `__scopeHandlers` at point of use.
 - `ctx-apply.nix`: only stamp `__scopeHandlers = constantHandler ctx`
 - `transition.nix`: only stamp `__scopeHandlers` on target aspects
 - `aspectToEffect` tagged block: only propagate `__scopeHandlers`
-- `parametric.nix` shims: only stamp `__scopeHandlers`
 
 **Consumers (derive scope from handlers):**
 
-- `aspectToEffect` (aspect.nix:274-284): wrap `bind.fn` in scope at point of use:
+- `aspectToEffect` (aspect.nix): wrap `bind.fn` in scope at point of use:
   ```nix
   scopeHandlers = aspect.__scopeHandlers or null;
   resolveFn =
@@ -215,55 +134,38 @@ reads `__scope` can derive it from `__scopeHandlers` at point of use.
     else fx.bind.fn {} fn;
   ```
 
-- `emitSelfProvide` (aspect.nix:131): same pattern for provider resolution
+- `emitSelfProvide` (aspect.nix): same pattern for provider resolution
 
-- `compileStatic` (aspect.nix:213): passes `__parentScopeHandlers` to
-  `emitIncludes` (already does this; stop passing `__parentScope`)
+- `resolveChildren` (aspect.nix): derive scopeFn from `__scopeHandlers`,
+  pass both `__parentScope` (derived) and `__parentScopeHandlers` to
+  `emitIncludes`
 
-- `includeHandler` (include.nix:262-269): propagate `parentScopeHandlers` only.
+- `includeHandler` (include.nix): propagate `parentScopeHandlers` only.
   Stop propagating `parentScope`.
 
-- `default.nix:62`: drop `__scope` preservation during wrapping
+- `resolveConditional` (include.nix): stop passing `__parentScope` to
+  `emitIncludes`.
 
-**Structural keys:** Remove `"__scope"` from `structuralKeys` in `aspect.nix`
-and `ctx-apply.nix`.
+- `emitSelfProvide` (aspect.nix): stop stamping `__parentScope` on
+  provider includes.
+
+- `default.nix`: drop `__scope` preservation during wrapping
+
+**Structural keys:** Remove `"__scope"` and `"__parentScope"` from
+`structuralKeys` in `aspect.nix`.
 
 ### resolvedCtx removal (aspect.nix)
 
-The `resolvedCtx` block (lines 366-383) extracted `resolved.__ctx` from the
-functor's return value and composed it into the scope chain. This served two
-purposes:
+The `resolvedCtx` block extracted `resolved.__ctx` from the functor's return
+value and composed it into the scope chain. This served two purposes:
 
-1. **Default functor echo** — re-injected the resolved args into the child's
-   scope. Redundant: the parent `__scopeHandlers` already provides
-   these args to children.
+1. **Default functor echo** — redundant: parent `__scopeHandlers` already
+   provides these args to children.
 
-2. **Deprecated `fixedTo`/`expands`** — stamped `__ctx` on aspects before
-   pipeline entry. The extraction converted this to scope handlers.
+2. **Deprecated `fixedTo`/`expands`** — now handled by shims stamping
+   `__scopeHandlers` directly.
 
-With the identity functor, purpose 1 is gone. For purpose 2, the deprecated
-shims are updated to stamp `__scopeHandlers` directly:
-
-```nix
-# parametric.nix — fixedTo shim
-parametric.fixedTo.__functor = _: ctx: aspect:
-  warn "fixedTo is deprecated" (
-    aspect // { __scopeHandlers = constantHandler ctx; }
-  );
-
-# parametric.nix — expands shim
-parametric.expands = attrs: aspect:
-  let
-    existingHandlers = aspect.__scopeHandlers or {};
-    merged = existingHandlers // constantHandler attrs;
-  in
-  warn "expands is deprecated" (
-    aspect // { __scopeHandlers = merged; }
-  );
-```
-
-With both purposes handled, the `resolvedCtx` block is removed entirely.
-Lines 366-383 simplify to passing through the parent's scope unchanged:
+The block is removed entirely. The `tagged` result simplifies to:
 
 ```nix
 tagged =
@@ -276,30 +178,62 @@ tagged =
 ### What stays
 
 - `__ctx` on ctxApply results — seeds `state.currentCtx` for `into` functions
-- `__ctx` stamps from transition handler — for entry-point seeding when results
+- `__ctx` stamps from transition handler — entry-point seeding when results
   re-enter `fxResolveTree`
 - `__scopeHandlers` propagation — the single source of truth for context
 
 ### What's removed
 
-- `__scope` (opaque pre-applied closure) — derived from `__scopeHandlers` at use
+- `__scope` (opaque pre-applied closure) — derived from `__scopeHandlers`
 - `__functor`-based guards in `take.nix`, `perCtx`, `forwardWrap`
 - `self.__ctx` reads in guard code
 - `__ctx` stamping in the default functor
 - `resolvedCtx` extraction block in `aspectToEffect`
 - The `__ctx` module option in `types.nix` (already removed)
-- The generic `take.__functor` custom predicate form (deprecated)
+- `meta.contextGuard` mechanism (unnecessary — pipeline uses deferral + handlers)
+- `exactly/atLeast/upTo` context-key matching (artifact of manual forwarding)
+
+## Rationale
+
+Under manual context forwarding, `{ host, user }: expr` was called directly
+with a context attrset. The function received all keys at once, so guards were
+needed to differentiate context levels.
+
+Under handler-based resolution, `bind.fn` compiles the function into chained
+effect requests — each arg resolved independently. `{ host, user }: expr` means
+"I need both host AND user handlers." If user isn't available, the child is
+deferred. The pipeline's deferral + handler probing naturally provides the
+correct semantics without any guard mechanism.
+
+The `exactly` distinction ("fire only when scope has these keys and no more")
+is unnecessary because `bind.fn` never passes extra args. A function asking for
+`{ host }` gets `{ host }` at both host and user levels — the presence of
+`user` in the handler scope is invisible to the function.
+
+### Static aspects and identity shims
+
+Some user code wraps static attrsets in `perHost` (e.g., `perHost { nixos = ...; }`).
+The identity shim returns these unchanged. This is safe because the transition
+structure provides context-level gating: a `perHost`-wrapped aspect is an include
+of a HOST-level ctx node. Host-level includes resolve once at host level and do
+not re-enter at user level — user level only processes its own includes from the
+user ctx node. Deferred includes only re-fire when they were actually deferred
+(args not yet available), which doesn't apply to static attrsets (no args to
+defer on).
+
+The pipeline structure (which ctx node includes what) is the source of truth for
+context-level affinity, not the guard wrappers.
 
 ## Files changed
 
 | File | Change |
 |------|--------|
-| `nix/lib/aspects/fx/handlers/include.nix` | `keepChild`: guard-aware resolution via `emitIncludes` |
-| `nix/lib/aspects/fx/aspect.nix` | Remove `__scope` reads, derive from `__scopeHandlers`; `forwardWrap`: metadata; remove `resolvedCtx` block |
+| `nix/lib/aspects/fx/aspect.nix` | `forwardWrap`: identity; remove `__scope` reads, derive from `__scopeHandlers`; remove `resolvedCtx` block |
+| `nix/lib/aspects/fx/handlers/include.nix` | Remove `meta.contextGuard` handling from `keepChild`; stop propagating `__parentScope` |
 | `nix/lib/aspects/fx/handlers/transition.nix` | Stop stamping `__scope`, only stamp `__scopeHandlers` |
 | `nix/lib/ctx-apply.nix` | Stop stamping `__scope`, only stamp `__scopeHandlers` |
 | `nix/lib/aspects/default.nix` | Drop `__scope` preservation during wrapping |
-| `modules/context/perHost-perUser.nix` | Replace functor guard with `meta.contextGuard` |
-| `nix/lib/take.nix` | Replace functor guard with `meta.contextGuard`; deprecate custom pred |
-| `nix/lib/aspects/types.nix` | Default functor: `self: _: self`; remove `__scope` from structuralKeys |
+| `modules/context/perHost-perUser.nix` | Identity + deprecation warning |
+| `nix/lib/take.nix` | Identity + deprecation warning |
+| `nix/lib/aspects/types.nix` | Default functor: `self: _: self` |
 | `nix/lib/parametric.nix` | Update shims to stamp `__scopeHandlers` instead of `__ctx` |
