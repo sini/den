@@ -97,31 +97,59 @@ Some `__`-prefixed tags **stay** because they serve identity/dedup, not context:
 - `__ctxId` — Distinguishes fan-out instances (`tux/{igloo}` vs `tux/{iceberg}`). Without it, module dedup collapses distinct fan-out results. Stays, but computed by the transition handler instead of derived from `__ctx`.
 - `__parametricResolved` — Tells `classCollectorHandler` whether to preserve `__ctxId` in module keys. Parametric resolutions produce different content per context and must not dedup. Stays.
 
-## What this branch changed (commit by commit, grouped)
+## What's different from main
 
-### Phase 1: Remove legacy pipeline
-`bc6147ff` through `64e07bdb` — Gutted the old recursive resolver, parametric machinery, aspect-chain compat shims. Rewrote `has-aspect.nix` to use the fx pipeline's `pathSet`. Removed the `fxPipeline` feature gate.
+On `origin/main`, the fx pipeline exists **alongside** the legacy resolver. The legacy code does the real work — `adapters.nix` (349 lines), `resolve.nix` (68 lines), `statics.nix` (32 lines), and `parametric.nix` (195 lines) implement recursive tree-walking resolution. The fx pipeline mirrors this flow, delegating to the same adapter machinery. There's a `fxPipeline` feature gate to switch between them.
 
-### Phase 2: Fix breakage from removal
-`acc31b54` through `29421ecc` — A long series of fixes for things the removal broke. Context propagation, provider type merging, ctxApply, functor handling. Several approaches tried and reverted (transparent ctxApply, __ctx pipeline experiments).
+This branch **removes the legacy pipeline entirely** and makes the fx pipeline stand on its own with a fundamentally different architecture:
 
-### Phase 3: Architectural rework
-`6ed013ec` through `98f2f785` — Settled on the ctx-as-data approach. Key innovations:
-- `scope.run` for bind.fn context scoping (not full subtree)
-- `probe-arg` effect for checking if a parametric arg is resolvable
-- Deferred includes for parametric aspects whose args aren't available yet
-- `transitionHandler` using ctx-as-data instead of scope.run
+### What was deleted
 
-### Phase 4: Polish and edge cases
-`64325863` through `120bc2d4` — Fan-out identity with `__ctxId`, cross-provider dedup, perCtx wrappers, constraint cascading, take.exactly/atLeast/upTo reimplemented as context guards.
+| File | Lines | What it did |
+|---|---|---|
+| `adapters.nix` | 349 | Legacy adapter layer — bridged aspects to the module system |
+| `resolve.nix` | 68 | Legacy recursive resolve function |
+| `statics.nix` | 32 | Static aspect handling |
+| `fxPipeline.nix` | 11 | Feature gate (no longer needed) |
+| `parametric.nix` | 195→~40 | Gutted — fx pipeline handles parametric resolution natively |
 
-### Phase 5: Today's fixes (447→458)
-`f5f80529` through `16f3778e` — Eleven targeted fixes:
-- Fan-out module dedup (`__parametricResolved` flag)
-- `providerType` wrapping for has-aspect identity
-- Positional-arg self-provide resolution
-- Integer ctxId for cross-provider fan-out
-- Into merge list concatenation
+### What was rearchitected
+
+The fx handlers on main were stubs that delegated to legacy code. This branch made them own their full responsibility:
+
+**`include.nix`** (grew from ~50 to ~310 lines): The include handler now owns ALL include resolution — child wrapping (`wrapChild`), parametric detection, NixOS module function normalization, constraint checking, deferred includes for unresolvable args, and context propagation. On main, most of this lived in `adapters.nix`.
+
+**`transition.nix`** (grew from ~30 to ~230 lines): The transition handler now implements full ctx-as-data transitions — fan-out to multiple context values, cross-provider resolution, ctx-seen dedup, and deferred include draining. On main, transitions delegated to `ctxApply` and the legacy resolver.
+
+**`aspect.nix`** (grew from ~80 to ~360 lines): The aspect compiler now handles parametric resolution via `bind.fn` effects, forward wrapping for exact-match context guards, self-provide with positional-arg support, class emission, and constraint registration. On main, parametric resolution lived in `parametric.nix`.
+
+**`ctxApply`** (simplified from ~160 to ~55 lines): On main, `ctxApply` did resolution — it called the provider function, merged results, handled transitions. Now it's just a bridge: tags the aspect with `__ctx` and preserves `into`/`provides`/`includes` for the pipeline to handle natively.
+
+**`types.nix`** (~210 lines changed): `providerType` reworked to wrap bare parametric functions with identity (name, meta.provider) from their declaration location. This enables `hasAspect` lookups on provider refs. On main, provider functions were opaque lambdas.
+
+**`has-aspect.nix`** (rewritten): Now uses the fx pipeline's `pathSet` (accumulated during resolution via `collectPathsHandler`) instead of running a separate legacy resolve.
+
+### Key new mechanisms (not on main)
+
+- **`probe-arg` effect** — Asks "is this parametric arg available?" before trying to resolve. Enables skipping unresolvable includes instead of erroring.
+- **Deferred includes** — When `probe-arg` returns false, the include is parked in `state.deferredIncludes`. When context widens (a transition provides new args), deferred includes are drained and resolved.
+- **`__ctxId` fan-out identity** — Each context value in a fan-out (e.g., 50 hosts) gets a unique identity suffix so module dedup doesn't collapse distinct results.
+- **`__parametricResolved` flag** — Marks aspects resolved through `bind.fn` so the class collector preserves their ctxId in module keys (different content per context = don't dedup).
+- **`mergeInto` for into defs** — Multiple `into` definitions (fn-form and attrset-form) now concatenate their context value lists instead of last-wins replacement.
+- **take.exactly/atLeast/upTo** — Reimplemented as context guards using `self.__ctx` matching, replacing the legacy `parametric.nix` machinery.
+- **perCtx wrappers** — `perHost`/`perUser`/`perHome` use `self.__ctx` exact match with includes-based structure for trace provenance.
+
+### Commit phases
+
+**Phase 1** (`bc6147ff`–`64e07bdb`): Remove legacy — delete adapters/resolve/statics, gut parametric, remove feature gate.
+
+**Phase 2** (`acc31b54`–`29421ecc`): Stabilize — fix breakage from removal. Context propagation, provider type merging, ctxApply, functor handling. Several approaches tried and reverted.
+
+**Phase 3** (`6ed013ec`–`98f2f785`): Rearchitect — ctx-as-data approach, probe-arg, deferred includes, native transitions.
+
+**Phase 4** (`64325863`–`120bc2d4`): Edge cases — fan-out identity, cross-provider dedup, perCtx, constraint cascading, take reimplementation.
+
+**Phase 5** (`f5f80529`–`16f3778e`): Targeted fixes — fan-out module dedup, has-aspect identity, positional-arg providers, integer ctxId, into merge.
 
 ## Current test status: 458/464
 
