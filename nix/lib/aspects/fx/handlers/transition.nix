@@ -1,15 +1,17 @@
-# into-transition handler — processes context transitions via __ctx tagging.
+# into-transition handler — processes context transitions via scope.run.
 # Handles: into-transition
 # Sends: ctx-seen (dedup), resolve-complete (missing transition tombstone),
-#        then aspectToEffect with __ctx-tagged target aspects.
-# Cross-providers: if source.provides.${targetKey} exists, it's tagged and resolved alongside.
+#        then aspectToEffect with scoped context handlers.
+# Cross-providers: if source.provides.${targetKey} exists, resolved inside
+#   the same scope.run as the target aspect.
 # State reads: currentCtx
 # External dependency: den.ctx (context aspect registry, looked up by transition path)
 #
-# Context propagation: instead of scope.run (which isolates state), transitions
-# tag target aspects with __ctx. aspectToEffect reads __ctx and scopes only the
-# bind.fn call, letting all other effects (emit-class, constraints, chain, paths)
-# reach root handlers with shared state.
+# Context propagation: scope.run installs constantHandler for the subtree.
+# Parametric aspect args (host, user, etc.) resolve from the scoped handlers
+# (deep handler semantics propagate through emit-include rotation).
+# scope.run (not scope.stateful) preserves outer handler state.
+# __ctxId is preserved for fan-out identity/dedup.
 {
   lib,
   den,
@@ -18,6 +20,7 @@
 let
   fx = den.lib.fx;
   inherit (den.lib.aspects.fx.aspect) aspectToEffect;
+  inherit (den.lib.aspects.fx.handlers) constantHandler;
 
   # Flatten a nested into attrset into a flat list of { path, contexts }.
   flattenInto =
@@ -40,8 +43,8 @@ let
       ) attrset
     );
 
-  # Resolve a single context value by tagging the target aspect with __ctx
-  # and resolving it directly. No scope.run — context flows as data.
+  # Resolve a single context value (called inside scope.run).
+  # Context args (host, user, etc.) resolve from scoped constantHandler.
   resolveContextValue =
     parentCtx: targetAspect: results: newCtx:
     let
@@ -73,10 +76,9 @@ let
       );
       ctxId = ctxNames;
       tagged = targetAspect // {
-        __ctx = scopedCtx;
         __ctxId = ctxId;
       };
-      _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} __ctx=${toString (builtins.attrNames scopedCtx)}";
+      _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} ctx=${toString (builtins.attrNames scopedCtx)}";
     in
     _t (
       fx.bind (aspectToEffect tagged) (
@@ -90,7 +92,6 @@ let
               prevResults:
               let
                 deferredTagged = d.child // {
-                  __ctx = scopedCtx;
                   __ctxId = ctxId;
                 };
               in
@@ -112,7 +113,7 @@ let
       targetAspect = lib.attrByPath transition.path null (den.ctx or { });
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
-      # Emit cross-provider result by tagging with __ctx and resolving directly.
+      # Emit cross-provider result (resolved inside the same scope.run).
       emitCrossProvider =
         scopedCtx: ctxId: prevResults:
         if crossProvider != null then
@@ -132,14 +133,12 @@ let
                   meta = { };
                   __functor = _: crossResult;
                   __functionArgs = lib.functionArgs crossResult;
-                  __ctx = scopedCtx;
                   __ctxId = ctxId;
                   includes = [ ];
                 }
               else
                 crossResult
                 // {
-                  __ctx = scopedCtx;
                   __ctxId = ctxId;
                 };
           in
@@ -193,13 +192,23 @@ let
                     ) (builtins.attrNames newCtx)
                   )
                 );
+                # Target resolution + cross-provider inside one scope.run
+                # so parametric args resolve from scoped constantHandler.
+                # First update state.currentCtx so nested transitions' intoFn
+                # receives accumulated context (wrapped in thunk for deepSeq).
+                updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
                 withTarget =
                   if targetAspect != null then
                     resolveContextValue currentCtx targetAspect innerResults newCtx
                   else
                     fx.pure innerResults;
+                scopedBody = fx.bind updateCtx (
+                  _: fx.bind withTarget (targetResults: emitCrossProvider scopedCtx ctxNames targetResults)
+                );
               in
-              fx.bind withTarget (targetResults: emitCrossProvider scopedCtx ctxNames targetResults)
+              fx.effects.scope.run {
+                handlers = constantHandler scopedCtx;
+              } scopedBody
             )
           ) (fx.pure results) transition.contexts
       );
@@ -211,10 +220,9 @@ let
         sourceAspect = param.self;
         # currentCtx is wrapped in a thunk (_: ctx) to survive deepSeq.
         rootCtx = (state.currentCtx or (_: { })) null;
-        # Merge __ctx from the source aspect (transition-provided context)
-        # with root ctx. This is how nested transitions get their parent's
-        # context: flake → flake-system (with { system }) → flake-packages.
-        currentCtx = rootCtx // (sourceAspect.__ctx or { });
+        # Nested transitions inherit parent context from the outer scope's
+        # handlers (scope.run). rootCtx feeds the into function only.
+        currentCtx = rootCtx;
         intoResult = param.intoFn currentCtx;
         transitions = flattenInto intoResult [ ];
       in
