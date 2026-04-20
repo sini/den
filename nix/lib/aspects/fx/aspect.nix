@@ -18,11 +18,10 @@ let
     "__functor"
     "__functionArgs"
     "__scope"
-    "__ctx"
+    "__scopeHandlers"
     "__ctxId"
     "__parametricResolved"
-    "__parentCtx"
-    "__parentCtxId"
+    "__parentScope"
     "_module"
   ];
 
@@ -67,11 +66,12 @@ let
     fx.seq (map (c: fx.send "register-constraint" (c // { inherit owner; })) allConstraints);
 
   # Fold includes through emit-include effects, tagging each with its
-  # positional index and parent __ctx so the handler can derive stable
-  # identities and propagate context to children.
+  # positional index and parent __scope (handler-closure) so the handler
+  # can derive stable identities and propagate context to children.
   emitIncludes =
     {
-      __parentCtx,
+      __parentScope ? null,
+      __parentScopeHandlers ? null,
       __parentCtxId ? null,
     }:
     incs:
@@ -88,8 +88,10 @@ let
               fx.bind (fx.send "emit-include" (
                 {
                   child = builtins.elemAt incs idx;
-                  inherit idx __parentCtx;
+                  inherit idx;
                 }
+                // lib.optionalAttrs (__parentScope != null) { inherit __parentScope; }
+                // lib.optionalAttrs (__parentScopeHandlers != null) { inherit __parentScopeHandlers; }
                 // lib.optionalAttrs (__parentCtxId != null) { inherit __parentCtxId; }
               )) (childResults: fx.pure (results ++ childResults))
             )
@@ -118,13 +120,16 @@ let
   # Self-provide: if aspect.provides.${aspect.name} exists, emit it as an include.
   # The provider function's actual args are extracted so bind.fn can resolve
   # them through effects (e.g. { host } is resolved via constantHandler).
-  # Propagates __ctx so the provider can resolve in the right context.
+  # Propagates __scope (handler-closure) so the provider resolves in the right context.
   emitSelfProvide =
     aspect:
     let
       name = aspect.name or "<anon>";
       provides = aspect.provides or { };
       providerVal = provides.${name};
+      scopeFn = aspect.__scope or null;
+      scopeHandlers = aspect.__scopeHandlers or null;
+      # Entry-point ctx for positional-arg providers only.
       ctx = aspect.__ctx or { };
       # Extract real function args for bind.fn resolution.
       innerFn =
@@ -136,10 +141,12 @@ let
     in
     if provides ? ${name} then
       let
-        _t = builtins.trace "emitSelfProvide: ${name} __parentCtx=${toString (builtins.attrNames ctx)} providerArgs=${toString (builtins.attrNames providerArgs)}";
+        _t = builtins.trace "emitSelfProvide: ${name} scope=${
+          if scopeFn != null then "yes" else "no"
+        } providerArgs=${toString (builtins.attrNames providerArgs)}";
         # Positional-arg providers (_: { funny... }) can't be resolved via
-        # bind.fn (no named args). Call them directly with ctx — this mirrors
-        # the old ctxApply behavior where provides.${name} was called inline.
+        # bind.fn (no named args). Call them directly with ctx — ctx comes
+        # from entry-point __ctx (ctxApply), not from __scope.
         isPositionalFn = lib.isFunction innerFn && providerArgs == { };
         providerMeta = {
           provider = (aspect.meta.provider or [ ]) ++ [ name ];
@@ -152,16 +159,15 @@ let
               resolvedArgs = if lib.isFunction resolved then lib.functionArgs resolved else { };
             in
             if lib.isFunction resolved && !builtins.isAttrs resolved then
-              # Resolved to a bare function (e.g. _: osFwd where osFwd = { host }: ...).
-              # Wrap as parametric include for bind.fn resolution.
               {
                 inherit name;
-                __parentCtx = ctx;
                 meta = providerMeta;
                 __functor = _: resolved;
                 __functionArgs = resolvedArgs;
                 includes = [ ];
               }
+              // lib.optionalAttrs (scopeFn != null) { __parentScope = scopeFn; }
+              // lib.optionalAttrs (scopeHandlers != null) { __parentScopeHandlers = scopeHandlers; }
               // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; }
             else
               (if builtins.isAttrs resolved then resolved else { })
@@ -174,12 +180,13 @@ let
           else
             {
               inherit name;
-              __parentCtx = ctx;
               meta = providerMeta;
               __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
               __functionArgs = providerArgs;
               includes = [ ];
             }
+            // lib.optionalAttrs (scopeFn != null) { __parentScope = scopeFn; }
+            // lib.optionalAttrs (scopeHandlers != null) { __parentScopeHandlers = scopeHandlers; }
             // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; };
       in
       _t (fx.send "emit-include" include)
@@ -197,19 +204,21 @@ let
       comp;
 
   # Resolve children, assemble the result, and emit resolve-complete.
-  # Propagates __ctx to children via emitIncludes __parentCtx parameter.
+  # Propagates __scope (handler-closure) to children via emitIncludes.
   resolveChildren =
     aspect:
     { isMeaningful, nodeIdentity }:
     let
-      ctx = aspect.__ctx or { };
+      scopeFn = aspect.__scope or null;
+      scopeHandlers = aspect.__scopeHandlers or null;
       ctxId = aspect.__ctxId or null;
       childResolution = fx.bind (emitSelfProvide aspect) (
         selfProvResults:
         fx.bind (emitTransitions aspect) (
           transitionResults:
           fx.bind (emitIncludes {
-            __parentCtx = ctx;
+            __parentScope = scopeFn;
+            __parentScopeHandlers = scopeHandlers;
             __parentCtxId = ctxId;
           } (aspect.includes or [ ])) (children: fx.pure (selfProvResults ++ transitionResults ++ children))
         )
@@ -262,27 +271,17 @@ let
       userArgs = aspect.__functionArgs or { };
       isParametric = userArgs != { } && aspect ? __functor;
       scopeFn = aspect.__scope or null;
-      ctx = aspect.__ctx or { };
     in
     if isParametric then
       let
         fn = aspect.__functor aspect;
         _t = builtins.trace "aspectToEffect: name=${aspect.name or "?"} parametric args=${toString (builtins.attrNames userArgs)} scope=${
           if scopeFn != null then "yes" else "no"
-        } __ctx=${toString (builtins.attrNames ctx)}";
-        # Apply handler-closure (__scope) if present, otherwise fall back to
-        # __ctx with scope.run. __scope is a partially applied scope.stateful
-        # that captures context handlers. scope.run builds handlers from __ctx.
-        # Both are only around bind.fn — the resume is a plain value.
-        resolveFn =
-          if scopeFn != null then
-            scopeFn (fx.bind.fn { } fn)
-          else if ctx != { } then
-            fx.effects.scope.run {
-              handlers = constantHandler ctx;
-            } (fx.bind.fn { } fn)
-          else
-            fx.bind.fn { } fn;
+        }";
+        # Apply handler-closure (__scope) around bind.fn so parametric args
+        # resolve from captured handlers. Without __scope, args resolve
+        # from root constantHandler only (class, aspect-chain, etc.).
+        resolveFn = if scopeFn != null then scopeFn (fx.bind.fn { } fn) else fx.bind.fn { } fn;
       in
       _t (
         fx.bind resolveFn (
@@ -362,22 +361,29 @@ let
                 else
                   forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
               # Propagate __scope, __ctx and __ctxId so children inherit context.
-              # Merge parent ctx WITH resolved result's __ctx (from fixedTo/expands)
-              # so pinned values aren't overwritten by parent context.
+              # Compose __scope with resolved result's __ctx (from fixedTo/expands)
+              # if present. The resolved ctx becomes additional scope handlers.
               resolvedCtx = if builtins.isAttrs resolved then resolved.__ctx or { } else { };
-              mergedCtx = ctx // resolvedCtx;
-              # Compose __scope with resolved ctx if needed.
+              resolvedCtxHandlers = if resolvedCtx != { } then constantHandler resolvedCtx else null;
               resolvedScope =
                 if resolvedCtx != { } && scopeFn != null then
-                  comp: scopeFn (fx.effects.scope.stateful (constantHandler resolvedCtx) comp)
+                  comp: scopeFn (fx.effects.scope.stateful resolvedCtxHandlers comp)
                 else if resolvedCtx != { } then
-                  fx.effects.scope.stateful (constantHandler resolvedCtx)
+                  fx.effects.scope.stateful resolvedCtxHandlers
                 else
                   scopeFn;
+              scopeHandlers = aspect.__scopeHandlers or null;
+              resolvedScopeHandlers =
+                if resolvedCtxHandlers != null && scopeHandlers != null then
+                  scopeHandlers // resolvedCtxHandlers
+                else if resolvedCtxHandlers != null then
+                  resolvedCtxHandlers
+                else
+                  scopeHandlers;
               tagged =
                 next
                 // lib.optionalAttrs (resolvedScope != null) { __scope = resolvedScope; }
-                // lib.optionalAttrs (mergedCtx != { }) { __ctx = mergedCtx; }
+                // lib.optionalAttrs (resolvedScopeHandlers != null) { __scopeHandlers = resolvedScopeHandlers; }
                 // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
                 // {
                   __parametricResolved = true;

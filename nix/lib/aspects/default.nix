@@ -62,10 +62,10 @@ let
           // lib.optionalAttrs (resolved ? __scope) { inherit (resolved) __scope; }
         else
           resolved;
-      # Extract __ctx from ctxApply-tagged aspects. These carry context values
-      # (host, user, etc.) that the pipeline's constantHandler needs to provide
-      # to nested parametric includes.
-      ctx = resolved.__ctx or { };
+      # Context args (host, user) are provided by __scope handler-closures
+      # on aspects, not by the root constantHandler. The root only needs
+      # class and aspect-chain (added by defaultHandlers).
+      ctx = { };
     in
     fx.pipeline.fxResolve {
       inherit class ctx;

@@ -25,7 +25,6 @@ let
     "into"
     "__functor"
     "__functionArgs"
-    "__ctx"
     "__parametricResolved"
     "_module"
   ];
@@ -55,8 +54,10 @@ let
       meta.into = self.into or (_: { });
       provides = self.provides or { };
       includes = self.includes or [ ];
-      # Carry context to the pipeline entry point.
-      __ctx = ctx;
+      # Handler-closure for parametric arg resolution. aspectToEffect
+      # applies this around bind.fn.
+      __scope = fx.effects.scope.stateful (constantHandler ctx);
+      __scopeHandlers = constantHandler ctx;
     };
 in
 ctxApply
