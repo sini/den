@@ -311,34 +311,16 @@ let
                   config = true;
                   options = true;
                 } resolved;
-              # Required args from the original parametric function — used for
-              # exact-match context guarding on the resolved child.
-              requiredArgs = builtins.filter (n: !userArgs.${n}) (builtins.attrNames userArgs);
-              # Forward-wrap: when a parametric fn resolves to a static attrset,
-              # annotate with meta.contextGuard so keepChild enforces exact context
-              # match when the child later appears as an include.
-              # IMPORTANT: strip __functor/__functionArgs so aspectToEffect routes
-              # to compileStatic — otherwise it re-enters the parametric path and
-              # infinite-loops. The guard.aspect holds the original child for
-              # re-emission by keepChild at the right context level.
+              # Strip __functor/__functionArgs from resolved child so
+              # aspectToEffect routes to compileStatic, not parametric.
+              # TODO: becomes true identity once __functor/__functionArgs
+              # options are removed from the aspect submodule type.
               forwardWrap =
                 child:
-                if requiredArgs != [ ] then
-                  builtins.removeAttrs child [
-                    "__functor"
-                    "__functionArgs"
-                  ]
-                  // {
-                    meta = (child.meta or { }) // {
-                      contextGuard = {
-                        type = "exactly";
-                        keys = builtins.sort builtins.lessThan requiredArgs;
-                        aspect = child;
-                      };
-                    };
-                  }
-                else
-                  child;
+                builtins.removeAttrs child [
+                  "__functor"
+                  "__functionArgs"
+                ];
               next =
                 if lib.isFunction resolved && !builtins.isAttrs resolved then
                   if isResolvedSubmoduleFn then
