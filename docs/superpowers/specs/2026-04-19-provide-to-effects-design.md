@@ -8,7 +8,19 @@ Three boundary types are affected:
 
 1. **Fresh pipeline runs** (forward mechanism): `forward.nix` calls `den.lib.aspects.resolve` starting a new pipeline that loses parent context.
 2. **Transition propagation**: Parametric includes in user aspects can't see `host` from the transition that resolved their parent.
-3. **Cross-host** (new, untested): Host A can't contribute modules to host B's config (e.g., `/etc/hosts` with fleet IPs, SSH `known_hosts`).
+3. **Cross-entity** (new, untested): Host A can't contribute modules to host B's config (e.g., `/etc/hosts` with fleet IPs, SSH `known_hosts`, haproxy backends).
+
+## Pre-work: Restore scope.stateful for transitions
+
+Problem 2 (transition propagation) is fixable without provide-to. The ctx-as-data approach (commit `98f2f78`) removed `scope.run`/`scope.stateful` from transitions as a workaround for broken effect rotation. Now that nix-effects has deep handler semantics (`23965f1`), `scope.stateful` should work correctly — handlers propagate through the full subtree including nested includes.
+
+**Action:** Replace ctx-as-data `__ctx` tagging with `scope.stateful { constantHandler { host, user } }` in the transition handler. This makes host/user available as handled effects for the ENTIRE subtree — no `__parentCtx` plumbing needed.
+
+**Verification:** If `scope.stateful` still fails to propagate context, file a nix-effects issue with a reproducing test. The handler rotation semantics SHOULD preserve parent handlers — handlers are part of rotation, not state.
+
+**Note:** Use `scope.stateful` (preserves parent state) not `scope.run` (replaces state).
+
+This pre-work fixes problem 2 but NOT problems 1 (forward) or 3 (cross-entity). Those require provide-to.
 
 ## Rejected alternatives
 
@@ -18,143 +30,158 @@ Thread parent context into child pipeline runs via an `inheritCtx` parameter. Si
 
 ### B. Simpler ctx threading for existing failures
 
-Some existing failures (cross-scope context, forward) might be fixable by threading `currentCtx` through `extraState` or fixing `__parentCtx` propagation without new effects. This was considered but doesn't address the cross-host use case and would be a partial fix — the provide-to mechanism handles all three boundary types uniformly.
+Some existing failures might be fixable by threading `currentCtx` through `extraState` or fixing `__parentCtx` propagation without new effects. This was considered but doesn't address the cross-entity use case. The pre-work (scope.stateful) subsumes this for problem 2. Problems 1 and 3 need provide-to.
 
 ## Solution: Two-phase resolution with `provide-to` effects
 
-### Phase 1: Normal resolution with collection
+### Design principle
 
-The pipeline runs normally. A new `provide-to` effect lets any aspect declare modules targeting a different resolution scope. These are collected in pipeline state, not resolved immediately.
+Cross-entity contributions look like regular parametric aspects with dendritic class keys. No special `guard`, `module`, or `target` wrappers. The parametric arg name identifies the target context type. The pipeline routes cross-entity emissions internally.
+
+### How it works: ctx transitions for cross-entity
+
+Cross-entity forwarding uses the same mechanism as existing ctx transitions — `into` and `provides`. A new context type (e.g., `peer`) defines the relationship:
 
 ```nix
-# In a host aspect — provide to sibling hosts:
-{ host, ... }: {
-  nixos.networking.hostName = host.name;
-  includes = [
-    (den.provides.to "host" {  # "host" = sibling hosts (same ctx type as emitter)
-      guard = targetCtx: lib.mkIf (targetCtx.host.name != host.name);
-      module = { networking.extraHosts = "${host.meta.ip} ${host.name}"; };
-    })
-  ];
-}
+# Define the peer relationship: each host fans out to sibling hosts
+den.ctx.host.into.peer = { host }:
+  map (h: { peer = h; })
+    (filter (h: h.name != host.name) (attrValues den.hosts.${host.system}));
 ```
 
-The `provide-to` handler collects emissions without resolving them:
+Aspects then use `{ peer }` as a regular parametric arg. The pipeline resolves it via the transition, and the provide-to mechanism routes the result to the peer's config:
+
+```nix
+# Cross-provider: host contributes to each peer's config
+den.ctx.host.provides.peer = { host }: { peer }:
+  lib.optionalAttrs (peer.hasAspect den.aspects.loadbalancer) {
+    nixos.services.haproxy.frontends.app.backends = [
+      { address = host.meta.ip; port = 8080; }
+    ];
+  };
+```
+
+Or equivalently, as an include on the aspect:
+
+```nix
+den.aspects.webserver = { host, ... }: {
+  nixos.services.nginx = {
+    enable = true;
+    virtualHosts."app".locations."/".proxyPass = "http://localhost:8080";
+  };
+
+  # Regular parametric include — { peer } resolved via host.into.peer
+  includes = [
+    ({ peer, ... }:
+      lib.optionalAttrs (peer.hasAspect den.aspects.loadbalancer) {
+        nixos.services.haproxy.frontends.app.backends = [
+          { address = host.meta.ip; port = 8080; }
+        ];
+      }
+    )
+  ];
+};
+```
+
+### The routing problem
+
+The examples above look like regular parametric aspects. The pipeline resolves `{ peer }` via `host.into.peer` fan-out. But the resolved `nixos` modules must land in the **peer's** NixOS config, not the current host's.
+
+In the current pipeline, `emit-class "nixos"` always goes to the root classCollector, which collects for the current pipeline's target class. For sub-entity transitions (host→user), this works because the user's modules are segregated by the user-specific class handling. For sibling transitions (host→peer), the peer IS another host — its modules need to go to a different pipeline run.
+
+This is where the two-phase mechanism comes in. It's an **internal pipeline concern**, not a user-facing API. The user writes regular parametric aspects. The pipeline detects cross-entity transitions and routes accordingly.
+
+### Phase 1: Normal resolution with cross-entity collection
+
+The pipeline runs normally. When a transition targets a sibling entity (same ctx type as emitter — e.g., host→peer where peer is also a host), the transition handler collects the resolved modules in `state.provideTo` instead of emitting them to the current classCollector.
+
+The handler determines routing by comparing the transition's target entity type against the current resolution scope. If the target IS a sibling (would need its own pipeline run), emissions go to `provideTo`. If the target is a child (resolved within the current pipeline), emissions go to the normal classCollector.
 
 ```nix
 provideToHandler = {
   "provide-to" = { param, state }: {
     resume = null;
     state = state // {
-      # Thunk chain — _: prevents deepSeq from forcing contents.
-      # The dummy parameter is never meaningful (always called with null).
       provideTo = _: ((state.provideTo or (_: [])) null) ++ [param];
     };
   };
 };
 ```
 
+Note on thunk chain: `param` here is an aspect/attrset, not a NixOS module. The thunk prevents `deepSeq` from forcing aspect content that may reference lazy option defaults. If aspect values are known to be deepSeq-safe, the thunk can be removed.
+
 ### Phase 2: Distribution at orchestration level
 
-After phase 1 completes, the caller (e.g., `osConfigurations.nix`) reads `state.provideTo null`, groups emissions by target, and injects them as additional modules when building target configs.
+After phase 1 completes, the orchestration layer (e.g., `osConfigurations.nix`) reads `state.provideTo null`, groups emissions by target entity, and injects them as additional modules when building target configs.
 
 ```
 flake
-  -> flake-system (per system)
-    -> flake-os (per host)         # Phase 1: resolve each host, collect provide-to
-    -> distribute provide-to       # Phase 2: group by target, inject into targets
-    -> build target configs        # Target pipelines receive injected modules
+  → flake-system (per system)
+    → flake-os (per host)         # Phase 1: resolve each host, collect provide-to
+    → distribute provide-to       # Phase 2: group by target, inject into targets
+    → build target configs        # Targets receive injected modules
 ```
 
 Phase 2 is one-directional: the `provide-to` handler is NOT installed in phase 2 pipeline runs. Injected modules cannot emit further `provide-to` effects. This prevents cycles structurally.
-
-**Limitation:** Modules injected in phase 2 cannot themselves use `provide-to`. If a cross-host module also needs cross-class forwarding (e.g., fleet SSH config that also needs home-manager integration), that must be expressed as a regular class key on the injected module, not as a nested `provide-to`. This is acceptable — cross-class forwarding within a single entity is a different mechanism (class keys + forward) that already works.
-
-### Forward mechanism migration
-
-`forward.nix` currently does:
-1. Call `den.lib.aspects.resolve fromClass asp` (fresh pipeline, loses context)
-2. Apply `mapModule` to the resolved source module
-3. Wrap with guards, adapters, `intoPath` routing
-4. Return the wrapped module as a class key
-
-The migration:
-- Step 1 (resolve) stays in phase 1 — the source aspect's pipeline still runs normally and produces a source module.
-- Steps 2-4 (mapModule, guards, adapters) also stay in phase 1 — these transform the resolved module into its final shape.
-- The **result** of steps 1-4 is emitted as a `provide-to` instead of being returned directly as a class key.
-
-The key insight: `forward.nix` doesn't need to change its internal resolution logic. It only changes WHERE the result goes — from a direct class key return to a `provide-to` emission that the orchestration layer distributes. The adapter/guard/mapModule machinery stays intact.
-
-### Target routing: graph-based, context-type agnostic
-
-The `provide-to` target names a **ctx node** (or path of ctx nodes). Routing is determined by the emitter's position in the `den.ctx` transition graph — not by hardcoded scope qualifiers.
-
-The transition graph defines relationships:
-```
-flake-system
-  host (per host, via flake-system.into.host or similar)
-    user (per user, via host.into.user)
-    hm-user (per user, via host.into.hm-user)
-  environment (user-defined)
-    host (per host, via environment.into.host)
-```
-
-The same target name routes differently depending on where the emission originates:
-
-| Emitter scope | Target | Routing | Result |
-|---|---|---|---|
-| host aspect | `"user"` | follows `host.into.user` | my host's users |
-| host aspect | `"host"` | follows parent's `into.host` | sibling hosts |
-| environment aspect | `"host"` | follows `environment.into.host` | hosts in my environment |
-| host aspect | `["host", "user"]` | siblings, then their users | users on other hosts |
-
-**Single-hop targets** (string): `"user"`, `"host"` — one step through the transition graph. If the target is a CHILD ctx of the emitter, it follows the emitter's `into.${target}`. If it's a SIBLING (same ctx type as the emitter), it follows the parent's `into.${target}`.
-
-**Multi-hop targets** (list of strings): `["host", "user"]` — walk the graph: first hop to sibling hosts, then from each host to their users. The orchestration layer evaluates each hop, fanning out at each step.
-
-**Named entity targets** (attrset): `{ host = "igloo"; }` — target a specific entity by name. The orchestration layer filters to matching entities.
-
-This makes provide-to fully context-type agnostic — it works for any ctx node, including user-defined ones like `environment`, `cluster`, or `region`. The transition graph IS the routing table.
-
-**Class-level targeting** (e.g., "put this in the nixos class") is NOT part of the `provide-to` target. It's handled by the module itself — the injected module has a `nixos` key, which the target's pipeline processes normally via `compileStatic` → `emit-class`.
-
-### Effect shape
-
-```nix
-{
-  target = "<ctx-name>" | ["<ctx-name>" ...] | { <ctx-name> = "<entity-name>"; };
-  module = <NixOS module or aspect attrset>;
-  guard = <optional: targetCtx -> lib.mkIf wrapper>;
-  emitterCtx = "<ctx-name>";  # ctx type of the emitting aspect (e.g., "host", "user")
-  # Set automatically by the handler from the pipeline's current ctx state.
-}
-```
-
-The `emitterCtx` field tells `distributeProvideTo` where in the transition graph the emission originated. For sibling routing (target matches emitterCtx), the distributor finds the parent transition's fan-out. For child routing (target is a child of emitterCtx), it follows the emitter's `into.${target}`. Set by the handler, not by the user.
-
-Guards capture source context via Nix closures. The guard function receives the TARGET entity's pipeline ctx (e.g., `{ host = <hostEntity> }`), not the source's. This avoids shadowing: the source `host` is captured in the closure, the target `host` comes from the argument.
-
-`den.provides.to` returns a no-op aspect (`{ includes = []; }`) after emitting the effect. This ensures the `includes` list receives a valid value, not `null`.
 
 ### Phase 2 semantics: module injection, not re-resolution
 
 Phase 2 does NOT re-run the aspect pipeline. It injects `provide-to` modules directly into the target's NixOS/homeManager module list — alongside the modules already collected in phase 1. This means:
 
-- Injected modules are plain NixOS/HM modules, not den aspects. They can't use parametric args, constraints, or `includes`.
+- Injected modules are dendritic (have class keys like `nixos`, `homeManager`). The target's pipeline processes class keys normally via `compileStatic` → `emit-class`.
 - Phase 1 pipeline state (constraints, pathSet, chain) is final. Phase 2 doesn't touch it.
-- Guard functions produce `lib.mkIf` wrappers applied to the injected module at injection time (during `distributeProvideTo`). The guard receives the target's pipeline ctx (e.g., `{ host = <hostEntity>; }`) — entity objects with `.name`, `.meta`, etc.
-- Cost: zero pipeline runs in phase 2. Only module list concatenation + guard evaluation.
+- Cost: zero pipeline runs in phase 2. Only module list concatenation.
 
 For the common case (no cross-entity contributions), phase 2 is a no-op. The orchestration layer checks `state.provideTo null == []` and skips distribution entirely.
 
-For the forward mechanism (existing), performance should improve: the fresh pipeline run in `forward.nix` is eliminated. The source resolution already happens in phase 1, and the forward result is just a module transformation (no pipeline overhead).
+**Limitation:** Modules injected in phase 2 cannot themselves use `provide-to`. If a cross-host module also needs cross-class forwarding (e.g., fleet SSH config that also needs home-manager integration), that must be expressed as class keys on the injected module directly. This is acceptable — cross-class forwarding within a single entity uses class keys, which already work.
+
+### Forward mechanism migration
+
+`forward.nix` currently starts a fresh `den.lib.aspects.resolve` call, losing all parent context. The migration:
+
+- Step 1 (resolve source class): stays in phase 1 — the source aspect's pipeline still runs normally.
+- Steps 2-4 (mapModule, guards, adapters): stay in phase 1 — these transform the resolved module.
+- The **result** of steps 1-4 is emitted as a `provide-to` instead of being returned directly as a class key. The orchestration layer injects it into the target.
+
+The adapter/guard/mapModule machinery in `forward.nix` stays intact. Only the routing of the final result changes — from a direct class key return to a `provide-to` emission.
+
+### Target routing: graph-based, context-type agnostic
+
+The `provide-to` routing follows the `den.ctx` transition graph. The emitter's position in the graph determines where emissions land:
+
+| Emitter scope | Target ctx type | Routing | Result |
+|---|---|---|---|
+| host aspect | `peer` (sibling host) | follows parent's `into.peer` | sibling hosts |
+| host aspect | `user` (child) | follows `host.into.user` | my host's users |
+| environment aspect | `host` (child) | follows `environment.into.host` | environment's hosts |
+| host aspect | `["peer", "user"]` | multi-hop: peers, then their users | users on other hosts |
+
+Single-hop targets (string): one step through the transition graph.
+Multi-hop targets (list): walk the graph, fanning out at each step.
+
+This is context-type agnostic — works for any ctx node including user-defined ones (environments, clusters, regions, fleets).
+
+### Effect shape
+
+```nix
+{
+  target = "<ctx-name>" | ["<ctx-name>" ...];
+  content = <aspect attrset with dendritic class keys>;
+  emitterCtx = "<ctx-name>";  # set by handler, not user
+}
+```
+
+The `emitterCtx` tells the orchestration layer where in the transition graph the emission originated. Set automatically by the handler from the pipeline's current ctx state.
+
+Cross-entity contributions are dendritic — they have class keys (`nixos`, `homeManager`, custom classes) just like any aspect. The target's pipeline processes them normally. No `module.nixos` wrapper needed.
 
 ### Cycle prevention
 
 - Phase 1 completes fully before phase 2 begins
 - Phase 2 pipeline runs do NOT install `provideToHandler`
-- No resolution result from phase 1 is required to START phase 2 — only the collected `provideTo` state (a list of emission records)
-- Guard functions are closures over phase 1 data — they don't trigger new resolution
+- No resolution result from phase 1 is required to START phase 2 — only the collected `provideTo` state
+- Guard/filter logic uses `lib.optionalAttrs` in regular Nix (closures over phase 1 data), not a special mechanism
 
 ## Architecture
 
@@ -162,43 +189,31 @@ For the forward mechanism (existing), performance should improve: the fresh pipe
 
 | Component | Location | Purpose |
 |---|---|---|
-| `provideToHandler` | `handlers/provide-to.nix` | Collects `provide-to` emissions in state |
-| `distributeProvideTo` | `pipeline.nix` or new `orchestrate.nix` | Groups emissions by target, injects into target pipelines |
-| `den.provides.to` | `modules/aspects/provides/` | Sugar: `den.provides.to "<ctx>" { guard?; module; }` — emits graph-routed `provide-to` |
+| `provideToHandler` | `handlers/provide-to.nix` | Collects cross-entity emissions in state |
+| `distributeProvideTo` | `pipeline.nix` or new `orchestrate.nix` | Walks transition graph, groups emissions by target, injects into target configs |
+| Orchestration changes | `osConfigurations.nix` | Phase 2 distribution after host resolution |
 
 ### Pipeline state additions
 
 ```nix
 defaultState = {
   # ... existing ...
-  provideTo = _: [];  # Thunk chain (same as imports/deferredIncludes)
+  provideTo = _: [];  # Thunk chain (same pattern as imports/deferredIncludes)
 };
 ```
 
-### Pipeline API change
+### Pipeline API
 
-`fxFullResolve` already returns `{ value, state }`. The `state.provideTo` field is new but follows the existing pattern (`state.imports`, `state.deferredIncludes`). Callers that only use `fxResolve` (which extracts `state.imports null`) are unaffected.
-
-### Orchestration changes
-
-`osConfigurations.nix` currently:
-1. Defines `into.flake-os = { system }: map (host: { host }) hosts`
-2. Defines `provides.flake-os = _: osFwd` where osFwd calls `forward.nix`
-
-With provide-to:
-1. Same transition definition (unchanged)
-2. `osFwd` emits `provide-to` for the forward result instead of returning class keys directly
-3. New: after all hosts resolve, `osConfigurations.nix` collects `provideTo` from the pipeline state and injects fleet/cross-host emissions into target host configs
-
-The orchestration change is the largest implementation piece. It requires `osConfigurations.nix` to have access to the full pipeline result (not just the module system output), which means it may need to use `fxFullResolve` instead of going through the transition handler.
+`fxFullResolve` already returns `{ value, state }`. The `state.provideTo` field is new but follows existing patterns. Callers that only use `fxResolve` (extracts `state.imports null`) are unaffected.
 
 ### Migration path
 
-1. Add `provideToHandler` to `defaultHandlers` in `pipeline.nix`
-2. Add `distributeProvideTo` orchestration function
-3. Refactor `osConfigurations.nix` to call `distributeProvideTo` after host resolution
-4. Migrate `forward.nix` to emit `provide-to` for the transformed module
-5. Add `den.provides.to` sugar and cross-host test
+1. **Pre-work:** Restore `scope.stateful` for transitions (fixes problem 2)
+2. Add `provideToHandler` to `defaultHandlers` in `pipeline.nix`
+3. Add `distributeProvideTo` orchestration function
+4. Refactor `osConfigurations.nix` to call `distributeProvideTo` after host resolution
+5. Migrate `forward.nix` to emit `provide-to` for the transformed module
+6. Add cross-entity test (fleet `/etc/hosts`, haproxy backend registration)
 
 Note: the existing `provides.to-users` / `provides.to-hosts` pattern (`mutual-provider.nix`) is left as-is. It operates within the host-user mutual pipeline and has 30+ usages. `provide-to` is for cross-entity forwarding that mutual-provider cannot handle (sibling hosts, cross-subtree targeting). A future migration could unify them, but it's not in scope here.
 
@@ -208,33 +223,30 @@ Note: the existing `provides.to-users` / `provides.to-hosts` pattern (`mutual-pr
 - The core effect handlers (constantHandler, classCollector, chainHandler, etc.)
 - The `aspectToEffect` / `compileStatic` compilation
 - Single-entity resolution (only multi-entity orchestration changes)
-- The `intoCtxType` merge or transition handler internals
+- The `intoCtxType` merge or transition handler internals (beyond scope.stateful pre-work)
 
 ## Test: Cross-host `/etc/hosts` generation
 
 ```nix
-# Cross-host fleet forwarding: each host contributes its entry to all other hosts' /etc/hosts.
-# Uses den-level entity metadata (host.meta.ip) — NOT resolved NixOS config values.
 test-fleet-etc-hosts = denTest ({ den, lib, igloo, iceberg, ... }: {
   den.hosts.x86_64-linux.igloo.users.tux = {};
   den.hosts.x86_64-linux.iceberg.users.tux = {};
 
-  # IP addresses as den-level metadata on the host entity
   den.hosts.x86_64-linux.igloo.meta.ip = "10.0.0.1";
   den.hosts.x86_64-linux.iceberg.meta.ip = "10.0.0.2";
 
-  # Fleet aspect: each host publishes its IP to sibling hosts
-  den.aspects.fleet-hosts.includes = [
-    ({ host, ... }:
-      den.provides.to "host" {  # "host" from a host aspect = sibling hosts
-        guard = targetCtx: lib.mkIf (targetCtx.host.name != host.name);
-        module = { networking.extraHosts = "${host.meta.ip} ${host.name}"; };
-      }
-    )
-  ];
+  # Peer transition: each host fans out to sibling hosts
+  den.ctx.host.into.peer = { host }:
+    map (h: { peer = h; })
+      (filter (h: h.name != host.name) (attrValues den.hosts.${host.system}));
 
-  den.aspects.igloo.includes = [ den.aspects.fleet-hosts ];
-  den.aspects.iceberg.includes = [ den.aspects.fleet-hosts ];
+  # Cross-provider: each host publishes its IP to peers
+  den.ctx.host.provides.peer = { host }: { peer }: {
+    nixos.networking.extraHosts = "${host.meta.ip} ${host.name}";
+  };
+
+  den.aspects.igloo = {};
+  den.aspects.iceberg = {};
 
   expr = {
     igloo-hosts = igloo.networking.extraHosts;
@@ -247,10 +259,69 @@ test-fleet-etc-hosts = denTest ({ den, lib, igloo, iceberg, ... }: {
 });
 ```
 
-The test uses `host.meta.ip` — den entity metadata available before any NixOS resolution. No fixpoint risk: the provide-to closure captures the source host's entity data, and the target's pipeline doesn't depend on the source's resolution.
+## Test: Cross-host haproxy backend registration
+
+```nix
+test-haproxy-backend-registration = denTest ({ den, lib, ... }: {
+  den.hosts.x86_64-linux.lb = {};
+  den.hosts.x86_64-linux.web1 = {};
+  den.hosts.x86_64-linux.web2 = {};
+
+  den.hosts.x86_64-linux.lb.meta.ip = "10.0.0.1";
+  den.hosts.x86_64-linux.web1.meta.ip = "10.0.0.2";
+  den.hosts.x86_64-linux.web2.meta.ip = "10.0.0.3";
+
+  den.aspects.lb.includes = [ den.aspects.loadbalancer ];
+  den.aspects.loadbalancer.nixos.services.haproxy.enable = true;
+
+  den.aspects.web1.includes = [ den.aspects.webserver ];
+  den.aspects.web2.includes = [ den.aspects.webserver ];
+
+  # Peer transition
+  den.ctx.host.into.peer = { host }:
+    map (h: { peer = h; })
+      (filter (h: h.name != host.name) (attrValues den.hosts.${host.system}));
+
+  # Webserver aspect: serves nginx locally, registers backend with LB peers
+  den.aspects.webserver = { host, ... }: {
+    nixos.services.nginx = {
+      enable = true;
+      virtualHosts."app".locations."/".proxyPass = "http://localhost:8080";
+    };
+
+    # Regular parametric include — { peer } resolved via host.into.peer
+    includes = [
+      ({ peer, ... }:
+        lib.optionalAttrs (peer.hasAspect den.aspects.loadbalancer) {
+          nixos.services.haproxy.frontends.app.backends = [
+            { address = host.meta.ip; port = 8080; }
+          ];
+        }
+      )
+    ];
+  };
+
+  expr = {
+    lb-has-haproxy = lb.services.haproxy.enable;
+    lb-backends = lb.services.haproxy.frontends.app.backends;
+    web1-has-nginx = web1.services.nginx.enable;
+  };
+  expected = {
+    lb-has-haproxy = true;
+    lb-backends = [
+      { address = "10.0.0.2"; port = 8080; }
+      { address = "10.0.0.3"; port = 8080; }
+    ];
+    web1-has-nginx = true;
+  };
+});
+```
+
+Both tests use den-level entity metadata (`host.meta.ip`), not resolved NixOS config. No fixpoint risk — `provide-to` closures capture source entity data; the target's pipeline doesn't depend on the source's resolution.
 
 ## Success criteria
 
-- Cross-host forwarding works (fleet `/etc/hosts` test passes)
+- Pre-work: `scope.stateful` restores transition context propagation
+- Cross-entity forwarding works (fleet and haproxy tests pass)
 - `forward.nix` migration: forward results distributed via `provide-to` instead of fresh pipeline runs
 - No performance regression for configs without cross-entity contributions
