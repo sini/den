@@ -184,9 +184,62 @@ let
     let
       childArgs = child.__functionArgs or { };
       childScopeHandlers = child.__scopeHandlers or { };
+      guard = child.meta.contextGuard or null;
       isParametric = childArgs != { } && child ? __functor;
+
+      # contextGuard match logic: compare scope handler keys against guard.keys.
+      guardMatch =
+        if guard != null then
+          let
+            scopeKeys = builtins.sort builtins.lessThan (builtins.attrNames childScopeHandlers);
+            guardKeys = guard.keys;
+            guardType = guard.type;
+            allGuardKeysPresent = builtins.all (k: childScopeHandlers ? ${k}) guardKeys;
+            anyGuardKeyPresent = builtins.any (k: childScopeHandlers ? ${k}) guardKeys;
+            hasExtras = builtins.any (k: !(builtins.elem k guardKeys)) scopeKeys;
+          in
+          if guardType == "exactly" then
+            if scopeKeys == guardKeys then "match"
+            else if allGuardKeysPresent && hasExtras then "drop"
+            else "defer"
+          else if guardType == "atLeast" then
+            if allGuardKeysPresent then "match"
+            else "defer"
+          else if guardType == "upTo" then
+            if anyGuardKeyPresent then "match"
+            else "defer"
+          else
+            builtins.throw "contextGuard: unknown type '${guardType}'"
+        else
+          null;
     in
-    if isParametric then
+    if guard != null then
+      if guardMatch == "match" then
+        emitIncludes {
+          __parentScopeHandlers = childScopeHandlers;
+          __parentCtxId = child.__ctxId or null;
+        } [ guard.aspect ]
+      else if guardMatch == "drop" then
+        builtins.trace "contextGuard: DROP ${child.name or "?"} (type=${guard.type}, scopeKeys=${toString (builtins.attrNames childScopeHandlers)})" (fx.pure [])
+      else
+        # defer: emit stub + defer-include for later resolution
+        let
+          stub = {
+            name = child.name or "<anon>";
+            meta = (child.meta or { }) // {
+              deferred = true;
+            };
+            includes = [ ];
+          };
+        in
+        fx.bind (fx.send "resolve-complete" stub) (
+          _:
+          fx.bind (fx.send "defer-include" {
+            inherit child;
+            requiredArgs = guard.keys;
+          }) (_: fx.pure [ ])
+        )
+    else if isParametric then
       let
         # Filter out args available in __scopeHandlers (pure check, no effects needed).
         # Remaining args are probed via has-handler against root handlers.
