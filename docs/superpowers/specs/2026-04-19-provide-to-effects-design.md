@@ -20,6 +20,16 @@ Problem 2 (transition propagation) is fixable without provide-to. The ctx-as-dat
 
 **Note:** Use `scope.stateful` (preserves parent state) not `scope.run` (replaces state).
 
+**What goes away:**
+- `__ctx` — context values tagged on aspect attrsets. Replaced by scoped handlers that provide context to the entire subtree naturally.
+- `__parentCtx` / `__parentCtxId` — manual plumbing to propagate context from parent to children's includes. Scoped handlers propagate automatically — children inherit parent handlers.
+
+**What stays (identity, not context):**
+- `__ctxId` — distinguishes fan-out instances (`tux/{igloo}` vs `tux/{iceberg}`) for module dedup. Still needed, but computed by the transition handler from the fan-out values, no longer derived from `__ctx`.
+- `__parametricResolved` — tells `classCollectorHandler` whether to preserve `__ctxId` in module keys. Parametric resolutions produce different content per context and must not dedup.
+
+**Deferred includes** (`defer-include`/`drain-deferred`): with scope.stateful, the common case (`{ host }` in user scope) resolves immediately because `host` is in the handler scope. Multi-hop cases (include needs an arg from a deeper transition) still need deferral. Fewer triggers, but the mechanism stays.
+
 This pre-work fixes problem 2 but NOT problems 1 (forward) or 3 (cross-entity). Those require provide-to.
 
 ## Rejected alternatives
@@ -190,7 +200,8 @@ Cross-entity contributions are dendritic — they have class keys (`nixos`, `hom
 | Component | Location | Purpose |
 |---|---|---|
 | `provideToHandler` | `handlers/provide-to.nix` | Collects cross-entity emissions in state |
-| `distributeProvideTo` | `pipeline.nix` or new `orchestrate.nix` | Walks transition graph, groups emissions by target, injects into target configs |
+| `transitionHandler` changes | `handlers/transition.nix` | Routing decision: child transitions emit locally (existing), sibling transitions emit `provide-to` (new). The transition handler decides based on whether the target ctx type matches the emitter's — same type = sibling, different type = child. |
+| `distributeProvideTo` | `pipeline.nix` or new `orchestrate.nix` | Walks transition graph, groups emissions by target entity, injects into target configs |
 | Orchestration changes | `osConfigurations.nix` | Phase 2 distribution after host resolution |
 
 ### Pipeline state additions
