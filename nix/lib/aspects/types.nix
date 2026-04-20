@@ -193,7 +193,7 @@ let
           __functor = lib.mkOption {
             internal = true;
             visible = false;
-            description = "Functor — default tags aspect with __ctx for pipeline context propagation";
+            description = "Functor — default tags aspect with __ctx for context-guard matching";
             type = lastFunctionTo (providerType cnf);
             defaultText = lib.literalExpression "self: ctx: self // { __ctx = ctx; }";
             default = self: ctx: self // { __ctx = ctx; };
@@ -206,13 +206,6 @@ let
             default = [ ];
           };
 
-          __ctx = lib.mkOption {
-            internal = true;
-            visible = false;
-            description = "Context values for parametric child resolution (set by fixedTo/expands/transitions)";
-            type = lib.types.lazyAttrsOf lib.types.unspecified;
-            default = { };
-          };
 
           __functionArgs = lib.mkOption {
             internal = true;
