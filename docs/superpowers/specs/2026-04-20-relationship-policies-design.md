@@ -91,11 +91,40 @@ Each key desugars to an anonymous policy:
 { from = "host"; to = "user"; resolve = fn; }
 ```
 
+### Activation model
+
+Policies are *available* when their module is imported (from den batteries or external flakes) but *active* only when enabled. Same pattern as den batteries (`den.provides.mutual-provider`).
+
+**Three activation levels:**
+
+```nix
+# 1. Den core — fundamental relationships, always active.
+#    Defined in modules/context/host.nix etc., users don't touch these.
+#    (host→user, host→default, user→default, user→home chain)
+
+# 2. den.default.relationships — cross-cutting, user opt-in.
+#    Applies to all contexts.
+den.default.relationships = [
+  den.relationships.host-to-users
+  den.relationships.mutual-provider
+];
+
+# 3. den.ctx.<kind>.relationships — scoped opt-in.
+#    Applies only when resolving that entity kind.
+den.ctx.host.relationships = [
+  den.relationships.host-to-peers
+];
+```
+
+**Battery pattern:** a battery module defines the policy in `den.relationships.*` (available). The user enables it via `den.default.relationships` or `den.ctx.<kind>.relationships` (active). Same as `den.ctx.user.includes = [ den.provides.mutual-provider ]` today.
+
+**External flakes:** an external flake can provide policies in its flake module. The user imports the flake and enables its policies — no implicit activation from imports.
+
 ### Formal vs inline
 
 **Formal** (`den.relationships.*`) for: reusable patterns, bidirectional relationships, cross-cutting concerns (ACL), custom entity types.
 
-**Inline** (`den.ctx.*.into`) for: simple one-off transitions, quick prototyping.
+**Inline** (`den.ctx.*.into`) for: simple one-off transitions, quick prototyping. Inline declarations are always active on their ctx node (backwards compat with current `into`).
 
 Both compile to the same effect handlers.
 
@@ -425,6 +454,8 @@ den.aspects.webserver = { host, ... }: {
 ## What's new
 
 - `den.relationships` option for formal policy declarations
+- `den.default.relationships` for cross-cutting policy activation
+- `den.ctx.<kind>.relationships` for scoped policy activation
 - Per-relationship effect handlers
 - `provideToHandler` for cross-entity collection
 - `distributeProvideTo` orchestration function
