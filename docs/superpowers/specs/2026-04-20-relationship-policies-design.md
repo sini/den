@@ -585,3 +585,15 @@ The pipeline needs `scope.provide` because constantHandler bindings are stateles
 - Parametric type separation: `__fn`/`__args` replace `__functor`/`__functionArgs` on pipeline wrappers
 - `__scope`/`__parentScope` removal: derive from `__scopeHandlers` at point of use
 - `resolvedCtx` removal: parametric shims stamp `__scopeHandlers` directly via `constantHandler`
+
+---
+
+## TL;DR
+
+**Entity types** (host, user, cluster) define structure. **Relationship policies** define topology — how entities connect. Policies are first-class data in `den.relationships`, activated via `den.default.relationships` or scoped to a kind/instance.
+
+At pipeline time, policies compile into **per-relationship named effect handlers**. The transition handler sends `"host-to-users"` instead of reading `into` data. One handler per relationship = clear traces.
+
+When a relationship targets a **sibling entity** (same type as emitter, e.g., host→peer-host), resolved modules route through a **two-phase provide-to mechanism**: phase 1 collects, phase 2 distributes to target configs. No fixed-point — source captures entity metadata, not evaluated config.
+
+`__functor` is removed from all submodule-evaluated attrsets. `ctxApply` becomes an internal function. The current `into`/`ctxApply`/`forward` interfaces become shims over the new system.
