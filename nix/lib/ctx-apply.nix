@@ -6,8 +6,8 @@
 #
 # __ctx carries the initial context value to the pipeline entry point
 # (fxResolveTree extracts it for defaultHandlers).
-# __scope carries a handler-closure (scope.stateful partially applied)
-# so aspectToEffect can resolve parametric args in separate pipeline runs.
+# __scopeHandlers carries handler data so aspectToEffect can derive
+# scope.provide at point of use for parametric arg resolution.
 { lib, den, ... }:
 let
   fx = den.lib.fx;
@@ -54,9 +54,8 @@ let
       provides = self.provides or { };
       includes = self.includes or [ ];
       # Carry context to the pipeline entry point (seeds state.currentCtx
-      # for into functions). __scope handles parametric arg resolution.
+      # for into functions). __scopeHandlers handles parametric arg resolution.
       __ctx = ctx;
-      __scope = fx.effects.scope.provide (constantHandler ctx);
       __scopeHandlers = constantHandler ctx;
     };
 in

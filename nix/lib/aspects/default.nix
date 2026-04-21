@@ -54,12 +54,12 @@ let
             meta = resolved.meta or { };
             includes = resolved.includes or [ ];
           }
-          // lib.optionalAttrs (resolved ? __scope) { inherit (resolved) __scope; }
+          // lib.optionalAttrs (resolved ? __scopeHandlers) { inherit (resolved) __scopeHandlers; }
         else
           resolved;
       # Extract __ctx from ctxApply-tagged aspects. Seeds state.currentCtx
       # so into functions receive the initial context values. Parametric arg
-      # resolution uses __scope handler-closures instead.
+      # resolution uses __scopeHandlers instead.
       ctx = resolved.__ctx or { };
     in
     fx.pipeline.fxResolve {

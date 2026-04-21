@@ -114,7 +114,6 @@ let
       in
       if pass then
         emitIncludes {
-          __parentScope = condNode.__scope or null;
           __parentScopeHandlers = condNode.__scopeHandlers or null;
           __parentCtxId = condNode.__ctxId or null;
         } condNode.meta.aspects
@@ -153,7 +152,7 @@ let
   handlers = den.lib.aspects.fx.handlers;
 
   # Keep: resolve via aspectToEffect (which emits resolve-complete internally).
-  # Context is provided by handler-closures (__scope) or root constantHandler.
+  # Context is provided by handler-closures (__scopeHandlers) or root constantHandler.
   #
   # For parametric children, check if each required arg has a handler:
   # 1. Check __scopeHandlers (handler-closure's handlers) — pure Nix check
@@ -232,21 +231,19 @@ let
   isMeaningfulName =
     name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
 
-  # The handler. param is { child, idx, __parentScope? } from emitIncludes.
+  # The handler. param is { child, idx, __parentScopeHandlers? } from emitIncludes.
   includeHandler = {
     "emit-include" =
       { param, state }:
       let
         rawChild = param.child or param;
         idx = param.idx or null;
-        parentScope = param.__parentScope or null;
         wrapped = wrapChild rawChild;
         parentCtxId = param.__parentCtxId or null;
         parentScopeHandlers = param.__parentScopeHandlers or null;
-        # Propagate parent's __scope (handler-closure) and __ctxId to child.
+        # Propagate parent's __scopeHandlers and __ctxId to child.
         withScope =
           wrapped
-          // lib.optionalAttrs (parentScope != null && !(wrapped ? __scope)) { __scope = parentScope; }
           // lib.optionalAttrs (parentScopeHandlers != null && !(wrapped ? __scopeHandlers)) {
             __scopeHandlers = parentScopeHandlers;
           }
@@ -257,9 +254,9 @@ let
             withScope // { name = nameAnon state idx (withScope.__ctxId or null); }
           else
             withScope;
-        _ti = builtins.trace "includeHandler: name=${child.name or "?"} scope=${toString (child ? __scope)} isParametric=${
-          toString ((child.__args or { }) != { })
-        }";
+        _ti = builtins.trace "includeHandler: name=${child.name or "?"} scope=${
+          toString (child ? __scopeHandlers)
+        } isParametric=${toString ((child.__args or { }) != { })}";
         childIdentity = identity.pathKey (identity.aspectPath child);
         isConditional = builtins.isAttrs child && child ? meta && child.meta ? guard;
       in
