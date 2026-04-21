@@ -78,7 +78,7 @@ let
       # aspectToEffect applies this around bind.fn to resolve parametric args.
       # __scopeHandlers stored separately for state-transparent probing via scope.provide.
       scopeHandlers = constantHandler scopedCtx;
-      scopeFn = fx.effects.scope.stateful scopeHandlers;
+      scopeFn = fx.effects.scope.provide scopeHandlers;
       tagged = targetAspect // {
         __scope = scopeFn;
         __scopeHandlers = scopeHandlers;
@@ -123,39 +123,53 @@ let
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
       # Emit cross-provider result by tagging with __scope and resolving.
+      isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
       emitCrossProvider =
         scopedCtx: scopeFn: scopeHandlers: ctxId: prevResults:
         if crossProvider != null then
           let
-            # Call crossProvider with only the args it accepts, not the full
-            # scopedCtx. Curried providers (e.g. { name }: { shout }: ...) take
-            # the source ctx first; extra keys would cause unexpected-arg errors.
-            crossProviderArgs = lib.functionArgs crossProvider;
-            crossCtx =
-              if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
-            crossResult = crossProvider crossCtx;
-            # Wrap bare functions as parametric aspects for aspectToEffect.
+            # Parametric wrappers with named args are resolved by aspectToEffect
+            # directly — just tag with scope and pass through.
+            # Positional-arg wrappers (__args == {}) must be called with ctx
+            # first to get the actual provider function (e.g. _: osFwd becomes osFwd).
             wrapped =
-              if lib.isFunction crossResult && !builtins.isAttrs crossResult then
-                {
-                  name = "${sourceAspect.name or "?"}.provides.${targetKey}";
-                  meta = { };
-                  __functor = _: crossResult;
-                  __functionArgs = lib.functionArgs crossResult;
-                  __scope = scopeFn;
-                  __scopeHandlers = scopeHandlers;
-                  __ctx = scopedCtx;
-                  __ctxId = ctxId;
-                  includes = [ ];
-                }
-              else
-                crossResult
+              if isParametricWrapper crossProvider && crossProvider.__args != { } then
+                crossProvider
                 // {
                   __scope = scopeFn;
                   __scopeHandlers = scopeHandlers;
                   __ctx = scopedCtx;
                   __ctxId = ctxId;
-                };
+                }
+              else
+                let
+                  # For parametric wrappers with empty args, call __fn with ctx.
+                  # For bare functions, call directly.
+                  rawFn = if isParametricWrapper crossProvider then crossProvider.__fn else crossProvider;
+                  crossProviderArgs = lib.functionArgs rawFn;
+                  crossCtx =
+                    if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
+                  crossResult = rawFn crossCtx;
+                in
+                if lib.isFunction crossResult && !builtins.isAttrs crossResult then
+                  {
+                    name = "${sourceAspect.name or "?"}.provides.${targetKey}";
+                    meta = crossProvider.meta or { };
+                    __fn = crossResult;
+                    __args = lib.functionArgs crossResult;
+                    __scope = scopeFn;
+                    __scopeHandlers = scopeHandlers;
+                    __ctx = scopedCtx;
+                    __ctxId = ctxId;
+                  }
+                else
+                  crossResult
+                  // {
+                    __scope = scopeFn;
+                    __scopeHandlers = scopeHandlers;
+                    __ctx = scopedCtx;
+                    __ctxId = ctxId;
+                  };
           in
           fx.bind (aspectToEffect wrapped) (crossResolved: fx.pure (prevResults ++ [ crossResolved ]))
         else
@@ -209,7 +223,7 @@ let
                 );
                 # Build handler-closure for this transition context.
                 scopeHandlers = constantHandler scopedCtx;
-                scopeFn = fx.effects.scope.stateful scopeHandlers;
+                scopeFn = fx.effects.scope.provide scopeHandlers;
                 # Update state.currentCtx so nested transitions' intoFn
                 # receives accumulated context.
                 updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });

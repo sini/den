@@ -24,7 +24,6 @@ let
     "provides"
     "into"
     "__functor"
-    "__functionArgs"
     "__parametricResolved"
     "_module"
   ];
@@ -57,7 +56,7 @@ let
       # Carry context to the pipeline entry point (seeds state.currentCtx
       # for into functions). __scope handles parametric arg resolution.
       __ctx = ctx;
-      __scope = fx.effects.scope.stateful (constantHandler ctx);
+      __scope = fx.effects.scope.provide (constantHandler ctx);
       __scopeHandlers = constantHandler ctx;
     };
 in

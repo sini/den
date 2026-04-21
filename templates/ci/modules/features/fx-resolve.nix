@@ -51,16 +51,14 @@
         aspect = {
           name = "web";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host }:
             {
               nixos.networking.hostName = host;
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect aspect;
         result = fx.handle {
@@ -87,16 +85,14 @@
         child = {
           name = "child";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host }:
             {
               nixos.networking.hostName = host;
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         parent = {
           name = "parent";
@@ -137,16 +133,14 @@
         parent = {
           name = "dev";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { user }:
             {
               includes = [ staticChild ];
             };
-          __functionArgs = {
+          __args = {
             user = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect parent;
         result = fx.handle {
@@ -209,7 +203,7 @@
       }
     );
 
-    # Parametric aspect: __functor and __functionArgs are NOT in resolved output.
+    # Parametric aspect: __fn and __args are NOT in resolved output.
     test-owned-stripping-parametric = denTest (
       { den, ... }:
       let
@@ -217,18 +211,16 @@
         aspect = {
           name = "test";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host }:
             {
               nixos = {
                 hostName = host;
               };
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect aspect;
         result =
@@ -244,14 +236,14 @@
       in
       {
         expr = {
-          hasFunctor = result ? __functor;
-          hasFunctionArgs = result ? __functionArgs;
+          hasFn = result ? __fn;
+          hasArgs = result ? __args;
           hasNixos = result ? nixos;
           hasName = result ? name;
         };
         expected = {
-          hasFunctor = false;
-          hasFunctionArgs = false;
+          hasFn = false;
+          hasArgs = false;
           hasNixos = true;
           hasName = true;
         };
@@ -274,18 +266,16 @@
         parametricChild = {
           name = "param-child";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host }:
             {
               nixos = {
                 hostName = host;
               };
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         parent = {
           name = "parent";
@@ -327,16 +317,14 @@
         aspect = {
           name = "web";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host }:
             {
               nixos.networking.hostName = host;
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         ctx = {
           host = "igloo";
@@ -375,18 +363,16 @@
         aspect = {
           name = "multi";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host, user }:
             {
               nixos.networking.hostName = host;
               home.username = user;
             };
-          __functionArgs = {
+          __args = {
             host = false;
             user = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect aspect;
         result =
@@ -421,16 +407,14 @@
         aspect = {
           name = "broken";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host }:
             {
               nixos.networking.hostName = host;
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect aspect;
       in

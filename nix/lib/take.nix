@@ -25,23 +25,22 @@ let
       fn
     else
       lib.warn "den.lib.take.exactly is deprecated — bind.fn resolves args from handlers" {
-        __functor =
-          self: resolvedArgs:
+        __fn =
+          resolvedArgs:
           let
             hasExtras = builtins.any (k: resolvedArgs ? ${k}) extraKeys;
           in
-          if hasExtras then { } else fn (lib.intersectAttrs (lib.genAttrs requiredKeys (_: null)) resolvedArgs);
-        __functionArgs = funcArgs;
-        includes = [ ];
+          if hasExtras then
+            { }
+          else
+            fn (lib.intersectAttrs (lib.genAttrs requiredKeys (_: null)) resolvedArgs);
+        __args = funcArgs;
       };
 
   take.atLeast =
-    fn:
-    lib.warn "den.lib.take.atLeast is deprecated — bind.fn resolves args from handlers" fn;
+    fn: lib.warn "den.lib.take.atLeast is deprecated — bind.fn resolves args from handlers" fn;
 
-  take.upTo =
-    fn:
-    lib.warn "den.lib.take.upTo is deprecated — bind.fn resolves args from handlers" fn;
+  take.upTo = fn: lib.warn "den.lib.take.upTo is deprecated — bind.fn resolves args from handlers" fn;
 
   # Deprecated: custom predicate form.
   take.__functor =

@@ -278,8 +278,7 @@ in
               meta = {
                 provider = [ ];
               };
-              __functor =
-                _:
+              __fn =
                 { host }:
                 {
                   nixos.hostName = host;
@@ -306,10 +305,9 @@ in
                     }
                   ];
                 };
-              __functionArgs = {
+              __args = {
                 host = false;
               };
-              includes = [ ];
             }
           ];
         };

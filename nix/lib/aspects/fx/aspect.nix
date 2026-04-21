@@ -15,8 +15,9 @@ let
     "includes"
     "provides"
     "into"
+    "__fn"
+    "__args"
     "__functor"
-    "__functionArgs"
     "__ctx"
     "__scope"
     "__scopeHandlers"
@@ -129,12 +130,14 @@ let
       provides = aspect.provides or { };
       providerVal = provides.${name};
       scopeHandlers = aspect.__scopeHandlers or null;
-      scopeFn = if scopeHandlers != null then fx.effects.scope.stateful scopeHandlers else null;
+      scopeFn = if scopeHandlers != null then fx.effects.scope.provide scopeHandlers else null;
       # Entry-point ctx for positional-arg providers only.
       ctx = aspect.__ctx or { };
       # Extract real function args for bind.fn resolution.
       innerFn =
-        if builtins.isAttrs providerVal && providerVal ? __functor then
+        if builtins.isAttrs providerVal && providerVal ? __fn then
+          providerVal.__fn
+        else if builtins.isAttrs providerVal && lib.isFunction providerVal then
           providerVal.__functor providerVal
         else
           providerVal;
@@ -163,9 +166,8 @@ let
               {
                 inherit name;
                 meta = providerMeta;
-                __functor = _: resolved;
-                __functionArgs = resolvedArgs;
-                includes = [ ];
+                __fn = resolved;
+                __args = resolvedArgs;
               }
               // lib.optionalAttrs (scopeFn != null) { __parentScope = scopeFn; }
               // lib.optionalAttrs (scopeHandlers != null) { __parentScopeHandlers = scopeHandlers; }
@@ -182,9 +184,8 @@ let
             {
               inherit name;
               meta = providerMeta;
-              __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
-              __functionArgs = providerArgs;
-              includes = [ ];
+              __fn = if lib.isFunction innerFn then innerFn else _: providerVal;
+              __args = providerArgs;
             }
             // lib.optionalAttrs (scopeFn != null) { __parentScope = scopeFn; }
             // lib.optionalAttrs (scopeHandlers != null) { __parentScopeHandlers = scopeHandlers; }
@@ -211,7 +212,7 @@ let
     { isMeaningful, nodeIdentity }:
     let
       scopeHandlers = aspect.__scopeHandlers or null;
-      scopeFn = if scopeHandlers != null then fx.effects.scope.stateful scopeHandlers else null;
+      scopeFn = if scopeHandlers != null then fx.effects.scope.provide scopeHandlers else null;
       ctxId = aspect.__ctxId or null;
       childResolution = fx.bind (emitSelfProvide aspect) (
         selfProvResults:
@@ -269,14 +270,14 @@ let
   aspectToEffect =
     aspect:
     let
-      userArgs = aspect.__functionArgs or { };
-      isParametric = userArgs != { } && aspect ? __functor;
+      userArgs = aspect.__args or { };
+      isParametric = userArgs != { };
       scopeHandlers = aspect.__scopeHandlers or null;
-      scopeFn = if scopeHandlers != null then fx.effects.scope.stateful scopeHandlers else null;
+      scopeFn = if scopeHandlers != null then fx.effects.scope.provide scopeHandlers else null;
     in
     if isParametric then
       let
-        fn = aspect.__functor aspect;
+        fn = aspect.__fn;
         _t = builtins.trace "aspectToEffect: name=${aspect.name or "?"} parametric args=${toString (builtins.attrNames userArgs)} scope=${
           if scopeFn != null then "yes" else "no"
         }";
@@ -311,20 +312,12 @@ let
                   config = true;
                   options = true;
                 } resolved;
-              # Strip __functor/__functionArgs from resolved child so
-              # aspectToEffect routes to compileStatic, not parametric.
-              # TODO: becomes true identity once __functor/__functionArgs
-              # options are removed from the aspect submodule type.
-              forwardWrap =
-                child:
-                builtins.removeAttrs child [
-                  "__functor"
-                  "__functionArgs"
-                ];
+              # Identity — __functor/__functionArgs options removed from
+              # aspect submodule type. Resolved children don't carry spurious attrs.
+              forwardWrap = child: child;
               next =
                 if lib.isFunction resolved && !builtins.isAttrs resolved then
                   if isResolvedSubmoduleFn then
-                    # Submodule fn: merge through aspect type to get proper attrset
                     let
                       merged = den.lib.aspects.types.aspectType.merge (aspect.meta.loc or [ (aspect.name or "<anon>") ]) [
                         {
@@ -337,9 +330,8 @@ let
                   else
                     base
                     // {
-                      __functor = _: resolved;
-                      __functionArgs = lib.functionArgs resolved;
-                      includes = [ ];
+                      __fn = resolved;
+                      __args = lib.functionArgs resolved;
                     }
                 else
                   forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
@@ -350,9 +342,9 @@ let
               resolvedCtxHandlers = if resolvedCtx != { } then constantHandler resolvedCtx else null;
               resolvedScope =
                 if resolvedCtx != { } && scopeFn != null then
-                  comp: scopeFn (fx.effects.scope.stateful resolvedCtxHandlers comp)
+                  comp: scopeFn (fx.effects.scope.provide resolvedCtxHandlers comp)
                 else if resolvedCtx != { } then
-                  fx.effects.scope.stateful resolvedCtxHandlers
+                  fx.effects.scope.provide resolvedCtxHandlers
                 else
                   scopeFn;
               scopeHandlers = aspect.__scopeHandlers or null;
@@ -379,8 +371,8 @@ let
     else
       compileStatic (
         builtins.removeAttrs aspect [
-          "__functor"
-          "__functionArgs"
+          "__fn"
+          "__args"
         ]
       );
 

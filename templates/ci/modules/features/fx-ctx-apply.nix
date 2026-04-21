@@ -230,8 +230,7 @@ in
           into = ctx: {
             user = [ { user = "tux"; } ];
           };
-          __functor =
-            self:
+          __fn =
             { host }:
             {
               nixos = {
@@ -239,10 +238,9 @@ in
               };
               includes = [ ];
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect aspect;
         result = fx.handle {

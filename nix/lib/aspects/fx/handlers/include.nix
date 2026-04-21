@@ -28,27 +28,17 @@ let
       ];
 
   # Wrap bare function includes in an aspect envelope.
+  # lib.isFunction catches raw lambdas and real functor attrsets (ctx nodes,
+  # explicit wrappers). Plain aspects (no __functor after option removal) and
+  # parametric wrappers (__fn/__args, no __functor) skip to else → pass-through.
   wrapChild =
     child:
     if lib.isFunction child then
       (
-        # For attrset-with-functor children, extract the actual inner function
-        # to get the real args for bind.fn resolution. This bypasses stale
-        # __functionArgs on the attrset and gives aspectToEffect the correct
-        # isParametric decision.
         if builtins.isAttrs child then
           let
             innerFn = child.__functor child;
-            # innerFn may be a function (parametric) or a value (factory functor).
             innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
-            # NixOS module functions are deferred modules, not parametric aspects.
-            # Heuristic: any function accepting ONLY module-system args (lib, config,
-            # options) is treated as a module. Functions with extra args (host, user)
-            # are parametric. Edge case: { config, ... }: is classified as module —
-            # if a parametric aspect genuinely takes only { config }, wrap it in an
-            # aspect envelope with explicit __functionArgs instead.
-            # NixOS module functions wrapped in functors (e.g. by the type system's
-            # default __functor) should be normalized, not treated as parametric.
             isModuleFn =
               builtins.isFunction innerFn
               && den.lib.canTake.upTo {
@@ -62,19 +52,16 @@ let
           else
             child
             // {
-              # Preserve original __functor for wrappers that need self (e.g. perCtx
-              # reads self.__ctx). Only replace with unwrapped innerFn when the child
-              # uses the default aspect functor.
-              __functor =
-                if child ? __functionArgs && (child.__functionArgs or { }) != { } then
-                  child.__functor
+              __fn =
+                if child ? __args then
+                  child.__fn
+                else if builtins.isFunction innerFn then
+                  innerFn
                 else
-                  _: if builtins.isFunction innerFn then innerFn else _: innerFn;
-              # Preserve explicit __functionArgs if already set (e.g. by perHost/perUser
-              # wrappers). Only override with innerArgs if child has no explicit args.
-              __functionArgs =
+                  _: innerFn;
+              __args =
                 let
-                  explicit = child.__functionArgs or { };
+                  explicit = child.__args or { };
                 in
                 if explicit != { } then explicit else innerArgs;
               includes = child.includes or [ ];
@@ -82,12 +69,6 @@ let
         else
           let
             args = lib.functionArgs child;
-            # NixOS module functions are deferred modules, not parametric aspects.
-            # Heuristic: any function accepting ONLY module-system args (lib, config,
-            # options) is treated as a module. Functions with extra args (host, user)
-            # are parametric. Edge case: { config, ... }: is classified as module —
-            # if a parametric aspect genuinely takes only { config }, wrap it in an
-            # aspect envelope with explicit __functionArgs instead.
             isModuleFn = den.lib.canTake.upTo {
               lib = true;
               config = true;
@@ -100,9 +81,8 @@ let
             {
               name = child.name or "<anon>";
               meta = child.meta or { };
-              __functor = _: child;
-              __functionArgs = args;
-              includes = [ ];
+              __fn = child;
+              __args = args;
             }
       )
     else
@@ -182,9 +162,9 @@ let
   keepChild =
     child:
     let
-      childArgs = child.__functionArgs or { };
+      childArgs = child.__args or { };
       childScopeHandlers = child.__scopeHandlers or { };
-      isParametric = childArgs != { } && child ? __functor;
+      isParametric = childArgs != { };
     in
     if isParametric then
       let
@@ -278,7 +258,7 @@ let
           else
             withScope;
         _ti = builtins.trace "includeHandler: name=${child.name or "?"} scope=${toString (child ? __scope)} isParametric=${
-          toString ((child.__functionArgs or { }) != { } && child ? __functor)
+          toString ((child.__args or { }) != { })
         }";
         childIdentity = identity.pathKey (identity.aspectPath child);
         isConditional = builtins.isAttrs child && child ? meta && child.meta ? guard;

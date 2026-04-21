@@ -65,7 +65,24 @@ let
       defaultText = lib.literalExpression "_: { }";
       default = _: { };
     };
-    config.__functor = lib.mkForce ctxApply;
+    # Declared here (not on aspectSubmodule) so ctx nodes are callable
+    # via den.ctx.host { host = config; } while aspects stay plain attrsets.
+    options.__functor = lib.mkOption {
+      internal = true;
+      visible = false;
+      # Maximally lazy — takes last def without evaluating values.
+      # lib.types.anything forces evaluation during recursive merge,
+      # triggering config.den before it's available (circular).
+      type = lib.types.mkOptionType {
+        name = "lazyFunctor";
+        check = _: true;
+        merge = _: defs: (lib.last defs).value;
+      };
+    };
+    # Curried lambda so lib.isFunction returns true without forcing ctxApply.
+    # _: ctxApply would make isFunction evaluate the ctxApply thunk (which
+    # references config.den) during module loading — circular.
+    config.__functor = lib.mkForce (self: ctx: ctxApply self ctx);
   };
 
   ctxTreeType = lib.types.mkOptionType {
@@ -80,7 +97,6 @@ let
           "provides"
           "_"
           "includes"
-          "__functor"
           "_module"
         ];
         hasKey = x: builtins.any (k: x ? ${k}) ctxNodeKeys;

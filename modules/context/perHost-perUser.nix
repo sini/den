@@ -22,22 +22,23 @@ let
       # Required keys as required (false), extra keys as optional (true)
       funcArgs = lib.genAttrs reqKeysSorted (_: false) // lib.genAttrs extraKeys (_: true);
     in
-    lib.warn "den.lib.perCtx [${lib.concatStringsSep "," reqKeysSorted}] is deprecated — handler-based resolution makes context guards unnecessary" {
-      __functor =
-        self: resolvedArgs:
-        let
-          # If any extra key was resolved (handler exists), we're at a deeper level
-          hasExtras = builtins.any (k: resolvedArgs ? ${k}) extraKeys;
-        in
-        if hasExtras then
-          { }
-        else if lib.isFunction aspect && !builtins.isAttrs aspect then
-          aspect (lib.intersectAttrs (lib.genAttrs reqKeysSorted (_: null)) resolvedArgs)
-        else
-          aspect;
-      __functionArgs = funcArgs;
-      includes = [ ];
-    };
+    lib.warn
+      "den.lib.perCtx [${lib.concatStringsSep "," reqKeysSorted}] is deprecated — handler-based resolution makes context guards unnecessary"
+      {
+        __fn =
+          resolvedArgs:
+          let
+            # If any extra key was resolved (handler exists), we're at a deeper level
+            hasExtras = builtins.any (k: resolvedArgs ? ${k}) extraKeys;
+          in
+          if hasExtras then
+            { }
+          else if lib.isFunction aspect && !builtins.isAttrs aspect then
+            aspect (lib.intersectAttrs (lib.genAttrs reqKeysSorted (_: null)) resolvedArgs)
+          else
+            aspect;
+        __args = funcArgs;
+      };
 
   perHost = perCtx [ "host" ];
   perUser = perCtx [

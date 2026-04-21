@@ -41,7 +41,7 @@
       }
     );
 
-    # Attrset-with-functor parametric child — explicit __functionArgs with host.
+    # Attrset-with-fn parametric child — explicit __args with host.
     test-attrset-functor-host = denTest (
       { den, ... }:
       let
@@ -49,16 +49,14 @@
         child = {
           name = "child";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host }:
             {
               nixos.networking.hostName = host;
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         parent = {
           name = "parent";

@@ -184,17 +184,15 @@ in
             {
               name = "web";
               meta = { };
-              __functor =
-                _:
+              __fn =
                 { host }:
                 {
                   nixos.hostName = host;
                   includes = [ ];
                 };
-              __functionArgs = {
+              __args = {
                 host = false;
               };
-              includes = [ ];
             }
           ];
         };
