@@ -53,7 +53,8 @@ New: computation emits event → handler catches it → decides what to do
 - `collectPathsHandler` / `pathSetHandler` — records which aspects were resolved (for `hasAspect` and `includeIf` guards)
 - `ctxSeenHandler` — dedup for transitions (don't re-resolve the same ctx target)
 - `deferredIncludeHandler` / `drainDeferredHandler` — parks parametric includes whose args aren't available yet, resolves them later when context widens
-- `fx.effects.state.handler` — nix-effects state effect handler (from the library, not den)
+- `fx.effects.scope.provide` — nix-effects scope handler (state-transparent reader pattern). Installs `__scopeHandlers` for parametric resolution
+- `has-handler` effect — queries whether a named handler exists in scope (replaces earlier `probe-arg` effect). Used to check parametric arg availability before resolution
 
 **The trampoline** — The interpreter loop from `nix-effects`. Takes a computation and a handler set. Runs the computation step by step. When it hits an effect, calls the matching handler, gets a resume value, continues. Uses `genericClosure` for stack safety (no recursion limit).
 
@@ -66,36 +67,40 @@ New: computation emits event → handler catches it → decides what to do
 4. Each host's aspects are compiled via aspectToEffect
 5. Parametric aspects ({ host }: ...) get their args resolved via bind.fn
    → bind.fn sends a "host" effect
-   → a scoped constantHandler (built from the aspect's `__ctx`) provides the host entity
-   (with scope.stateful, this scoping happens automatically for the entire subtree)
+   → scope.provide installs __scopeHandlers (built via constantHandler) for the subtree
+   → the scoped handler provides the host entity back to bind.fn
 6. Each resolved aspect's class keys (nixos, homeManager) are emitted
 7. classCollectorHandler collects matching modules
 8. Result: list of NixOS modules for this host
 ```
 
-### Context as data vs. scoped handlers
+### Context propagation: __scopeHandlers and scope.provide
 
-The branch tried two approaches for providing context (host, user) to nested aspects:
+The branch went through several iterations on how context (host, user) reaches nested aspects:
 
-**Scoped handlers (scope.run):** Wrap a subtree's computation in a handler that provides context values. Any effect inside the scope sees the handler. Clean, but broken — effect rotation lost context when crossing scope boundaries.
+**Attempt 1 — scope.run:** Wrap a subtree in a handler. Clean, but effect rotation lost context crossing scope boundaries.
 
-**Context as data (__ctx tagging):** Tag each aspect with `__ctx = { host, user }`. When `aspectToEffect` sees `__ctx`, it wraps only the `bind.fn` call in a scoped handler. Simpler, but context doesn't propagate to children's includes automatically.
+**Attempt 2 — __ctx tagging (ctx-as-data):** Tag each aspect with `__ctx = { host, user }`. `aspectToEffect` wraps `bind.fn` in a scoped handler. Simpler, but context didn't propagate to children's includes automatically.
 
-The branch currently uses ctx-as-data. The spec proposes going back to scoped handlers (`scope.stateful`) now that nix-effects has **deep handler semantics** (commit `23965f1`) — the bug that broke scope.run is fixed.
+**Attempt 3 — scope.stateful:** State fork-join pattern. Worked with deep handlers but dropped 79% of class collector events because state forks are isolated — class emissions inside a scope.stateful block didn't reach the parent accumulator.
 
-### Why `__ctx` and `__parentCtx` exist (and why they should go away)
+**Current — scope.provide + __scopeHandlers:** The branch now uses `scope.provide` (state-transparent reader pattern from nix-effects). Transitions tag target aspects with `__scopeHandlers` — a plain attrset of handler records built via `constantHandler`. At point of use, `aspectToEffect` calls `fx.effects.scope.provide scopeHandlers` to install them for `bind.fn` resolution. This is transparent to state — class collector events pass through unchanged.
 
-These are **workarounds for broken scope.run**, not permanent architecture:
+The `__scope` and `__parentScope` attrs are removed. `__scopeHandlers` is the single source of truth for context. `fixedTo`/`expands` deprecation shims stamp `__scopeHandlers` directly via `constantHandler`. Parent and resolved `__scopeHandlers` are merged in the tagged block of `aspectToEffect`.
 
-- `__ctx` — A tag on aspect attrsets carrying context values (`{ host, user }`). Exists because `scope.run`/`scope.stateful` lost context during effect rotation. In the proper design, scoped handlers provide these values to the entire subtree.
-- `__parentCtx` — Manual plumbing to propagate `__ctx` from parent to children's includes. In the proper design, scoped handlers propagate naturally — children inherit parent handlers.
+`__ctx` remains only at entry points (ctxApply stamps it for positional-arg providers). `__parentCtx` is gone entirely — replaced by `__parentScopeHandlers` (handler propagation) and `__parentCtxId` (fan-out identity propagation).
 
-**If `scope.stateful` works with deep handlers, both go away.**
+### Internal `__`-prefixed tags
 
-Some `__`-prefixed tags **stay** because they serve identity/dedup, not context:
+With `scope.provide` in place, the context workarounds are mostly cleaned up:
 
-- `__ctxId` — Distinguishes fan-out instances (`tux/{igloo}` vs `tux/{iceberg}`). Without it, module dedup collapses distinct fan-out results. Stays, but computed by the transition handler instead of derived from `__ctx`.
-- `__parametricResolved` — Tells `classCollectorHandler` whether to preserve `__ctxId` in module keys. Parametric resolutions produce different content per context and must not dedup. Stays.
+- `__ctx` — **Stays at entry points only.** `ctxApply` stamps it for positional-arg providers (bare `_:` lambdas that can't use `bind.fn`). Not used for general context propagation — that's `__scopeHandlers` now.
+- `__parentCtx` — **Removed.** Replaced by `__parentScopeHandlers` (handler propagation to children) and `__parentCtxId` (fan-out identity propagation).
+- `__scope` / `__parentScope` — **Removed.** Were intermediate attempts at scope-based context. `__scopeHandlers` is the single source of truth.
+- `__scopeHandlers` — **New, stays.** Plain attrset of handler records (built via `constantHandler`). Transitions stamp this on target aspects. `aspectToEffect` installs them via `scope.provide`. `fixedTo`/`expands` shims also stamp this.
+- `__fn` / `__args` — **New, stays.** Parametric wrapper fields replacing `__functor`/`__functionArgs`. `__fn` is the resolution function, `__args` is the function args attrset. Detected by `isParametricWrapper` and the `parametricType` in `types.nix`.
+- `__ctxId` — **Stays.** Distinguishes fan-out instances (`tux/{igloo}` vs `tux/{iceberg}`). Computed by the transition handler.
+- `__parametricResolved` — **Stays.** Tells `classCollectorHandler` to preserve `__ctxId` in module keys (different content per context = don't dedup).
 
 ## What's different from main
 
@@ -125,13 +130,13 @@ The fx handlers on main were stubs that delegated to legacy code. This branch ma
 
 **`ctxApply`** (124→56 lines): On main, `ctxApply` did resolution — it called the provider function, merged results, handled transitions. Now it's just a bridge: tags the aspect with `__ctx` and preserves `into`/`provides`/`includes` for the pipeline to handle natively.
 
-**`types.nix`** (~210 lines changed): `providerType` reworked to wrap bare parametric functions with identity (name, meta.provider) from their declaration location. This enables `hasAspect` lookups on provider refs. On main, provider functions were opaque lambdas.
+**`types.nix`** (~210 lines changed): `providerType` reworked to wrap bare parametric functions with identity (name, meta.provider) from their declaration location. A `parametricType` with `isParametricWrapper` check now handles `{ __fn; __args; }` wrappers — `providerType.merge` early-exits for these, preventing submodule merge from capturing `__scopeHandlers` in freeform `deferredModule`. `__functor`/`__functionArgs` removed from `aspectSubmodule` — only `ctxSubmodule` (in `ctx-types.nix`) retains `__functor` for backward-compat callable ctx nodes. On main, provider functions were opaque lambdas.
 
 **`tree.nix`** (constraint cascading): `check-constraint` now uses prefix matching on identity paths, so excluding `monitoring` cascades to `monitoring/node-exporter`.
 
 ### Provider simplification across modules
 
-The most widespread change across `modules/`: removal of `parametric.fixedTo` and `parametric.exactly` wrappers from provider definitions. These existed to pin context values for the legacy resolver. With the fx pipeline's `__ctx` propagation (and eventually `scope.stateful`), providers are plain attrsets:
+The most widespread change across `modules/`: removal of `parametric.fixedTo` and `parametric.exactly` wrappers from provider definitions. These existed to pin context values for the legacy resolver. With the fx pipeline's `scope.provide` + `__scopeHandlers` propagation, providers are plain attrsets:
 
 ```nix
 # Before (on main):
@@ -143,19 +148,23 @@ den.ctx.host.provides.host = { host }: host.aspect;
 
 Affected: `host-aspects.nix`, `mutual-provider.nix`, `user-shell.nix`, `host.nix`, `user.nix`, `define-user.nix`, `inputs.nix`, `self.nix`, and more. The `__ctx` tag on the resolved aspect carries context that `fixedTo` used to pin explicitly.
 
-Also: `namespace.nix` now strips `__functor` and `__ctx` from namespace denfuls to prevent pipeline-internal tags from leaking into namespace definitions.
+Also: `namespace.nix` now strips `__fn`, `__args`, `__scopeHandlers`, and `__ctx` from namespace denfuls to prevent pipeline-internal tags from leaking into namespace definitions.
 
 **`has-aspect.nix`** (rewritten): Now uses the fx pipeline's `pathSet` (accumulated during resolution via `collectPathsHandler`) instead of running a separate legacy resolve.
 
 ### Key new mechanisms (not on main)
 
-- **`probe-arg` effect** — Asks "is this parametric arg available?" before trying to resolve. Enables skipping unresolvable includes instead of erroring.
-- **Deferred includes** — When `probe-arg` returns false, the include is parked in `state.deferredIncludes`. When context widens (a transition provides new args), deferred includes are drained and resolved.
+- **`parametricType` + `isParametricWrapper`** — A dedicated type in `types.nix` for `{ __fn; __args; }` wrappers. `providerType.merge` early-exits when it detects parametric wrappers, preventing submodule merge from capturing `__scopeHandlers` in freeform `deferredModule`.
+- **`scope.provide` for handler installation** — State-transparent reader pattern from nix-effects. `aspectToEffect` calls `fx.effects.scope.provide scopeHandlers` when `__scopeHandlers` is present. Replaced `scope.stateful` which dropped class collector events.
+- **`__scopeHandlers` as single context source** — Transitions, `fixedTo`, `expands` all stamp `__scopeHandlers` via `constantHandler`. Parent and resolved scopeHandlers merge in `aspectToEffect`'s tagged block.
+- **`has-handler` effect** — Replaces the earlier `probe-arg` effect. Queries the handler scope directly (including scoped handlers from `scope.provide`) to check if a parametric arg is available. Pure Nix check against `__scopeHandlers` first, then `has-handler` for root handlers.
+- **Deferred includes** — When `has-handler` returns false, the include is parked in `state.deferredIncludes`. When context widens (a transition provides new args), deferred includes are drained and resolved.
 - **`__ctxId` fan-out identity** — Each context value in a fan-out (e.g., 50 hosts) gets a unique identity suffix so module dedup doesn't collapse distinct results.
 - **`__parametricResolved` flag** — Marks aspects resolved through `bind.fn` so the class collector preserves their ctxId in module keys (different content per context = don't dedup).
 - **`mergeInto` for into defs** — Multiple `into` definitions (fn-form and attrset-form) now concatenate their context value lists instead of last-wins replacement.
-- **take.exactly/atLeast/upTo** — Reimplemented as context guards using `self.__ctx` matching, replacing the legacy `parametric.nix` machinery.
-- **perCtx wrappers** — `perHost`/`perUser`/`perHome` use `self.__ctx` exact match with includes-based structure for trace provenance.
+- **`fixedTo`/`expands` return parametric wrappers** — Deprecation shims produce `{ __fn; __args; __scopeHandlers; }` wrappers to survive `providerType` submodule merge.
+- **take.exactly/perCtx produce `__fn`/`__args` wrappers** — Deprecation shims updated to emit parametric wrappers instead of using `__functor`/`__functionArgs`.
+- **`config.den or {}` fallback** — `flakeOutputs.nix` uses graceful fallback for inner evalModules handling.
 
 ### Commit phases
 
@@ -169,49 +178,35 @@ Also: `namespace.nix` now strips `__functor` and `__ctx` from namespace denfuls 
 
 **Phase 5** (`f5f80529`–`16f3778e`): Targeted fixes — fan-out module dedup, has-aspect identity, positional-arg providers, integer ctxId, into merge.
 
-## Current test status: 458/464
+**Phase 6** (recent): Parametric type separation — `__fn`/`__args` replace `__functor`/`__functionArgs`, `parametricType` added, `scope.provide` replaces `scope.stateful`, `__scope`/`__parentScope`/`__parentCtx` removed, `fixedTo`/`expands`/`take`/`perCtx` shims updated to produce parametric wrappers, `meta.contextGuard` replaces `__functor` guards, `config.den or {}` fallback in `flakeOutputs.nix`.
 
-Six remaining failures, all related to **context not crossing resolution boundaries**:
+## Current test status: 431/464 tests pass (33 failures, 10 unique)
 
-| Test | Problem |
-|---|---|
-| forward-alias-class | `forward.nix` starts fresh pipeline, loses context |
-| forward-flake-level | Same — detectHost gets wrong args |
-| os-class | Same — nixosConfigurations not generated |
-| has-aspect E | User aspect can't see `host` from transition |
-| os-user | Same — parametric include needs `host` in user scope |
-| ctx-transformation | Mix of above + positional-arg includes |
+Down from 6 baseline failures before the scope.provide / parametricType changes landed. The new failures are concentrated in:
 
-## What's next: the spec
+| Area | Tests | Problem |
+|---|---|---|
+| perUser-perHost | perUser-perHost tests | Context propagation through fan-out transitions — `__scopeHandlers` not reaching nested perCtx wrappers correctly |
+| ctx-transformation | ctx-transformation | Mix of positional-arg includes and context guard mismatches |
+| standalone-homes | standalone-homes | Home-manager standalone configs not receiving host context through provide chain |
+| forward | forward-alias-class, forward-flake-level | `forward.nix` starts fresh pipeline, loses scoped handlers |
 
-The spec at `docs/superpowers/specs/2026-04-19-provide-to-effects-design.md` proposes:
+## What's next: relationship policies
 
-### Pre-work: scope.stateful for transitions
+The spec at `docs/superpowers/specs/2026-04-20-relationship-policies-design.md` proposes generalizing `into` transitions as first-class **relationship policies**.
 
-Now that deep handlers work in nix-effects, restore `scope.stateful` for transitions. This makes host/user available as handled effects for the entire subtree — fixing the 3 cross-scope failures without new machinery.
+### Core idea
 
-### provide-to: cross-entity forwarding
+Instead of `into` being a special-case fan-out mechanism, each relationship between entities (host→user, host→peer, user→home) is a named policy with:
 
-For the remaining cases (forward mechanism, cross-host contributions), a two-phase approach:
+- **Per-relationship named effect handlers** — Each relationship installs its own named handler (e.g., `"peer"` handler for host→peer). Aspects query the relationship by name via effects, not by convention.
+- **Two-phase provide-to** — Cross-entity routing (host A contributing config to host B) uses a collection phase followed by a distribution phase, replacing the need for forward.nix's fresh pipeline.
 
-**Phase 1** — The pipeline runs normally. When a transition targets a sibling entity (e.g., host→peer where peer is another host), the resolved modules are collected in `state.provideTo` instead of going to the current classCollector.
+### Immediate priorities
 
-**Phase 2** — After all entities resolve, the orchestration layer distributes collected modules to their targets. Injected modules are regular dendritic aspects with class keys. No re-resolution needed — just module list concatenation.
-
-Cross-entity contributions look like regular parametric aspects:
-
-```nix
-# Regular parametric include — { peer } resolved via host.into.peer
-({ peer, ... }:
-  lib.optionalAttrs (peer.hasAspect den.aspects.loadbalancer) {
-    nixos.services.haproxy.frontends.app.backends = [
-      { address = host.meta.ip; port = 8080; }
-    ];
-  }
-)
-```
-
-No special API. The pipeline detects cross-entity transitions and routes internally.
+1. **Fix remaining test failures** — The ~10 failures in perUser-perHost, ctx-transformation, and standalone-homes need targeted fixes to `__scopeHandlers` propagation.
+2. **Remove `__ctx` from non-entry-point paths** — Currently `__ctx` lingers in some include handler paths. It should only exist at ctxApply entry points.
+3. **Implement relationship policies** — Replace `into` with the generalized policy mechanism, enabling cross-entity contributions without special-case forward machinery.
 
 ## File map
 
@@ -231,7 +226,7 @@ nix/lib/
   ctx-apply.nix     — ctxApply (__functor for ctx nodes)
   forward.nix       — forwardEach (class-to-class forwarding)
   aspects/
-    types.nix       — aspectType, providerType, coercedProviderType
+    types.nix       — aspectType, providerType, parametricType, isParametricWrapper
     has-aspect.nix  — hasAspectIn, collectPathSet, mkEntityHasAspect
     default.nix     — fxResolveTree, resolve entry point
 
@@ -241,21 +236,27 @@ modules/outputs/
 
 ## Glossary
 
-- **Aspect** — A named, addressable config bundle. Has class keys (nixos, homeManager), includes (children), and optionally provides (sub-aspects) and into (transitions).
+- **Aspect** — A named, addressable config bundle. Has class keys (nixos, homeManager), includes (children), and optionally provides (sub-aspects) and into (transitions). Plain attrsets — no `__functor`.
 - **Effect** — A value emitted by a computation. The computation pauses until a handler provides a resume value. Like throwing an exception that gets caught and answered.
 - **Handler** — A function that catches a specific effect name and returns `{ resume; state; }`. Resume is the value sent back to the computation. State is the accumulated pipeline state.
 - **Trampoline** — The interpreter loop. Runs computations iteratively using `genericClosure` for stack safety. One step per effect.
 - **bind.fn** — Resolves a parametric function's named args by sending each arg name as an effect. `{ host }: ...` sends a "host" effect, gets the host entity back, calls the function.
 - **Class key** — A top-level key on an aspect that names a class: `nixos`, `homeManager`, `hjem`, etc. The classCollector only keeps modules for the target class.
 - **Transition** — An `into` declaration that fans out to child contexts. `host.into.user` creates one resolution per user on the host.
+- **Parametric wrapper** — An attrset with `__fn` (resolution function) and `__args` (function args). Replaces `__functor`/`__functionArgs`. Detected by `isParametricWrapper`. Survives `providerType` submodule merge via `parametricType` early-exit.
+- **scope.provide** — nix-effects primitive that installs handlers for a subtree without forking state. Used to install `__scopeHandlers` (context handlers) at point of use in `aspectToEffect`.
+- **__scopeHandlers** — Plain attrset of handler records (built via `constantHandler`). Single source of truth for context propagation. Stamped by transitions, `fixedTo`/`expands` shims, and merged in `aspectToEffect`.
+- **has-handler** — nix-effects effect that queries whether a named handler exists in the current scope. Replaces `probe-arg`. Used by the include handler to check parametric arg availability before resolution.
+- **constantHandler** — Handler factory in `ctx.nix`. Takes a ctx attrset (`{ host, user }`) and produces handlers that resume with the corresponding value when queried.
+- **Relationship policy** (future) — Generalization of `into` transitions. Each entity relationship is a named policy with its own effect handlers and cross-entity routing. Proposed in the relationship policies spec.
 - **Capability** (future) — Generalization of class keys. Any named activation point: a class, a feature flag, an entity name. Not yet implemented.
 
 ## TL;DR
 
 This branch deletes den's legacy recursive resolver (~450 lines across 4 files) and makes the fx effects pipeline the only pipeline. The fx handlers — previously stubs that delegated to legacy code — now own everything: include resolution, transitions, parametric args, context propagation, dedup, constraints.
 
-The biggest user-visible change: `parametric.fixedTo`/`parametric.exactly` wrappers are gone from providers. Context flows through the pipeline natively instead of being pinned manually.
+The biggest user-visible change: `parametric.fixedTo`/`parametric.exactly` wrappers are gone from providers. Context flows through the pipeline natively via `scope.provide` and `__scopeHandlers` instead of being pinned manually. Pipeline wrappers use `__fn`/`__args` instead of `__functor`/`__functionArgs`, with a dedicated `parametricType` that survives submodule merge.
 
-**458/464 tests pass.** The 6 remaining failures are all about context not crossing resolution boundaries (forward mechanism starts fresh pipelines, sibling hosts can't share config). The spec proposes fixing this with `scope.stateful` (now that deep handlers work) and a two-phase `provide-to` mechanism for cross-entity forwarding.
+\*\*431/464 tests pass\*\* (10 unique failures). Failures are concentrated in perUser-perHost, ctx-transformation, and standalone-homes tests. The next design direction is **relationship policies** — generalizing `into` transitions as first-class policies with per-relationship named effect handlers and two-phase provide-to for cross-entity routing.
 
 Net code change: +1118 / -1161 lines across 37 files. The pipeline grew (handlers do more), but the legacy layer it replaced was larger. `parametric.nix` went from 177 to 26 lines. `ctxApply` went from 124 to 56. The adapter layer (349 lines) is gone entirely.
