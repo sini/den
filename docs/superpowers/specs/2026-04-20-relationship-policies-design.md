@@ -389,16 +389,43 @@ den.relationships.host-acl-users = {
 };
 ```
 
-**Consuming the enriched context** — a parametric aspect receives `user-acl` alongside `user`:
+**Consuming the enriched context** — parametric aspects receive `user-acl` alongside `user`. The policy can also inject aspects into the resolution by including them in the context:
 
 ```nix
+# Base user account setup — consumes ACL data
 den.aspects.user-accounts = { host, user, user-acl, ... }: {
   nixos.users.users.${user.name} = {
     isNormalUser = true;
     extraGroups = user-acl.systemGroups;
   };
 };
+
+# Admin role aspect — sudo, ssh, monitoring tools
+den.aspects.admin-role = { host, user, ... }: {
+  nixos.security.sudo.extraRules = [{
+    users = [ user.name ];
+    commands = [{ command = "ALL"; options = [ "NOPASSWD" ]; }];
+  }];
+  homeManager.programs.ssh.enable = true;
+};
 ```
+
+The relationship policy attaches role aspects via `includes` in the enriched context:
+
+```nix
+# In the resolve function, include role-based aspects
+lib.optional hasLogin {
+  inherit environment host;
+  user = den.users.${username};
+  user-acl = { ... };
+  # Role aspects injected by the policy based on group membership
+  includes =
+    lib.optional (builtins.elem "admins" direct) den.aspects.admin-role
+    ++ lib.optional (builtins.elem "wheel" unixGroups) den.aspects.sudo-config;
+};
+```
+
+The pipeline processes these `includes` alongside the user's own aspect includes — the relationship policy controls not just *who* participates but *what roles they get*.
 
 **Pipeline context accumulation:**
 
