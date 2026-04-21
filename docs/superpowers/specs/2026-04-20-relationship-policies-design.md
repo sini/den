@@ -69,13 +69,20 @@ Multiple policies can share the same `from`/`to` pair.
 
 **Same-depth independence**: policies sharing the same `from` type at the same pipeline depth execute independently. Each sees the same input context. No sequential dependencies between them. Their results are unioned — all targets from all same-depth policies are resolved.
 
-**Dedup**: each relationship has its own dedup namespace, keyed by policy name + target entity identity. Two policies targeting the same entity kind don't interfere with each other's dedup.
+**Dedup** operates at two layers:
+- **Transition-level**: `ctx-seen` deduplicates by transition path key (same as today). Prevents re-entering the same context node via the same path. Two different policies targeting the same entity via different paths are NOT deduped at this layer — both resolve independently.
+- **Module-level**: the class collector deduplicates emitted modules by `loc` key (`class@aspectIdentity`). Static aspects reaching the same entity via different paths produce identical `loc` keys → kept once. Parametric aspects with different `__ctxId` are kept separately.
+- **Provide-to**: phase 2 module injection uses NixOS module `key` fields for dedup. Modules from different sources targeting the same entity with the same aspect identity produce the same key → NixOS keeps one. Custom provide-to modules without aspect identity should set explicit `key` fields.
 
 **Diamond resolution**: when the same entity is reachable via multiple paths (A→B→X and A→C→X), each path produces an independent resolution run. The class collector deduplicates by aspect identity + class key — identical aspects reaching the same entity via different paths produce the same dedup key and are kept once. Different aspects or parametric aspects with different contexts (`__ctxId`) are kept separately and NixOS module merge resolves any conflicts.
 
 **Conflict resolution**: policies are pure queries — they produce targets, not modules. Conflicts can only arise in the *modules* emitted for those targets. Since modules are injected into NixOS/homeManager evaluation, the standard NixOS module priority system handles conflicts. No custom conflict resolution needed at the policy level.
 
 **Ordering**: policies at the same depth execute in declaration order for determinism, but correctness must not depend on order.
+
+**Context key collisions**: the `as` field determines the context key name for the target entity. Two policies with the same `as` value targeting the same pipeline depth would collide — the last-evaluated overwrites. Policies with unique `as` values (or distinct `to` types) avoid this. Collisions should emit a trace warning.
+
+**Entity identity**: dedup and tracing require a consistent identity for each entity. Built-in types use `entity.name`. Custom entity types should provide an identity derivation (e.g., via a `name` field or a policy-level `identity` function). Entities without a `name` field use a hash of the context attrset as fallback.
 
 **Error handling**: if `resolve` returns a non-list, emit a trace warning and produce no fan-out. Empty list produces no fan-out silently. Missing entity types (typo in `from`/`to`) produce a warning at pipeline entry.
 
