@@ -421,24 +421,60 @@ den.aspects.fleet-hosts = { host, ... }: {
 
 Note: both examples use entity metadata (`host.meta.ip`), not resolved NixOS config. No fixpoint risk — provide-to closures capture source entity data.
 
-### Cross-host haproxy backend registration
+### Capability-labeled provides (haproxy backends)
+
+Provide-to emissions don't have to be NixOS modules. They can be **pure data labeled with a capability name**. The target aspect consumes the data and decides how to turn it into config.
+
+Two capability types at the same level:
+- **ClassModule** (`nixos`, `homeManager`, custom classes): module-shaped, emitted to class collector, target processes via NixOS module system.
+- **SemanticData** (`http-backends`, `dns-records`, custom labels): pure data, accumulated across sources, target aspect consumes via parametric args.
+
+Both flow through provide-to. Structural detection distinguishes them: module-shaped values → class emission. Data values → named capability accumulation.
 
 ```nix
-den.aspects.webserver = { host, ... }: {
-  nixos.services.nginx.enable = true;
+# Source aspects: webservers declare they're http backends (pure data).
+# They don't know haproxy config structure — just declare the capability.
+den.aspects.example-site = { host, ... }: {
+  nixos.services.nginx.virtualHosts."example.com".locations."/".proxyPass =
+    "http://localhost:8080";
 
-  # Regular parametric include — { peer } resolved via host-to-peers
-  includes = [
-    ({ peer, ... }:
-      lib.optionalAttrs (peer.hasAspect den.aspects.loadbalancer) {
-        nixos.services.haproxy.frontends.app.backends = [
-          { address = host.meta.ip; port = 8080; }
-        ];
-      }
-    )
+  # Labeled provide: "I am an http-backend" (SemanticData capability)
+  provide-to.http-backends = [
+    { address = host.meta.ip; port = 8080; vhost = "example.com"; }
   ];
 };
+
+den.aspects.foobar-site = { host, ... }: {
+  nixos.services.nginx.virtualHosts."foobar.com".locations."/".proxyPass =
+    "http://localhost:8081";
+
+  provide-to.http-backends = [
+    { address = host.meta.ip; port = 8081; vhost = "foobar.com"; }
+  ];
+};
+
+# Target aspect: loadbalancer is parametric on the http-backends capability.
+# bind.fn resolves http-backends from accumulated provide-to data across
+# all sources. Multiple providers → lists merge.
+den.aspects.loadbalancer = { http-backends, ... }: {
+  nixos.services.haproxy.enable = true;
+  nixos.services.haproxy.frontends = lib.listToAttrs (map (b: {
+    name = b.vhost;
+    value.backends = [{ inherit (b) address port; }];
+  }) http-backends);
+};
+
+# Wiring:
+den.aspects.web1.includes = [ den.aspects.example-site den.aspects.foobar-site ];
+den.aspects.lb.includes = [ den.aspects.loadbalancer ];
 ```
+
+The label (`http-backends`) IS the capability name. Sources append to it, the target requests it by name as a function arg. The pipeline accumulates all provide-to data with the same label into a merged list, then resolves it for the target via `bind.fn`.
+
+This separates concerns cleanly:
+- **Source** declares what it IS (an http backend) with structured data
+- **Target** declares what it NEEDS (http-backends) and produces config from it
+- Neither knows the other's internal configuration structure
 
 ---
 
