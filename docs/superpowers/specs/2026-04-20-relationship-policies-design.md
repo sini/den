@@ -266,7 +266,9 @@ den.environments.prod = {
   access.json = [ "admins" ];  # admin but no login
 };
 
+# Hosts declare their environment. Structure, not topology.
 den.hosts.x86_64-linux.cortex = {
+  environment = "prod";
   system-access-groups = [ "workstation-access" ];
   users.sini = {};
   users.json = {};
@@ -283,14 +285,17 @@ den.groups = {
 **Relationship policy declarations:**
 
 ```nix
-# Step 1: environment fans out to its hosts
+# Step 1: environment fans out to its hosts.
+# The policy queries all hosts whose environment field matches.
 den.relationships.environment-to-hosts = {
   from = "environment";
   to = "host";
-  # Each host gets { environment, host } in its pipeline context
   resolve = { environment }:
+    let
+      allHosts = lib.concatMap lib.attrValues (lib.attrValues den.hosts);
+    in
     map (host: { inherit environment host; })
-      (lib.attrValues environment.hosts);
+      (builtins.filter (h: h.environment == environment.name) allHosts);
 };
 
 # Step 2: host fans out to qualified users
