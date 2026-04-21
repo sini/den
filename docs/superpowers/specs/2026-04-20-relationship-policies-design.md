@@ -365,8 +365,38 @@ den.relationships.host-acl-users = {
             (g: (den.groups.${g}.scope or "") == "system") resolved;
         in builtins.any (g: builtins.elem g gates) systemScoped;
     in
-    map (name: { inherit environment host; user = den.users.${name}; })
-      (builtins.filter qualifies (builtins.attrNames environment.access));
+    lib.concatMap (username:
+      let
+        direct = environment.access.${username} or [];
+        resolved = transitiveMembers den.groups direct;
+        systemScoped = builtins.filter
+          (g: (den.groups.${g}.scope or "") == "system") resolved;
+        unixGroups = builtins.filter
+          (g: (den.groups.${g}.scope or "") == "unix") resolved;
+        hasLogin = builtins.any (g: builtins.elem g gates) systemScoped;
+      in
+      lib.optional hasLogin {
+        inherit environment host;
+        user = den.users.${username};
+        # Enriched context — derived ACL data rides alongside the entity
+        user-acl = {
+          enable = true;
+          systemGroups = map (g: g) unixGroups;
+          loginGroups = systemScoped;
+        };
+      }
+    ) (builtins.attrNames environment.access);
+};
+```
+
+**Consuming the enriched context** — a parametric aspect receives `user-acl` alongside `user`:
+
+```nix
+den.aspects.user-accounts = { host, user, user-acl, ... }: {
+  nixos.users.users.${user.name} = {
+    isNormalUser = true;
+    extraGroups = user-acl.systemGroups;
+  };
 };
 ```
 
@@ -377,11 +407,12 @@ entry: { environment = prod }
   ↓ environment-to-hosts
   { environment = prod, host = cortex }
     ↓ host-acl-users (queries den.users via environment.access)
-    { environment = prod, host = cortex, user = sini }  ← qualifies
+    { environment = prod, host = cortex, user = sini,
+      user-acl = { enable = true; systemGroups = ["wheel" "podman" ...]; } }
     # json does NOT appear — no system-scoped group intersects gates
 ```
 
-The host never declared `users.sini`. The relationship policy computed the user set from the environment's ACL and the global user registry. This is the key difference from the core `host-to-users` policy — the data source is external to the entity.
+The host never declared `users.sini`. The relationship policy computed both the user set AND per-user derived data (groups, enable) from the environment's ACL and the global user registry. Downstream aspects consume `user-acl` as a parametric arg — the ACL resolution is decoupled from the NixOS config it produces.
 
 ### Cross-host fleet `/etc/hosts`
 
