@@ -431,9 +431,25 @@ Two capability types at the same level:
 
 Both flow through provide-to. Structural detection distinguishes them: module-shaped values → class emission. Data values → named capability accumulation.
 
+**Relationship wiring:**
+
 ```nix
-# Source aspects: webservers declare they're http backends (pure data).
-# They don't know haproxy config structure — just declare the capability.
+# The host-to-peers relationship resolves which hosts are peers.
+# This was defined in the fleet example above.
+# web1 and web2 both see lb as a peer (and vice versa).
+den.relationships.host-to-peers = {
+  from = "host";
+  to = "host";
+  as = "peer";
+  resolve = { host }:
+    map (peer: { inherit peer; })
+      (filter (h: h.name != host.name) (attrValues den.hosts.${host.system}));
+};
+```
+
+**Source aspects** — webservers declare they're http backends (pure data, not NixOS config). Each site on the same host is a separate aspect. They don't know haproxy config structure:
+
+```nix
 den.aspects.example-site = { host, ... }: {
   nixos.services.nginx.virtualHosts."example.com".locations."/".proxyPass =
     "http://localhost:8080";
@@ -452,10 +468,11 @@ den.aspects.foobar-site = { host, ... }: {
     { address = host.meta.ip; port = 8081; vhost = "foobar.com"; }
   ];
 };
+```
 
-# Target aspect: loadbalancer is parametric on the http-backends capability.
-# bind.fn resolves http-backends from accumulated provide-to data across
-# all sources. Multiple providers → lists merge.
+**Target aspect** — loadbalancer is parametric on `http-backends`. `bind.fn` resolves the capability from accumulated provide-to data across all source peers:
+
+```nix
 den.aspects.loadbalancer = { http-backends, ... }: {
   nixos.services.haproxy.enable = true;
   nixos.services.haproxy.frontends = lib.listToAttrs (map (b: {
@@ -463,18 +480,31 @@ den.aspects.loadbalancer = { http-backends, ... }: {
     value.backends = [{ inherit (b) address port; }];
   }) http-backends);
 };
+```
 
-# Wiring:
+**Host wiring:**
+
+```nix
+den.hosts.x86_64-linux.web1 = {};
+den.hosts.x86_64-linux.web2 = {};
+den.hosts.x86_64-linux.lb = {};
+
 den.aspects.web1.includes = [ den.aspects.example-site den.aspects.foobar-site ];
+den.aspects.web2.includes = [ den.aspects.example-site ];  # only example.com
 den.aspects.lb.includes = [ den.aspects.loadbalancer ];
 ```
 
-The label (`http-backends`) IS the capability name. Sources append to it, the target requests it by name as a function arg. The pipeline accumulates all provide-to data with the same label into a merged list, then resolves it for the target via `bind.fn`.
+**Data flow:** the `host-to-peers` relationship fans out from each host to all siblings. When `web1` resolves, its `example-site` and `foobar-site` aspects emit `provide-to.http-backends` data. The transition handler detects sibling routing (`to = "host"` = same type) and collects the data in `state.provideTo`. In phase 2, the accumulated `http-backends` data from all sources is merged and installed as a handler on the target (`lb`). When `lb`'s `loadbalancer` aspect resolves, `bind.fn` resolves `{ http-backends }` from the installed handler.
+
+**SemanticData accumulation mechanism:** between phase 1 and phase 2, the orchestration layer groups `provide-to` emissions by target entity and label. For each target, accumulated data for each label is installed as a `constantHandler` binding — so `http-backends` becomes a named effect that resumes with the merged list. This is the same mechanism used for context args (`host`, `user`) but with data instead of entities.
+
+The label (`http-backends`) IS the capability name. Sources append to it, the target requests it by name as a function arg.
 
 This separates concerns cleanly:
 - **Source** declares what it IS (an http backend) with structured data
 - **Target** declares what it NEEDS (http-backends) and produces config from it
 - Neither knows the other's internal configuration structure
+- The relationship policy determines which sources are visible to which targets
 
 ---
 
@@ -540,6 +570,16 @@ den.lib.relationships.inspect {
 }
 # → { host-to-users = [{ host, user = tux }, ...]; host-to-peers = [...]; }
 ```
+
+## Implementation notes
+
+**Ctx nodes need a `kind` identifier.** The `ctxTreeType` recursive type doesn't pass the key name to the submodule. Relationship compilation needs to know "this node is kind=host" to match `from` declarations. Options: walk `den.ctx` at pipeline entry and label each node, or add a `kind` option to ctxSubmodule derived from the attribute path.
+
+**`provide-to` must be in `structuralKeys`.** If an aspect declares `provide-to.http-backends`, the pipeline must NOT treat `provide-to` as a class key. Add `"provide-to"` to `structuralKeys` in `aspect.nix`. `compileStatic` extracts `provide-to` keys and emits them as `"provide-to"` effects.
+
+**SemanticData accumulates between phases.** After phase 1, the orchestration layer groups `provide-to` emissions by target + label. For each target, labeled data is installed as `constantHandler` bindings on the target's phase 2 resolution. `bind.fn` resolves capability args (`http-backends`) the same way it resolves context args (`host`, `user`).
+
+**forward.nix creates nested pipeline runs.** Currently `forwardItem` calls `den.lib.aspects.resolve` directly (fresh pipeline). Converting to `provide-to` requires forward to emit effects within the existing pipeline instead of spawning nested runs. This is feasible because forward IS called inside the pipeline (via `emitCrossProvider` in `transition.nix`), but the `aspects.resolve` call must become a `provide-to` emission.
 
 ## Future work
 
