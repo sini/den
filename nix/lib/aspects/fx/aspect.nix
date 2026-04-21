@@ -254,10 +254,9 @@ let
   # effects all reach root handlers with shared state.
   #
   # Two cases:
-  # 1. __functionArgs has named args → parametric child.
-  #    Resolve args via bind.fn (scoped if __ctx present), compile the result.
-  # 2. Otherwise → static. Strip __functor/__functionArgs,
-  #    compile the attrset directly.
+  # 1. __args has named args → parametric wrapper.
+  #    Resolve args via bind.fn (scoped if __scopeHandlers present), compile the result.
+  # 2. Otherwise → static. Strip __fn/__args, compile the attrset directly.
   aspectToEffect =
     aspect:
     let
@@ -302,8 +301,8 @@ let
                   config = true;
                   options = true;
                 } resolved;
-              # Identity — __functor/__functionArgs options removed from
-              # aspect submodule type. Resolved children don't carry spurious attrs.
+              # Identity — parametric wrappers use __fn/__args, resolved
+              # children don't carry spurious functor attrs.
               forwardWrap = child: child;
               next =
                 if lib.isFunction resolved && !builtins.isAttrs resolved then
@@ -326,21 +325,12 @@ let
                 else
                   forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
               # Propagate __scopeHandlers and __ctxId so children inherit context.
-              # Compose with resolved result's __ctx (from fixedTo/expands)
-              # if present. The resolved ctx becomes additional scope handlers.
-              resolvedCtx = if builtins.isAttrs resolved then resolved.__ctx or { } else { };
-              resolvedCtxHandlers = if resolvedCtx != { } then constantHandler resolvedCtx else null;
+              # fixedTo/expands shims now stamp __scopeHandlers directly,
+              # so no need to extract resolved.__ctx.
               scopeHandlers = aspect.__scopeHandlers or null;
-              resolvedScopeHandlers =
-                if resolvedCtxHandlers != null && scopeHandlers != null then
-                  scopeHandlers // resolvedCtxHandlers
-                else if resolvedCtxHandlers != null then
-                  resolvedCtxHandlers
-                else
-                  scopeHandlers;
               tagged =
                 next
-                // lib.optionalAttrs (resolvedScopeHandlers != null) { __scopeHandlers = resolvedScopeHandlers; }
+                // lib.optionalAttrs (scopeHandlers != null) { __scopeHandlers = scopeHandlers; }
                 // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
                 // {
                   __parametricResolved = true;

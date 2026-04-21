@@ -110,10 +110,9 @@ let
               let
                 fn = (lib.last paramFns).value;
               in
-              # Attrsets with default __functor (already-evaluated aspect submodules)
-              # must pass through unchanged — wrapping would destroy their includes
-              # and name. Only wrap actual bare functions (raw lambdas) that need
-              # identity for hasAspect lookups.
+              # Already-evaluated aspect attrsets pass through unchanged —
+              # wrapping would destroy their includes and name. Only wrap
+              # bare functions (raw lambdas) as parametric wrappers.
               if builtins.isAttrs fn then
                 fn
               else
