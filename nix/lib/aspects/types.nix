@@ -72,7 +72,11 @@ let
           parametrics = builtins.filter (d: isParametricWrapper d.value) defs;
         in
         if parametrics != [ ] then
-          (lib.last parametrics).value
+          let
+            wrapper = (lib.last parametrics).value;
+            nameFromLoc = lib.last loc;
+          in
+          wrapper // lib.optionalAttrs (!(wrapper ? name) || wrapper.name == "<anon>") { name = nameFromLoc; }
         else
           let
             nonParametrics = builtins.filter (d: !isParametricWrapper d.value) defs;

@@ -18,8 +18,6 @@ let
     let
       args = lib.functionArgs fn;
       requiredKeys = builtins.filter (k: !args.${k}) (builtins.attrNames args);
-      extraKeys = builtins.filter (k: !(builtins.elem k requiredKeys)) allContextKeys;
-      funcArgs = lib.genAttrs requiredKeys (_: false) // lib.genAttrs extraKeys (_: true);
     in
     if requiredKeys == [ ] then
       fn
@@ -28,13 +26,24 @@ let
         __fn =
           resolvedArgs:
           let
-            hasExtras = builtins.any (k: resolvedArgs ? ${k}) extraKeys;
+            # __scopeKeys is injected by aspectToEffect when meta.exactMatch is set.
+            # It contains all scope handler keys so we can detect extra context beyond
+            # the function's declared args.
+            scopeKeys = resolvedArgs.__scopeKeys or [ ];
+            cleanArgs = builtins.removeAttrs resolvedArgs [ "__scopeKeys" ];
+            # Check 1: all required keys must be resolved
+            hasMissing = builtins.any (k: !(cleanArgs ? ${k})) requiredKeys;
+            # Check 2: no extra context beyond declared args
+            hasExtras = builtins.any (k: !(args ? ${k})) scopeKeys;
           in
-          if hasExtras then
+          if hasMissing || hasExtras then
             { }
           else
-            fn (lib.intersectAttrs (lib.genAttrs requiredKeys (_: null)) resolvedArgs);
-        __args = funcArgs;
+            fn (lib.intersectAttrs (lib.genAttrs requiredKeys (_: null)) cleanArgs);
+        # All args are optional so the wrapper is never deferred.
+        # Missing args are detected in __fn and produce {} (no-op).
+        __args = lib.mapAttrs (_: _: true) args;
+        meta.exactMatch = true;
       };
 
   take.atLeast =

@@ -41,6 +41,7 @@ let
         user.userName
       ];
       fromAspect = _: user.aspect;
+      fromCtx = _: { inherit host user; };
       adaptArgs = args: args // { osConfig = args.config; };
     };
 

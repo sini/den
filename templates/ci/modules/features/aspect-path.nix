@@ -236,13 +236,13 @@
         );
 
         expr = trace "nixos" den.aspects.role;
+        # perHost wrapper defers when no host context is available in the
+        # trace pipeline (ctx = {}). The deferred stub shows the name but
+        # no inner children.
         expected.trace = [
           "role"
           [ "leaf" ]
-          [
-            "param"
-            [ "param/<anon>:0" ]
-          ]
+          [ "param" ]
         ];
       }
     );

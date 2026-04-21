@@ -20,7 +20,24 @@ let
       staticIntoPath = if lib.isFunction intoPath then [ ] else intoPath;
 
       # Entities have .resolved (their context pipeline result); raw aspects don't.
-      asp = if fwd ? fromAspect then fwd.fromAspect item else item.resolved or item;
+      rawAsp = if fwd ? fromAspect then fwd.fromAspect item else item.resolved or item;
+      # Tag raw aspects with context so parametric includes can resolve.
+      # fromCtx provides the context attrset (e.g. { host, user }) for the
+      # forward's class pipeline. Without this, inline parametric includes
+      # like ({ host, ... }: ...) would be deferred and lost.
+      asp =
+        if fwd ? fromCtx && builtins.isAttrs rawAsp && !(lib.isFunction rawAsp) then
+          let
+            ctx = fwd.fromCtx item;
+            inherit (den.lib.aspects.fx.handlers) constantHandler;
+          in
+          rawAsp
+          // {
+            __ctx = ctx;
+            __scopeHandlers = (rawAsp.__scopeHandlers or { }) // constantHandler ctx;
+          }
+        else
+          rawAsp;
       sourceModule = mapModule (den.lib.aspects.resolve fromClass asp);
 
       forward =
