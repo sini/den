@@ -252,9 +252,49 @@ den.relationships.service-to-storage = {
 };
 ```
 
-### ACL resolution
+### ACL resolution (end-to-end)
+
+This example shows a full relationship chain: environment → host → user, where each step adds its entity to the pipeline context for downstream policies.
+
+**Entity type declarations:**
 
 ```nix
+# Typed records — structure only, no topology
+den.environments.prod = {
+  system-access-groups = [ "system-access" ];
+  access.sini = [ "admins" "wheel" "system-access" ];
+  access.json = [ "admins" ];  # admin but no login
+};
+
+den.hosts.x86_64-linux.cortex = {
+  system-access-groups = [ "workstation-access" ];
+  users.sini = {};
+  users.json = {};
+};
+
+den.groups = {
+  system-access = { scope = "system"; };
+  workstation-access = { scope = "system"; members = [ "system-access" ]; };
+  admins = { scope = "kanidm"; };
+  wheel = { scope = "unix"; };
+};
+```
+
+**Relationship policy declarations:**
+
+```nix
+# Step 1: environment fans out to its hosts
+den.relationships.environment-to-hosts = {
+  from = "environment";
+  to = "host";
+  # Each host gets { environment, host } in its pipeline context
+  resolve = { environment }:
+    map (host: { inherit environment host; })
+      (lib.attrValues environment.hosts);
+};
+
+# Step 2: host fans out to qualified users
+# Because environment-to-hosts ran first, { environment } is in the context
 den.relationships.host-login-users = {
   from = "host";
   to = "user";
@@ -264,17 +304,35 @@ den.relationships.host-login-users = {
         (environment.system-access-groups or [])
         ++ (host.system-access-groups or [])
       );
-      resolveGroups = user:
-        let direct = environment.access.${user.name} or [];
-        in transitiveMembers groups direct;
-      qualifies = user:
-        let resolved = resolveGroups user;
-            systemScoped = builtins.filter (g: (groups.${g}.scope or "") == "system") resolved;
-        in builtins.any (g: builtins.elem g gates) systemScoped;
+      qualifies = username:
+        let
+          direct = environment.access.${username} or [];
+          resolved = transitiveMembers den.groups direct;
+          systemScoped = builtins.filter
+            (g: (den.groups.${g}.scope or "") == "system")
+            resolved;
+        in
+        builtins.any (g: builtins.elem g gates) systemScoped;
+      qualifiedNames = builtins.filter qualifies
+        (builtins.attrNames host.users);
     in
-    builtins.filter qualifies (lib.attrValues environment.users);
+    map (name: { inherit environment host; user = host.users.${name}; })
+      qualifiedNames;
 };
 ```
+
+**Pipeline context accumulation:**
+
+```
+entry: { environment = prod }
+  ↓ environment-to-hosts
+  { environment = prod, host = cortex }
+    ↓ host-login-users
+    { environment = prod, host = cortex, user = sini }  ← qualifies (has system-access)
+    # json does NOT appear — no system-scoped group intersects gates
+```
+
+Each relationship adds its `to` entity to the context. Downstream policies see the full accumulated context via `bind.fn` resolution — same mechanism as parametric aspects.
 
 ### Cross-host fleet `/etc/hosts`
 
