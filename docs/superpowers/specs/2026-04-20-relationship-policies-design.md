@@ -279,22 +279,32 @@ den.relationships.host-login-users = {
 ### Cross-host fleet `/etc/hosts`
 
 ```nix
-# Peer relationship: each host fans out to sibling hosts
+# Peer relationship: each host fans out to sibling hosts.
+# to = "host" (same type as emitter) triggers provide-to routing.
 den.relationships.host-to-peers = {
   from = "host";
-  to = "host";  # same type = sibling = provide-to routing
+  to = "host";
   resolve = { host }:
     map (h: { peer = h; })
       (filter (h: h.name != host.name) (attrValues den.hosts.${host.system}));
 };
 
-# Cross-provider: each host publishes its IP to peers
-den.ctx.host.provides.peer = { host }: { peer }: {
-  nixos.networking.extraHosts = "${host.meta.ip} ${host.name}";
+# Aspect: each host publishes its IP to peers via parametric include.
+# The { peer } arg is resolved via the host-to-peers relationship.
+# Because peer is a sibling host, the transition handler routes this
+# through provide-to — the resolved nixos module lands in the peer's config.
+den.aspects.fleet-hosts = { host, ... }: {
+  includes = [
+    ({ peer, ... }: {
+      nixos.networking.extraHosts = "${host.meta.ip} ${host.name}";
+    })
+  ];
 };
 
 # Result: igloo gets "10.0.0.2 iceberg", iceberg gets "10.0.0.1 igloo"
 ```
+
+Note: both examples use entity metadata (`host.meta.ip`), not resolved NixOS config. No fixpoint risk — provide-to closures capture source entity data.
 
 ### Cross-host haproxy backend registration
 
@@ -357,9 +367,83 @@ den.aspects.webserver = { host, ... }: {
 - `distributeProvideTo` orchestration function
 - `den.lib.applyCtx` function (replaces functor call syntax)
 
+## What does NOT change
+
+- The nix-effects trampoline — no changes needed
+- Core effect handlers (constantHandler, classCollector, chainHandler, constraintRegistry)
+- `aspectToEffect` / `compileStatic` compilation
+- Single-entity resolution (only multi-entity orchestration changes)
+- The `__ctxId` / `__parametricResolved` identity/dedup mechanism
+
+## Rejected alternatives
+
+### Inherited context chain
+
+Thread parent context into child pipeline runs via an `inheritCtx` parameter. Simpler, but cycles are prevented by API discipline rather than by construction. Doesn't generalize to sibling-to-sibling forwarding.
+
+### Simpler ctx threading
+
+Fix `__parentCtx` propagation without new effects. Doesn't address cross-entity use case. The scope.provide migration subsumes this for parent-to-child propagation.
+
+## Pipeline state additions
+
+```nix
+defaultState = {
+  # ... existing (imports, pathSet, constraintRegistry, etc.) ...
+  provideTo = _: [];  # Thunk chain — same pattern as imports
+};
+```
+
+The thunk wrapping (`_: [...] ++ [param]`) prevents `deepSeq` from forcing aspect content that may reference lazy option defaults. `state.provideTo null` unwraps the chain.
+
+## Implementation components
+
+| Component | Location | Purpose |
+|---|---|---|
+| Relationship option type | `nix/lib/relationship-types.nix` (new) | Policy schema, registration |
+| Relationship module | `nix/nixModule/relationships.nix` (new) | `den.relationships` option |
+| Per-relationship handlers | `nix/lib/aspects/fx/handlers/relationship.nix` (new) | Compile policies → handlers |
+| `provideToHandler` | `nix/lib/aspects/fx/handlers/provide-to.nix` (new) | Cross-entity state collection |
+| `transitionHandler` changes | `nix/lib/aspects/fx/handlers/transition.nix` | Routing decision (child vs sibling) |
+| `distributeProvideTo` | `nix/lib/aspects/fx/pipeline.nix` or new | Phase 2 orchestration |
+| Orchestration changes | `modules/outputs/osConfigurations.nix` | Phase 2 distribution after host resolution |
+| Forward migration | `nix/lib/forward.nix` | Emit provide-to instead of fresh pipeline |
+
+## Migration path
+
+1. Add `den.relationships` option type and module
+2. Implement per-relationship effect handlers
+3. Shim `den.ctx.*.into` to register policies
+4. Update transition handler for effect-based dispatch + routing decision
+5. Add `provideToHandler` to `defaultHandlers`
+6. Add `distributeProvideTo` orchestration function
+7. Refactor `osConfigurations.nix` for phase 2 distribution
+8. Remove `__functor` from ctxSubmodule, update call sites to `den.lib.applyCtx`
+9. Migrate `forward.nix` to emit provide-to
+10. Add cross-entity tests (fleet, haproxy)
+
+## Success criteria
+
+- All existing tests pass (zero regressions)
+- Relationship policies express current host→user→home transitions
+- Cross-entity forwarding works (fleet `/etc/hosts`, haproxy backend tests)
+- `forward.nix` migration: results distributed via provide-to
+- No `__functor` on any submodule-evaluated attrset
+- No performance regression for configs without cross-entity contributions
+
+## scope.provide vs scope.stateful
+
+The pipeline uses `scope.provide` (not `scope.stateful`) for installing context handlers. The distinction matters:
+
+- `scope.stateful` does state fork-join via `state.update`. Inner state overwrites outer state — class collector mutations are lost (79% event drop observed in testing).
+- `scope.provide` installs handlers via `rotate` with state-discarding return. Rotated effects modify outer state directly. No state overwrite.
+- `scope.run` discards inner state entirely. Equivalent to `scope.provide` mechanically but signals "isolated execution" not "augment handlers."
+
+The pipeline needs `scope.provide` because constantHandler bindings are stateless (resume with constant, pass state through) while emit-class/emit-include effects that rotate outward must modify the shared root state.
+
 ## Pre-work completed
 
-- `scope.provide` migration (replaces `scope.stateful` for reader/val bindings)
-- Parametric type separation (`__fn`/`__args` replace `__functor`/`__functionArgs` on wrappers)
-- `__scope`/`__parentScope` removal (derive from `__scopeHandlers`)
-- `resolvedCtx` removal (parametric shims stamp `__scopeHandlers` directly)
+- `scope.provide` migration: all `scope.stateful` calls in aspect.nix, transition.nix, ctx-apply.nix replaced with `scope.provide` (commits `2b3ac91a`, `c9b428a4`)
+- Parametric type separation: `__fn`/`__args` replace `__functor`/`__functionArgs` on pipeline wrappers
+- `__scope`/`__parentScope` removal: derive from `__scopeHandlers` at point of use
+- `resolvedCtx` removal: parametric shims stamp `__scopeHandlers` directly via `constantHandler`
