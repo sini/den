@@ -65,13 +65,19 @@ Multiple policies can share the same `from`/`to` pair.
 
 ### Execution semantics
 
-**Independence**: policies with the same `from` type execute independently. Each sees the same input context. No sequential dependencies.
+**Depth-based ordering**: policies run at the depth determined by their `from` type in the entity graph. `environment-to-hosts` runs before `host-to-users` because the environment→host fan-out creates the host-level context that host-level policies consume. This ordering is implicit from the relationship graph, not declared.
 
-**Dedup**: each relationship has its own dedup namespace, keyed by policy name + target entity identity.
+**Same-depth independence**: policies sharing the same `from` type at the same pipeline depth execute independently. Each sees the same input context. No sequential dependencies between them. Their results are unioned — all targets from all same-depth policies are resolved.
 
-**Ordering**: policies execute in declaration order for determinism, but correctness must not depend on order.
+**Dedup**: each relationship has its own dedup namespace, keyed by policy name + target entity identity. Two policies targeting the same entity kind don't interfere with each other's dedup.
 
-**Error handling**: if `resolve` returns a non-list or empty list, no fan-out (no error). Missing entity types produce a warning at pipeline entry.
+**Diamond resolution**: when the same entity is reachable via multiple paths (A→B→X and A→C→X), each path produces an independent resolution run with its own context. Both module sets are injected into the target. NixOS module merge semantics (priorities, mkForce, etc.) resolve any conflicts between the resulting modules.
+
+**Conflict resolution**: policies are pure queries — they produce targets, not modules. Conflicts can only arise in the *modules* emitted for those targets. Since modules are injected into NixOS/homeManager evaluation, the standard NixOS module priority system handles conflicts. No custom conflict resolution needed at the policy level.
+
+**Ordering**: policies at the same depth execute in declaration order for determinism, but correctness must not depend on order.
+
+**Error handling**: if `resolve` returns a non-list, emit a trace warning and produce no fan-out. Empty list produces no fan-out silently. Missing entity types (typo in `from`/`to`) produce a warning at pipeline entry.
 
 ### Inline sugar on ctx nodes
 
@@ -379,11 +385,15 @@ Each relationship adds its `to` entity to the context. Downstream policies see t
 ```nix
 # Peer relationship: each host fans out to sibling hosts.
 # to = "host" (same type as emitter) triggers provide-to routing.
+# The context key is "peer" — an alias for the target entity in this
+# relationship. The routing decision uses the `to` declaration ("host"),
+# not the context key name.
 den.relationships.host-to-peers = {
   from = "host";
   to = "host";
+  as = "peer";  # context key name (default: same as `to`)
   resolve = { host }:
-    map (h: { peer = h; })
+    map (peer: { inherit peer; })
       (filter (h: h.name != host.name) (attrValues den.hosts.${host.system}));
 };
 
@@ -466,6 +476,34 @@ den.aspects.webserver = { host, ... }: {
 - `provideToHandler` for cross-entity collection
 - `distributeProvideTo` orchestration function
 - `den.lib.applyCtx` function (replaces functor call syntax)
+
+## Constraints
+
+**No config references in provide-to closures.** Source entities must capture entity metadata (e.g., `host.meta.ip`), not evaluated NixOS config (e.g., `config.networking.hostName`). This prevents fixpoint evaluation between source and target configs. Violation of this constraint causes infinite recursion. This is intentional — `provide-to` is a one-way push mechanism, not a bidirectional fixed-point like NixOps' `nodes.*` references.
+
+**Phase 2 module injection ordering.** Modules injected via provide-to are appended to the target's module list after locally-resolved modules. Ordering between provide-to sources follows the source entity's pipeline evaluation order (deterministic but arbitrary). Module correctness must not depend on injection order — use NixOS priorities (`mkDefault`, `mkForce`) if ordering matters.
+
+## Observability
+
+**Trace output**: one trace per relationship handler fired, showing policy name and target count. Existing pipeline traces (compileStatic, classCollector, includeHandler) are unaffected.
+
+**Inspection utility**: `den.lib.relationships.inspect` — given an entity kind and context, returns all applicable policies and their resolved targets without running the full pipeline. Cheap (just calls `resolve` functions). Essential for debugging "why did host X get this module?"
+
+```nix
+# Debug: what relationships fire for igloo?
+den.lib.relationships.inspect {
+  kind = "host";
+  context = { host = den.hosts.x86_64-linux.igloo; };
+}
+# → { host-to-users = [{ host, user = tux }, ...]; host-to-peers = [...]; }
+```
+
+## Future work
+
+- **Policy composition operators** (union, intersection, difference) — not needed now but possible extension
+- **Target-side opt-out** — entity declares `meta.relationshipExclusions` to refuse targeting by specific policies
+- **Memoization guidance** for expensive `resolve` functions (compute mapping once at module eval time)
+- **Bidirectional config access** — `provide-to` is one-way push; pulling target config requires fixed-point evaluation (NixOps model) which is explicitly out of scope
 
 ## What does NOT change
 
