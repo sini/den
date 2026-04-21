@@ -95,7 +95,7 @@ Each key desugars to an anonymous policy:
 
 Policies are *available* when their module is imported (from den batteries or external flakes) but *active* only when enabled. Same pattern as den batteries (`den.provides.mutual-provider`).
 
-**Three activation levels:**
+**Four activation levels:**
 
 ```nix
 # 1. Den core — fundamental relationships, always active.
@@ -109,9 +109,15 @@ den.default.relationships = [
   den.relationships.mutual-provider
 ];
 
-# 3. den.ctx.<kind>.relationships — scoped opt-in.
-#    Applies only when resolving that entity kind.
+# 3. den.ctx.<kind>.relationships — scoped to entity kind, user opt-in.
+#    Applies when resolving any entity of that kind.
 den.ctx.host.relationships = [
+  den.relationships.host-to-peers
+];
+
+# 4. Entity instance — scoped to a specific entity.
+#    Applies only when resolving this particular host/user/etc.
+den.hosts.x86_64-linux.igloo.relationships = [
   den.relationships.host-to-peers
 ];
 ```
