@@ -71,7 +71,7 @@ Multiple policies can share the same `from`/`to` pair.
 
 **Dedup**: each relationship has its own dedup namespace, keyed by policy name + target entity identity. Two policies targeting the same entity kind don't interfere with each other's dedup.
 
-**Diamond resolution**: when the same entity is reachable via multiple paths (A→B→X and A→C→X), each path produces an independent resolution run with its own context. Both module sets are injected into the target. NixOS module merge semantics (priorities, mkForce, etc.) resolve any conflicts between the resulting modules.
+**Diamond resolution**: when the same entity is reachable via multiple paths (A→B→X and A→C→X), each path produces an independent resolution run. The class collector deduplicates by aspect identity + class key — identical aspects reaching the same entity via different paths produce the same dedup key and are kept once. Different aspects or parametric aspects with different contexts (`__ctxId`) are kept separately and NixOS module merge resolves any conflicts.
 
 **Conflict resolution**: policies are pure queries — they produce targets, not modules. Conflicts can only arise in the *modules* emitted for those targets. Since modules are injected into NixOS/homeManager evaluation, the standard NixOS module priority system handles conflicts. No custom conflict resolution needed at the policy level.
 
