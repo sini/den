@@ -427,6 +427,8 @@ lib.optional hasLogin {
 
 The pipeline processes these `includes` alongside the user's own aspect includes — the relationship policy controls not just *who* participates but *what roles they get*.
 
+**How enriched context becomes parametric args:** the transition handler passes the entire context attrset from `resolve` to `constantHandler`, which creates a named effect handler for every key. `scope.provide` installs them. When `bind.fn` resolves `{ user, user-acl, ... }:`, it sends `"user-acl"` as an effect — the handler resumes with the value. Any key in the resolve output is automatically available as a parametric arg to downstream aspects.
+
 **Pipeline context accumulation:**
 
 ```
