@@ -302,53 +302,53 @@ den.relationships.service-to-storage = {
 
 ### ACL resolution (end-to-end)
 
-This example shows a full relationship chain: environment → host → user, where each step adds its entity to the pipeline context for downstream policies.
+This example shows the power of resolve functions querying external registries — not just the source entity's own fields. The environment owns user access bindings. The host doesn't declare its users; the relationship policy computes them from the environment's ACL.
 
-**Entity type declarations:**
+**Entity declarations:**
 
 ```nix
-# Typed records — structure only, no topology
+# Users are a global registry — not owned by any host
+den.users.sini = { identity.displayName = "Jason Bowman"; };
+den.users.json = { identity.displayName = "Jason"; };
+
+den.groups = {
+  system-access      = { scope = "system"; };
+  workstation-access  = { scope = "system"; members = [ "system-access" ]; };
+  admins = { scope = "kanidm"; };
+  wheel  = { scope = "unix"; };
+};
+
+# Environment binds users to groups — the access policy
 den.environments.prod = {
   system-access-groups = [ "system-access" ];
   access.sini = [ "admins" "wheel" "system-access" ];
-  access.json = [ "admins" ];  # admin but no login
+  access.json = [ "admins" ];  # admin, no login — no system-scoped group
 };
 
-# Hosts declare their environment. Structure, not topology.
+# Host declares its environment and additional gates. No users field.
 den.hosts.x86_64-linux.cortex = {
   environment = "prod";
   system-access-groups = [ "workstation-access" ];
-  users.sini = {};
-  users.json = {};
-};
-
-den.groups = {
-  system-access = { scope = "system"; };
-  workstation-access = { scope = "system"; members = [ "system-access" ]; };
-  admins = { scope = "kanidm"; };
-  wheel = { scope = "unix"; };
 };
 ```
 
-**Relationship policy declarations:**
+**Relationship policies:**
 
 ```nix
-# Step 1: environment fans out to its hosts.
-# The policy queries all hosts whose environment field matches.
+# Step 1: environment fans out to its hosts
 den.relationships.environment-to-hosts = {
   from = "environment";
   to = "host";
   resolve = { environment }:
-    let
-      allHosts = lib.concatMap lib.attrValues (lib.attrValues den.hosts);
-    in
-    map (host: { inherit environment host; })
+    let allHosts = lib.concatMap lib.attrValues (lib.attrValues den.hosts);
+    in map (host: { inherit environment host; })
       (builtins.filter (h: h.environment == environment.name) allHosts);
 };
 
-# Step 2: host fans out to qualified users
-# Because environment-to-hosts ran first, { environment } is in the context
-den.relationships.host-login-users = {
+# Step 2: host resolves users from the ENVIRONMENT's access registry.
+# The resolve function queries den.users (global registry) filtered by
+# the environment's ACL — not host.users.
+den.relationships.host-acl-users = {
   from = "host";
   to = "user";
   resolve = { host, environment }:
@@ -362,15 +362,11 @@ den.relationships.host-login-users = {
           direct = environment.access.${username} or [];
           resolved = transitiveMembers den.groups direct;
           systemScoped = builtins.filter
-            (g: (den.groups.${g}.scope or "") == "system")
-            resolved;
-        in
-        builtins.any (g: builtins.elem g gates) systemScoped;
-      qualifiedNames = builtins.filter qualifies
-        (builtins.attrNames host.users);
+            (g: (den.groups.${g}.scope or "") == "system") resolved;
+        in builtins.any (g: builtins.elem g gates) systemScoped;
     in
-    map (name: { inherit environment host; user = host.users.${name}; })
-      qualifiedNames;
+    map (name: { inherit environment host; user = den.users.${name}; })
+      (builtins.filter qualifies (builtins.attrNames environment.access));
 };
 ```
 
@@ -380,12 +376,12 @@ den.relationships.host-login-users = {
 entry: { environment = prod }
   ↓ environment-to-hosts
   { environment = prod, host = cortex }
-    ↓ host-login-users
-    { environment = prod, host = cortex, user = sini }  ← qualifies (has system-access)
+    ↓ host-acl-users (queries den.users via environment.access)
+    { environment = prod, host = cortex, user = sini }  ← qualifies
     # json does NOT appear — no system-scoped group intersects gates
 ```
 
-Each relationship adds its `to` entity to the context. Downstream policies see the full accumulated context via `bind.fn` resolution — same mechanism as parametric aspects.
+The host never declared `users.sini`. The relationship policy computed the user set from the environment's ACL and the global user registry. This is the key difference from the core `host-to-users` policy — the data source is external to the entity.
 
 ### Cross-host fleet `/etc/hosts`
 
