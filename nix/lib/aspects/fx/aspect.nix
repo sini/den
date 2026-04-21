@@ -325,12 +325,14 @@ let
                 else
                   forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
               # Propagate __scopeHandlers and __ctxId so children inherit context.
-              # fixedTo/expands shims now stamp __scopeHandlers directly,
-              # so no need to extract resolved.__ctx.
-              scopeHandlers = aspect.__scopeHandlers or null;
+              # Merge parent's scopeHandlers with resolved value's scopeHandlers
+              # (from fixedTo/expands shims that stamp __scopeHandlers on wrappers).
+              parentScopeHandlers = aspect.__scopeHandlers or { };
+              resolvedScopeHandlers = if builtins.isAttrs next then next.__scopeHandlers or { } else { };
+              mergedScopeHandlers = parentScopeHandlers // resolvedScopeHandlers;
               tagged =
                 next
-                // lib.optionalAttrs (scopeHandlers != null) { __scopeHandlers = scopeHandlers; }
+                // lib.optionalAttrs (mergedScopeHandlers != { }) { __scopeHandlers = mergedScopeHandlers; }
                 // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
                 // {
                   __parametricResolved = true;
