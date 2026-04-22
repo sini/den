@@ -4,9 +4,9 @@
 
 Three coupled problems in den's context transition system:
 
-1. **Hardcoded transition topology**: `into` functions on ctx nodes (`den.ctx.host.into.user`) couple topology to entity type definitions. Adding new entity types (kubernetes clusters, environments) requires new ctx nodes with custom wiring.
+1. **Hardcoded transition topology**: `into` functions on ctx nodes (`den.ctx.host.into.user`) couple topology to entity type definitions. Adding new entity types (kubernetes clusters, environments) requires new ctx nodes with custom wiring. (Note: `den.ctx` is being fully removed — see `2026-04-21-ctx-as-classes-design.md`. Current `into` transitions move to `den.relationships`; behavior on ctx nodes moves to `den.aspects`.)
 
-2. **`__functor` on submodule-evaluated attrsets**: ctx nodes need to be callable for `den.ctx.host { host = config; }`. The `__functor` causes `lib.isFunction` probing issues during NixOS module loading — forcing evaluation chains that reach `config.den` before it's available.
+2. **`__functor` on submodule-evaluated attrsets**: ctx nodes need to be callable for `den.ctx.host { host = config; }`. The `__functor` causes `lib.isFunction` probing issues during NixOS module loading — forcing evaluation chains that reach `config.den` before it's available. (Resolved by ctx removal — no more callable ctx nodes.)
 
 3. **No cross-entity module routing**: the pipeline resolves aspects in isolated scopes. Context flows down (parent to child) but not across entity boundaries. Host A can't contribute modules to host B's config (fleet `/etc/hosts`, haproxy backends). The forward mechanism starts fresh pipeline runs that lose parent context.
 
@@ -86,23 +86,30 @@ Multiple policies can share the same `from`/`to` pair.
 
 **Error handling**: if `resolve` returns a non-list, emit a trace warning and produce no fan-out. Empty list produces no fan-out silently. Missing entity types (typo in `from`/`to`) produce a warning at pipeline entry.
 
-### Inline sugar on ctx nodes
+### ~~Inline sugar on ctx nodes~~ (Removed)
 
-Ctx nodes can declare relationships inline via `into`. Key names map to entity types:
-
-```nix
-den.ctx.host.into = {
-  user = { host }: map (user: { inherit host user; }) (lib.attrValues host.users);
-  default = lib.singleton;
-};
-```
-
-Each key desugars to an anonymous policy:
-
-```nix
-# den.ctx.host.into.user = fn  →
-{ from = "host"; to = "user"; resolve = fn; }
-```
+> **Update (2026-04-21):** `den.ctx` is being fully removed per the Data/Relationships/Behavior separation spec. There is no inline sugar on ctx nodes. All relationships are declared via `den.relationships`. The examples below show the old syntax for historical context only.
+>
+> Previously, ctx nodes could declare relationships inline via `into`:
+> ```nix
+> # OLD — no longer supported after ctx removal:
+> den.ctx.host.into = {
+>   user = { host }: map (user: { inherit host user; }) (lib.attrValues host.users);
+>   default = lib.singleton;
+> };
+> ```
+>
+> These are now declared as:
+> ```nix
+> den.relationships.host-to-users = {
+>   from = "host"; to = "user";
+>   resolve = { host }: map (user: { inherit host user; }) (lib.attrValues host.users);
+> };
+> den.relationships.host-to-default = {
+>   from = "host"; to = "default";
+>   resolve = lib.singleton;
+> };
+> ```
 
 ### Activation model
 
@@ -112,7 +119,7 @@ Policies are *available* when their module is imported (from den batteries or ex
 
 ```nix
 # 1. Den core — fundamental relationships, always active.
-#    Defined in modules/context/host.nix etc., users don't touch these.
+#    Defined in modules/relationships/host.nix etc., users don't touch these.
 #    (host→user, host→default, user→default, user→home chain)
 
 # 2. den.default.relationships — cross-cutting, user opt-in.
@@ -122,9 +129,9 @@ den.default.relationships = [
   den.relationships.mutual-provider
 ];
 
-# 3. den.ctx.<kind>.relationships — scoped to entity kind, user opt-in.
+# 3. den.aspects.<kind>.relationships — scoped to entity kind, user opt-in.
 #    Applies when resolving any entity of that kind.
-den.ctx.host.relationships = [
+den.aspects.host.relationships = [
   den.relationships.host-to-peers
 ];
 
@@ -135,17 +142,17 @@ den.hosts.x86_64-linux.igloo.relationships = [
 ];
 ```
 
-**Battery pattern:** a battery module defines the policy in `den.relationships.*` (available). The user enables it via `den.default.relationships` or `den.ctx.<kind>.relationships` (active). Same as `den.ctx.user.includes = [ den.provides.mutual-provider ]` today.
+> **Update (2026-04-21):** Level 3 changed from `den.ctx.<kind>.relationships` to `den.aspects.<kind>.relationships` — `den.ctx` is being fully removed. Entity-scoped relationship activation lives on the entity's aspect instead.
+
+**Battery pattern:** a battery module defines the policy in `den.relationships.*` (available). The user enables it via `den.default.relationships` or `den.aspects.<kind>.relationships` (active). Same as `den.aspects.user.includes = [ den.provides.mutual-provider ]` today.
 
 **External flakes:** an external flake can provide policies in its flake module. The user imports the flake and enables its policies — no implicit activation from imports.
 
-### Formal vs inline
+### Formal declarations only
 
-**Formal** (`den.relationships.*`) for: reusable patterns, bidirectional relationships, cross-cutting concerns (ACL), custom entity types.
+> **Update (2026-04-21):** With `den.ctx` fully removed, all relationships are declared formally via `den.relationships.*`. There is no inline sugar. This is simpler and avoids re-introducing the conflation of relationships and behavior that `den.ctx` had.
 
-**Inline** (`den.ctx.*.into`) for: simple one-off transitions, quick prototyping. Inline declarations are always active on their ctx node (backwards compat with current `into`).
-
-Both compile to the same effect handlers.
+**Formal** (`den.relationships.*`) for: all relationship declarations — reusable patterns, bidirectional relationships, cross-cutting concerns (ACL), custom entity types, and simple transitions alike.
 
 ---
 
@@ -188,7 +195,9 @@ One handler per relationship — traces show exactly which fired.
 
 ### ctxApply dissolves
 
-`den.ctx.host { host = config; }` is replaced by explicit pipeline entry:
+> **Update (2026-04-21):** With `den.ctx` fully removed, there is no `den.ctx.flake` to reference. Pipeline entry receives the entity's aspect and context directly.
+
+Pipeline entry becomes explicit — no callable ctx nodes:
 
 ```nix
 # Before:
@@ -196,13 +205,13 @@ den.lib.aspects.resolve "flake" (den.ctx.flake { })
 
 # After:
 den.lib.aspects.resolve "flake" {
-  entity = den.ctx.flake;
+  aspect = den.aspects.flake;
   context = { };
   relationships = applicablePolicies;
 }
 ```
 
-No `__functor` on any submodule-evaluated attrset.
+No `__functor` on any submodule-evaluated attrset. Scope binding (stamping `__scopeHandlers` from context) moves into the relationship handler.
 
 ---
 
@@ -566,11 +575,15 @@ This separates concerns cleanly:
 
 ## Backwards compatibility
 
-**`den.ctx.host.into.user = fn`** → shim: desugars to anonymous relationship policy. `intoCtxType` merge semantics preserved.
+> **Update (2026-04-21):** `den.ctx` is being fully removed (see `2026-04-21-ctx-as-classes-design.md`). Deprecation shims are provided during migration phases but will be removed.
+
+**`den.ctx.host.into.user = fn`** → Phase 2 deprecation shim forwards to `den.relationships`. Phase 3 removes the shim entirely.
+
+**`den.ctx.*.nixos/includes`** (behavior on ctx nodes) → Phase 2 deprecation shim forwards to `den.aspects.*`. Phase 3 removes.
 
 **`den.hosts.x86_64-linux.igloo.users.tux = {}`** → unchanged: `users` stays as structure. The `host-to-users` policy reads it.
 
-**`den.ctx.host { host = config; }`** → migration: `den.lib.applyCtx` function provides same behavior without `__functor`.
+**`den.ctx.host { host = config; }`** → removed. Pipeline entry is explicit (no callable ctx nodes).
 
 **`provides.to-users` / `provides.to-hosts`** (mutual-provider.nix) → left as-is initially. Operates within host-user mutual pipeline. A future migration could unify with provide-to.
 
@@ -579,8 +592,7 @@ This separates concerns cleanly:
 ## What stays
 
 - Entity types and schema (`den.hosts`, `den.users`, `den.homes`)
-- `den.ctx` namespace for inline relationship sugar
-- `den.aspects` for aspect definitions
+- `den.aspects` for aspect definitions (gains members from migrated ctx behavior)
 - `den.schema.*` for validation
 - The fx pipeline and effects system
 - `__scopeHandlers` for context propagation
@@ -588,9 +600,9 @@ This separates concerns cleanly:
 
 ## What changes
 
-- `into` on ctx nodes → shim over relationship policy registration
-- `ctxApply` → internal mechanism, not user-facing functor
-- `__functor` on ctxSubmodule → removed
+- `den.ctx` → fully removed (behavior → `den.aspects`, transitions → `den.relationships`)
+- `ctxApply` → dissolved; scope binding moves into relationship handler
+- `__functor` on ctxSubmodule → removed (no more callable ctx nodes)
 - Transition handler → sends per-relationship named effects
 - Transition handler → routing decision (child vs sibling)
 - Pipeline entry → explicit relationship handler installation
@@ -600,11 +612,10 @@ This separates concerns cleanly:
 
 - `den.relationships` option for formal policy declarations
 - `den.default.relationships` for cross-cutting policy activation
-- `den.ctx.<kind>.relationships` for scoped policy activation
+- `den.aspects.<kind>.relationships` for entity-kind-scoped policy activation
 - Per-relationship effect handlers
 - `provideToHandler` for cross-entity collection
 - `distributeProvideTo` orchestration function
-- `den.lib.applyCtx` function (replaces functor call syntax)
 
 ## Constraints
 
@@ -629,7 +640,7 @@ den.lib.relationships.inspect {
 
 ## Implementation notes
 
-**Ctx nodes need a `kind` identifier.** The `ctxTreeType` recursive type doesn't pass the key name to the submodule. Relationship compilation needs to know "this node is kind=host" to match `from` declarations. Options: walk `den.ctx` at pipeline entry and label each node, or add a `kind` option to ctxSubmodule derived from the attribute path.
+**~~Ctx nodes need a `kind` identifier.~~** (Obsolete — `den.ctx` is being removed.) Relationship policies declare `from`/`to` as strings that name entity kinds. The pipeline matches these against entity schema registrations. No ctx node labeling needed.
 
 **`provide-to` must be in `structuralKeys`.** If an aspect declares `provide-to.http-backends`, the pipeline must NOT treat `provide-to` as a class key. Add `"provide-to"` to `structuralKeys` in `aspect.nix`. `compileStatic` extracts `provide-to` keys and emits them as `"provide-to"` effects.
 
@@ -688,16 +699,19 @@ The thunk wrapping (`_: [...] ++ [param]`) prevents `deepSeq` from forcing aspec
 
 ## Migration path
 
+> **Update (2026-04-21):** This migration path is coordinated with the Data/Relationships/Behavior separation spec (`2026-04-21-ctx-as-classes-design.md`), which defines three phases: Phase 1 (entity file reorganization), Phase 2 (introduce relationships, deprecation shims for ctx), Phase 3 (full ctx removal).
+
 1. Add `den.relationships` option type and module
 2. Implement per-relationship effect handlers
-3. Shim `den.ctx.*.into` to register policies
-4. Update transition handler for effect-based dispatch + routing decision
-5. Add `provideToHandler` to `defaultHandlers`
-6. Add `distributeProvideTo` orchestration function
-7. Refactor `osConfigurations.nix` for phase 2 distribution
-8. Remove `__functor` from ctxSubmodule, update call sites to `den.lib.applyCtx`
-9. Migrate `forward.nix` to emit provide-to
-10. Add cross-entity tests (fleet, haproxy)
+3. Move `den.ctx.*.into` declarations to `den.relationships` (with deprecation shims on `den.ctx`)
+4. Move `den.ctx.*` behavior (`.nixos`, `.includes`) to `den.aspects.*` (with deprecation shims)
+5. Update transition handler for effect-based dispatch + routing decision
+6. Add `provideToHandler` to `defaultHandlers`
+7. Add `distributeProvideTo` orchestration function
+8. Refactor `osConfigurations.nix` for phase 2 distribution
+9. Remove `den.ctx` entirely (Phase 3 — remove shims, delete ctx-types.nix, ctx-apply.nix, nixModule/ctx.nix)
+10. Migrate `forward.nix` to emit provide-to
+11. Add cross-entity tests (fleet, haproxy)
 
 ## Success criteria
 
@@ -729,10 +743,12 @@ The pipeline needs `scope.provide` because constantHandler bindings are stateles
 
 ## TL;DR
 
-**Entity types** (host, user, cluster) define structure. **Relationship policies** define topology — how entities connect. Policies are first-class data in `den.relationships`, activated via `den.default.relationships` or scoped to a kind/instance.
+Three clean separations: **Data** (entity schemas — `den.schema.*`), **Relationships** (topology — `den.relationships`), **Behavior** (Nix config classes — `den.aspects`). `den.ctx` is fully removed — it conflated relationships and behavior.
+
+**Relationship policies** define topology — how entities connect. Policies are first-class data in `den.relationships`, activated via `den.default.relationships` or scoped to an entity kind/instance.
 
 At pipeline time, policies compile into **per-relationship named effect handlers**. The transition handler sends `"host-to-users"` instead of reading `into` data. One handler per relationship = clear traces.
 
 When a relationship targets a **sibling entity** (same type as emitter, e.g., host→peer-host), resolved modules route through a **two-phase provide-to mechanism**: phase 1 collects, phase 2 distributes to target configs. No fixed-point — source captures entity metadata, not evaluated config.
 
-`__functor` is removed from all submodule-evaluated attrsets. `ctxApply` becomes an internal function. The current `into`/`ctxApply`/`forward` interfaces become shims over the new system.
+`__functor` is removed from all submodule-evaluated attrsets. `ctxApply` is dissolved — scope binding moves into the relationship handler. See `2026-04-21-ctx-as-classes-design.md` for the full ctx removal plan and user migration guide.
