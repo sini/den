@@ -87,7 +87,7 @@ let
               "config"
             ];
             # calling host-pipeline ensure all Den features supported on guest
-            fromAspect = _: den.ctx.host { host = vm; };
+            fromAspect = _: den.lib.resolveStage "host" { host = vm; };
           };
 
           # forwards guest microvm class into host: microvm.vms.<vm-name>

@@ -62,8 +62,8 @@ let
     { class, ... }:
     {
       includes = [
-        (den.ctx."${ctxName}-user" { inherit host user; })
-        (den.ctx.user { inherit host user; })
+        (den.lib.resolveStage "${ctxName}-user" { inherit host user; })
+        (den.lib.resolveStage "user" { inherit host user; })
       ];
     };
 

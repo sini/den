@@ -44,6 +44,8 @@ let
         handleWith = null;
         excludes = [ ];
         provider = [ ];
+        # Carry ctx into during transition — pipeline synthesis merges with relationships
+        into = ctxNode.into or (_: { });
       };
       provides = (ctxNode.provides or { }) // (stageNode.provides or { });
       includes = (ctxNode.includes or [ ]) ++ (stageNode.includes or [ ]);
@@ -51,6 +53,4 @@ let
       __scopeHandlers = scopeHandlers;
     };
 in
-{
-  inherit resolveStage;
-}
+resolveStage

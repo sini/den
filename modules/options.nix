@@ -44,7 +44,7 @@ let
                 description = "The resolved aspect for this ${kind}, produced by den.ctx.${kind}.";
                 readOnly = true;
                 type = lib.types.raw;
-                default = den.ctx.${kind} (
+                default = den.lib.resolveStage kind (
                   lib.filterAttrs (n: _: den.ctx ? ${n}) config._module.args // { ${kind} = config; }
                 );
               };

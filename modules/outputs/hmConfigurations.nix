@@ -13,7 +13,7 @@ let
       fromClass = _: home.class;
       intoClass = _: "flake";
       intoPath = _: [ "flake" ];
-      fromAspect = _: den.ctx.home { inherit home; };
+      fromAspect = _: den.lib.resolveStage "home" { inherit home; };
       mapModule =
         _: module:
         lib.setAttrByPath home.intoAttr (
