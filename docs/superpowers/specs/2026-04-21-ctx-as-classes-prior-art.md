@@ -108,11 +108,11 @@ Everything in one class: fields, relationships, validators, managers, custom met
 
 Every system that ages well separates three concerns:
 
-1. **What an entity IS** (structure/schema) — den.ctx class definitions
-2. **How entities RELATE** (associations) — den.relationships policies
-3. **How entities RESOLVE** (behavior) — fx pipeline handlers
+1. **What an entity IS** (structure/schema) — `den.schema.*` + entity type definitions
+2. **How entities RELATE** (transitions) — `den.relationships`
+3. **How entities RESOLVE** (behavior) — `den.aspects` + fx pipeline handlers
 
-Systems that merge any two develop god-object problems. The ctx-as-classes design maintains this separation.
+Systems that merge any two develop god-object problems. Den's `den.ctx` merged relationships and behavior — the redesign separates them. Note: "class" in Den is reserved for Nix configuration classes (nixos, darwin, homeManager) — a behavioral concept, not entity types.
 
 The closest formal model is Haskell typeclasses: entity types declaring capabilities via typeclass-like instances, with constraints encoding pipeline ordering. The vocabulary maps almost 1:1:
 - typeclass = capability interface
