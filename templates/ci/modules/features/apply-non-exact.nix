@@ -3,8 +3,7 @@
   flake.tests.ctx-non-exact.test-apply-non-exact-less = denTest (
     { den, funnyNames, ... }:
     {
-      den.ctx.foobar.description = "{foo,bar} context";
-      den.ctx.foobar.provides.foobar =
+      den.stages.foobar.provides.foobar =
         # use atLeast if you get error: function called with unexpected argument
         den.lib.take.atLeast (
           { foo, bar }:
@@ -17,7 +16,7 @@
         );
 
       expr = funnyNames (
-        den.ctx.foobar {
+        den.lib.resolveStage "foobar" {
           foo = "moo";
           # missing bar
         }
@@ -30,8 +29,7 @@
   flake.tests.ctx-non-exact.test-apply-non-exact-more = denTest (
     { den, funnyNames, ... }:
     {
-      den.ctx.foobar.description = "{foo,bar} context";
-      den.ctx.foobar.provides.foobar =
+      den.stages.foobar.provides.foobar =
         # use exactly if you want to restrict to not having more args
         den.lib.take.exactly (
           { foo, bar }:
@@ -44,7 +42,7 @@
         );
 
       expr = funnyNames (
-        den.ctx.foobar {
+        den.lib.resolveStage "foobar" {
           foo = "moo";
           bar = "bar";
           baz = "man";

@@ -10,34 +10,40 @@
         ...
       }:
       {
-        den.ctx.parent.description = "{x} context";
-        den.ctx.parent.provides.parent =
+        den.stages.parent.provides.parent =
           { x }:
           {
             funny.names = [ "parent-${x}" ];
           };
-        den.ctx.parent.provides.child =
+        den.stages.parent.provides.child =
           _:
           { x, y }:
           {
             funny.names = [ "parent-for-child-${x}-${y}" ];
           };
-        den.ctx.parent.into.child =
-          { x }:
-          [
-            {
-              inherit x;
-              y = "derived";
-            }
-          ];
+        den.relationships.test-parent-to-child = {
+          from = "parent";
+          to = "child";
+          resolve =
+            ctx:
+            if !(ctx ? x) then
+              [ ]
+            else
+              [
+                {
+                  inherit (ctx) x;
+                  y = "derived";
+                }
+              ];
+        };
 
-        den.ctx.child.provides.child =
+        den.stages.child.provides.child =
           { x, y }:
           {
             funny.names = [ "child-${y}" ];
           };
 
-        expr = funnyNames (den.ctx.parent { x = "hello"; });
+        expr = funnyNames (den.lib.resolveStage "parent" { x = "hello"; });
         expected = [
           "child-derived"
           "parent-for-child-hello-derived"
@@ -54,38 +60,44 @@
         ...
       }:
       {
-        den.ctx.src.description = "source";
-        den.ctx.src.provides.src =
+        den.stages.src.provides.src =
           { x }:
           {
             funny.names = [ x ];
           };
-        den.ctx.src.provides.dst =
+        den.stages.src.provides.dst =
           _:
           { x, i }:
           {
             funny.names = [ "src-for-${x}-${toString i}" ];
           };
-        den.ctx.src.into.dst =
-          { x }:
-          [
-            {
-              inherit x;
-              i = 1;
-            }
-            {
-              inherit x;
-              i = 2;
-            }
-          ];
+        den.relationships.test-src-to-dst = {
+          from = "src";
+          to = "dst";
+          resolve =
+            ctx:
+            if !(ctx ? x) then
+              [ ]
+            else
+              [
+                {
+                  inherit (ctx) x;
+                  i = 1;
+                }
+                {
+                  inherit (ctx) x;
+                  i = 2;
+                }
+              ];
+        };
 
-        den.ctx.dst.provides.dst =
+        den.stages.dst.provides.dst =
           { x, i }:
           {
             funny.names = [ "dst-${toString i}" ];
           };
 
-        expr = funnyNames (den.ctx.src { x = "a"; });
+        expr = funnyNames (den.lib.resolveStage "src" { x = "a"; });
         expected = [
           "a"
           "dst-1"
@@ -104,21 +116,24 @@
         ...
       }:
       {
-        den.ctx.src.description = "source without cross-provider";
-        den.ctx.src.provides.src =
+        den.stages.src.provides.src =
           { x }:
           {
             funny.names = [ x ];
           };
-        den.ctx.src.into.dst = { x }: [ { y = x; } ];
+        den.relationships.test-src-to-dst-no-cross = {
+          from = "src";
+          to = "dst";
+          resolve = ctx: if !(ctx ? x) then [ ] else [ { y = ctx.x; } ];
+        };
 
-        den.ctx.dst.provides.dst =
+        den.stages.dst.provides.dst =
           { y }:
           {
             funny.names = [ "dst-${y}" ];
           };
 
-        expr = funnyNames (den.ctx.src { x = "val"; });
+        expr = funnyNames (den.lib.resolveStage "src" { x = "val"; });
         expected = [
           "dst-val"
           "val"

@@ -150,7 +150,7 @@
       ];
 
       expr = funnyNames (
-        den.ctx.host {
+        den.lib.resolveStage "host" {
           host = den.hosts.x86_64-linux.igloo;
         }
       );

@@ -18,7 +18,7 @@
             "very"
             "funny"
           ];
-          fromAspect = item: den.ctx.foo item;
+          fromAspect = item: den.lib.resolveStage "foo" item;
         };
 
         mod = den.lib.aspects.resolve "flake" fwd;
@@ -35,7 +35,7 @@
       in
       {
 
-        den.ctx.foo.provides.foo = { name }: den.aspects.${name};
+        den.stages.foo.provides.foo = { name }: den.aspects.${name};
 
         den.aspects.moo = {
           goofy.names = [ "hello" ];
@@ -187,8 +187,16 @@
             };
         };
 
-        den.ctx.flake-system.into.host =
-          { system }: map (host: { inherit host; }) (lib.attrValues den.hosts.${system});
+        den.relationships.flake-system-to-host = {
+          from = "flake-system";
+          to = "host";
+          resolve =
+            ctx:
+            if ctx ? system then
+              map (host: { inherit host; }) (lib.attrValues den.hosts.${ctx.system})
+            else
+              [ ];
+        };
 
         expr = {
           package = lib.getName config.flake.packages.x86_64-linux.hello;

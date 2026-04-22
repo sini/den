@@ -81,27 +81,31 @@ in
         module =
           { den, lib, ... }:
           {
-            den.ctx.foo.provides.foo =
+            den.stages.foo.provides.foo =
               { name }:
               {
                 my.names = [ "foo ${name}" ];
               };
-            den.ctx.foo.into.bar = { name }: lib.singleton { shout = lib.toUpper name; };
-            den.ctx.foo.provides.bar =
+            den.relationships.foo-to-bar = {
+              from = "foo";
+              to = "bar";
+              resolve = ctx: if ctx ? name then lib.singleton { shout = lib.toUpper ctx.name; } else [ ];
+            };
+            den.stages.foo.provides.bar =
               { name }:
               { shout }:
               {
                 my.names = [ "foo ${name} shouted ${shout}" ];
               };
 
-            den.ctx.bar.provides.bar =
+            den.stages.bar.provides.bar =
               { shout }:
               {
                 my.names = [ "bar ${shout}" ];
               };
 
             den.aspects.foobar.includes = [
-              (den.ctx.foo { name = "good"; })
+              (den.lib.resolveStage "foo" { name = "good"; })
             ];
           };
 

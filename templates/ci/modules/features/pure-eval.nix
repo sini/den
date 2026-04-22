@@ -44,22 +44,26 @@ in
         ev = evalPure (
           { den, ... }:
           {
-            den.ctx.a = {
-              _.a =
+            den.stages.a = {
+              provides.a =
                 { v }:
                 {
                   my.val = [ v ];
                 };
-              into.b = { v }: [ { v = "${v}!"; } ];
             };
-            den.ctx.b.provides.b =
+            den.relationships.a-to-b = {
+              from = "a";
+              to = "b";
+              resolve = ctx: if ctx ? v then [ { v = "${ctx.v}!"; } ] else [ ];
+            };
+            den.stages.b.provides.b =
               { v }:
               {
                 my.val = [ v ];
               };
           }
         );
-        asp = ev.config.den.ctx.a { v = "x"; };
+        asp = ev.config.den.lib.resolveStage "a" { v = "x"; };
         mod = ev.config.den.lib.aspects.resolve "my" asp;
         ev2 = lib.evalModules {
           modules = [

@@ -18,7 +18,7 @@
       }
     );
 
-    # den.stages.default and den.ctx.default (via den.default) coexist:
+    # den.stages.default and den.default coexist:
     # both contribute to the resolved NixOS config without clobbering each other.
     test-stage-default-coexists-with-ctx = denTest (
       { den, igloo, ... }:
@@ -43,7 +43,7 @@
     );
 
     # Behavior set on den.stages.user appears in the resolved NixOS config
-    # for each user (user stage is reached from host via ctx.user.into.default).
+    # for each user (user stage is reached from host via relationships).
     test-stage-user-nixos = denTest (
       { den, igloo, ... }:
       {

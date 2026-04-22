@@ -18,8 +18,8 @@
         };
       in
       {
-        den.ctx.start = {
-          _.start =
+        den.stages.start = {
+          provides.start =
             { level }:
             {
               funny.names = [ level ];
@@ -27,7 +27,7 @@
           includes = [ top ];
         };
 
-        expr = builtins.length (funnyNames (den.ctx.start { level = "deep"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "start" { level = "deep"; }));
         expected = 42;
       }
     );
@@ -51,8 +51,8 @@
         aspects = lib.genList mkParam 30;
       in
       {
-        den.ctx.start = {
-          _.start =
+        den.stages.start = {
+          provides.start =
             { host }:
             {
               funny.names = [ host ];
@@ -60,7 +60,7 @@
           includes = aspects;
         };
 
-        expr = builtins.length (funnyNames (den.ctx.start { host = "h"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "start" { host = "h"; }));
         expected = 61;
       }
     );
@@ -79,8 +79,8 @@
         };
       in
       {
-        den.ctx.start = {
-          _.start =
+        den.stages.start = {
+          provides.start =
             { host }:
             {
               funny.names = [ host ];
@@ -88,7 +88,7 @@
           includes = [ expanded ];
         };
 
-        expr = builtins.length (funnyNames (den.ctx.start { host = "h"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "start" { host = "h"; }));
         expected = 17;
       }
     );
@@ -109,17 +109,21 @@
         };
       in
       {
-        den.ctx.a = {
-          _.a =
+        den.stages.a = {
+          provides.a =
             { host }:
             {
               funny.names = [ "a-${host}" ];
             };
-          into.b = { host }: [ { host = "${host}!"; } ];
           includes = [ shared ];
         };
-        den.ctx.b = {
-          _.b =
+        den.relationships.a-to-b = {
+          from = "a";
+          to = "b";
+          resolve = ctx: if ctx ? host then [ { host = "${ctx.host}!"; } ] else [ ];
+        };
+        den.stages.b = {
+          provides.b =
             { host }:
             {
               funny.names = [ "b-${host}" ];
@@ -127,7 +131,7 @@
           includes = [ shared ];
         };
 
-        expr = builtins.length (funnyNames (den.ctx.a { host = "v"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "a" { host = "v"; }));
         expected = 6;
       }
     );
