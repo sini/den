@@ -435,3 +435,60 @@ den.ctx.my-stage.provides.my-stage = { host, user }: ...;
 ### Deprecation timeline
 
 Phase 1 and 2 can provide compatibility shims: `den.ctx.X.nixos` can emit a deprecation warning and forward to `den.stages.X.nixos`. This allows a grace period where existing configs continue to work while users migrate. Phase 3 removes the shims.
+
+## Appendix: Haskell Typeclass Parallel
+
+Den's four-concern architecture maps closely to Haskell's type system. This appendix makes the parallel explicit as a reference for reasoning about where things belong.
+
+### Vocabulary Mapping
+
+| Haskell | Den | Purpose |
+|---------|-----|---------|
+| `data Host = Host { hostname :: Text, system :: Text, ... }` | `den.schema.host` + hostSubmodule | **Data declaration** — defines the structure of an entity |
+| `class Resolvable a where resolve :: a -> Config` | Nix config class (`nixos`, `darwin`, `homeManager`) | **Typeclass** — a behavioral capability interface |
+| `instance Resolvable Host where resolve = ...` | `den.aspects.nginx = { nixos.services.nginx.enable = true; }` | **Typeclass instance** — behavior implementation for a capability |
+| `class (Resolvable a) => Deployable a` | Relationship depth ordering (environment → host → user) | **Typeclass constraint** — one capability requires another |
+| `deriving (Show, Eq)` | `den.schema.host.relationships = [ ... ]` | **Derived instances** — the type declares which capabilities it participates in |
+| Pattern match on constructor | `den.relationships.host-to-users.resolve` | **Function dispatch** — deconstruct a value to produce related values |
+| Newtype wrapper | `den.stages.hm-host` | **Newtype with instances** — a named scope that carries its own behavior bindings without modifying the underlying type or the behavior definitions |
+
+### Where Things Belong (by Analogy)
+
+**"What type is this?"** → `den.schema.*`
+Like `data Host = ...`, the schema defines the structure. In Haskell, you declare derived instances on the type (`deriving Show`). In Den, you declare relationship participation on the schema (`den.schema.host.relationships`).
+
+**"How do values of this type relate?"** → `den.relationships`
+Like pattern-matching a `Host` to extract its `[User]` list, a relationship's `resolve` function takes an entity value and produces related values. Pure function, no behavior — just structure traversal.
+
+**"What behavior does this scope get?"** → `den.stages`
+Like a Haskell newtype wrapper that exists to carry typeclass instances different from the underlying type. `newtype HmHost = HmHost Host` lets you write `instance Configurable HmHost where ...` without modifying `Host` or the `Configurable` class. Similarly, `den.stages.hm-host` carries scoped behavior without modifying the relationship or the aspect.
+
+**"What does this behavior do?"** → `den.aspects`
+Like a typeclass instance body (`instance Resolvable Host where resolve host = ...`), an aspect defines concrete behavior. It doesn't know which type it's attached to or which scope activated it — it just receives args and produces configuration.
+
+### The Four Activation Levels as Instance Resolution
+
+Haskell resolves typeclass instances by specificity. Den's four activation levels follow the same pattern:
+
+```
+1. Den core (always active)              ≈  Prelude instances (always in scope)
+2. den.default.relationships             ≈  Global orphan instances (apply everywhere)
+3. den.schema.<kind>.relationships       ≈  deriving clause (type declares participation)
+4. den.hosts.*.relationships             ≈  Local instance (value-level override)
+```
+
+More specific wins. An entity instance's relationships override its schema's defaults, just as a local instance overrides a derived one.
+
+### Why `den.ctx` Was the Wrong Abstraction
+
+In Haskell terms, `den.ctx` was like defining a type that is simultaneously:
+- A `data` declaration (it had structural keys)
+- A typeclass instance (it had `.nixos`, `.includes` — behavior)
+- A pattern match function (it had `.into` — relationships)
+- A newtype wrapper (it scoped behavior to a pipeline stage)
+
+No Haskell programmer would put all four in one construct. The four-concern separation restores the natural boundaries:
+- `data` → `den.schema`
+- Typeclass instance → `den.aspects`
+- Pattern match → `den.relationships`
+- Newtype scope → `den.stages`
