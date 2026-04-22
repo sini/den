@@ -95,7 +95,62 @@ let
       ctx,
     }:
     let
-      comp = aspectToEffect self;
+      # Synthesize den.relationships into an into-style function.
+      relationships = den.relationships or { };
+      relationshipInto =
+        if relationships == { } then
+          null
+        else
+          rCtx:
+          builtins.foldl' (
+            acc: rel:
+            let
+              targets = rel.resolve rCtx;
+            in
+            acc
+            // {
+              ${rel.to} = (acc.${rel.to} or [ ]) ++ (if builtins.isList targets then targets else [ targets ]);
+            }
+          ) { } (builtins.attrValues relationships);
+
+      # Merge relationship into with aspect's existing into.
+      existingInto = self.meta.into or self.into or null;
+      mergedInto =
+        if relationshipInto != null && existingInto != null then
+          ctx':
+          let
+            a = existingInto ctx';
+            b = relationshipInto ctx';
+          in
+          a
+          // builtins.mapAttrs (
+            k: vb:
+            if a ? ${k} then
+              let
+                va = a.${k};
+              in
+              if builtins.isList va && builtins.isList vb then va ++ vb else vb
+            else
+              vb
+          ) b
+        else if relationshipInto != null then
+          relationshipInto
+        else
+          existingInto;
+
+      # Inject merged into onto self
+      effectiveSelf =
+        if mergedInto != null && mergedInto != existingInto then
+          self
+          // {
+            meta = (self.meta or { }) // {
+              into = mergedInto;
+            };
+          }
+        else
+          self;
+
+      comp = aspectToEffect effectiveSelf;
       # Override aspect-chain to include root aspect — consumed by provider
       # functions (home-env.nix) via bind.fn.
       rootHandlers = defaultHandlers {
