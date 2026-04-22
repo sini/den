@@ -5,6 +5,7 @@
 # Cross-providers: if source.provides.${targetKey} exists, tagged and resolved alongside.
 # State reads: currentCtx
 # External dependency: den.ctx (context aspect registry, looked up by transition path)
+#                      den.stages (stage behavior registry, merged into target via includes)
 #
 # Context propagation: transitions tag target aspects with __scopeHandlers.
 # aspectToEffect derives scope.provide at point of use to resolve parametric args.
@@ -112,6 +113,34 @@ let
       key = lib.concatStringsSep "/" transition.path;
       targetKey = lib.concatStringsSep "." transition.path;
       targetAspect = lib.attrByPath transition.path null (den.ctx or { });
+      stageAspect = lib.attrByPath transition.path null (den.stages or { });
+      # Merge stage behavior into target via includes (not shallow //).
+      # During coexistence, both ctx and stage behavior must be preserved.
+      effectiveTarget =
+        if targetAspect != null && stageAspect != null then
+          let
+            stageClassAttrs = builtins.removeAttrs stageAspect [
+              "includes"
+              "name"
+              "description"
+              "meta"
+              "provides"
+              "_module"
+              "_"
+            ];
+            stageAsInclude = stageClassAttrs // {
+              name = "${targetAspect.name or "?"}.stage";
+              includes = stageAspect.includes or [ ];
+            };
+          in
+          targetAspect
+          // {
+            includes = (targetAspect.includes or [ ]) ++ [ stageAsInclude ];
+          }
+        else if stageAspect != null then
+          stageAspect
+        else
+          targetAspect;
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
       # Emit cross-provider result by tagging with __scopeHandlers and resolving.
@@ -164,7 +193,7 @@ let
         else
           fx.pure prevResults;
     in
-    if targetAspect == null && crossProvider == null then
+    if effectiveTarget == null && crossProvider == null then
       # No target ctx node and no cross-provider — emit tombstone.
       let
         ts = {
@@ -216,8 +245,8 @@ let
                 # receives accumulated context.
                 updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
                 withTarget =
-                  if targetAspect != null then
-                    resolveContextValue currentCtx targetAspect innerResults newCtx
+                  if effectiveTarget != null then
+                    resolveContextValue currentCtx effectiveTarget innerResults newCtx
                   else
                     fx.pure innerResults;
               in
