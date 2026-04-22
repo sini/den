@@ -31,10 +31,10 @@ in
         inherit expr expected;
       };
 
-    test-module-has-empty-ctx =
+    test-module-has-empty-stages =
       let
         ev = lib.evalModules { modules = [ denModule ]; };
-        expr = lib.attrNames ev.config.den.ctx;
+        expr = lib.attrNames ev.config.den.stages;
         expected = [ ];
       in
       {

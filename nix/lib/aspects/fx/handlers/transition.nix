@@ -4,8 +4,8 @@
 #        then aspectToEffect with __scopeHandlers-tagged target aspects.
 # Cross-providers: if source.provides.${targetKey} exists, tagged and resolved alongside.
 # State reads: currentCtx
-# External dependency: den.ctx (context aspect registry, looked up by transition path)
-#                      den.stages (stage behavior registry, merged into target via includes)
+# External dependency: den.stages (target aspect registry, looked up by transition path)
+#                      den.relationships (synthesized onto targets for nested transitions)
 #
 # Context propagation: transitions tag target aspects with __scopeHandlers.
 # aspectToEffect derives scope.provide at point of use to resolve parametric args.
@@ -107,62 +107,16 @@ let
   # Resolve a single transition: look up target aspect, check dedup, resolve each context value.
   # Also emits cross-providers: if sourceAspect.provides.${targetKey} exists,
   # that provider is resolved in the scoped context (e.g. flake-system.provides.flake-packages).
-  # Build a target aspect from stages (canonical) + ctx (fallback during transition).
-  # Stages are the primary source; ctx supplements with class keys and includes.
-  # Relationships are synthesized onto the target for nested transitions.
+  # Build a target aspect from stages + relationships.
+  # Stages provide the target's identity (name, provides, includes, class keys).
+  # Relationships provide nested transitions (meta.into).
   buildTarget =
     transition:
     let
-      targetKey = lib.concatStringsSep "." transition.path;
-      ctxAspect = lib.attrByPath transition.path null (den.ctx or { });
       stageAspect = lib.attrByPath transition.path null (den.stages or { });
 
-      # Structural keys to strip when extracting class keys
-      structural = [
-        "includes"
-        "name"
-        "description"
-        "meta"
-        "provides"
-        "into"
-        "__functor"
-        "_module"
-        "_"
-      ];
-
-      # Stage is canonical: use its name, provides, includes as the base.
-      # Ctx supplements with class keys and additional includes during transition.
-      baseTarget =
-        if stageAspect != null && ctxAspect != null then
-          let
-            ctxClassAttrs = builtins.removeAttrs ctxAspect structural;
-            stageClassAttrs = builtins.removeAttrs stageAspect structural;
-          in
-          ctxClassAttrs
-          // stageClassAttrs
-          // {
-            name = stageAspect.name or ctxAspect.name or targetKey;
-            provides = (ctxAspect.provides or { }) // (stageAspect.provides or { });
-            includes = (ctxAspect.includes or [ ]) ++ (stageAspect.includes or [ ]);
-          }
-        else if stageAspect != null then
-          stageAspect
-        else if ctxAspect != null then
-          let
-            # Ctx-only target: extract what we need without __functor baggage
-            ctxClassAttrs = builtins.removeAttrs ctxAspect structural;
-          in
-          ctxClassAttrs
-          // {
-            name = ctxAspect.name or targetKey;
-            provides = ctxAspect.provides or { };
-            includes = ctxAspect.includes or [ ];
-          }
-        else
-          null;
-
       # Synthesize relationships onto target for nested transitions.
-      targetName = if baseTarget != null then baseTarget.name or "" else "";
+      targetName = if stageAspect != null then stageAspect.name or "" else "";
       relationships = den.relationships or { };
       matchingRels = lib.filter (rel: rel.from == targetName) (builtins.attrValues relationships);
       relationshipInto =
@@ -178,31 +132,16 @@ let
             in
             if targetList == [ ] then acc else acc // { ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList; }
           ) { } matchingRels;
-
-      # Merge existing into (from ctx during transition) with relationship into.
-      existingInto = if ctxAspect != null then ctxAspect.meta.into or ctxAspect.into or null else null;
-      mergedInto =
-        if existingInto != null && relationshipInto != null then
-          rCtx:
-          let
-            existing = existingInto rCtx;
-            fromRels = relationshipInto rCtx;
-          in
-          existing // (builtins.removeAttrs fromRels (builtins.attrNames existing))
-        else if relationshipInto != null then
-          relationshipInto
-        else
-          existingInto;
     in
-    if baseTarget != null && mergedInto != null then
-      baseTarget
+    if stageAspect != null && relationshipInto != null then
+      stageAspect
       // {
-        meta = (baseTarget.meta or { }) // {
-          into = mergedInto;
+        meta = (stageAspect.meta or { }) // {
+          into = relationshipInto;
         };
       }
-    else if baseTarget != null then
-      baseTarget
+    else if stageAspect != null then
+      stageAspect
     else
       null;
 

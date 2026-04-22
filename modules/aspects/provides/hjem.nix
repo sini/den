@@ -22,7 +22,6 @@ let
 
 in
 {
-  den.ctx = result.ctx;
   den.stages = result.stages;
   den.schema.host.imports = [ result.hostConf ];
 }

@@ -23,9 +23,11 @@ let
       ;
   };
 
-  # Schema entries auto-inject config.resolved when den.ctx.${kind} exists.
+  # Schema entries auto-inject config.resolved when den.stages.${kind} exists
+  # or den.relationships reference the kind.
   # Context args are derived from the entity's _module.args, filtered to
-  # known context kinds so framework args don't leak through.
+  # known stage kinds so framework args don't leak through.
+  knownKinds = builtins.attrNames (den.stages or { });
   schemaEntryType =
     let
       base = lib.types.deferredModule;
@@ -41,16 +43,16 @@ let
             { config, ... }:
             {
               options.resolved = lib.mkOption {
-                description = "The resolved aspect for this ${kind}, produced by den.ctx.${kind}.";
+                description = "The resolved aspect for this ${kind}.";
                 readOnly = true;
                 type = lib.types.raw;
                 default = den.lib.resolveStage kind (
-                  lib.filterAttrs (n: _: den.ctx ? ${n}) config._module.args // { ${kind} = config; }
+                  lib.filterAttrs (n: _: builtins.elem n knownKinds) config._module.args // { ${kind} = config; }
                 );
               };
             };
         in
-        if den.ctx ? ${kind} then
+        if den.stages ? ${kind} then
           {
             imports = [
               merged

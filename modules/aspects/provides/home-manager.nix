@@ -23,9 +23,6 @@ let
 
 in
 {
-  den.ctx = result.ctx // {
-    home.includes = [ ];
-  };
   den.stages = result.stages // {
     home.provides.home = { home }: home.aspect;
   };

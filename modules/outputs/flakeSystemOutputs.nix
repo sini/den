@@ -40,7 +40,5 @@ let
 
 in
 {
-  # Empty ctx skeleton — register node name for transition handler lookup
-  den.ctx.flake.includes = [ ];
   den.stages = lib.mkMerge stageSystemOuts;
 }
