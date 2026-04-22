@@ -11,6 +11,7 @@
     ./lib.nix
     ./ctx.nix
     ./stages.nix
+    ./relationships.nix
     ./aspects.nix
   ];
 }

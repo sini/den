@@ -31,6 +31,7 @@ let
     parametric = ./parametric.nix;
     take = ./take.nix;
     lastFunctionTo = ./last-function-to.nix;
+    relationshipTypes = ./relationship-types.nix;
     stageTypes = ./stage-types.nix;
     strict = ./strict.nix;
     fx = ./fx.nix;
