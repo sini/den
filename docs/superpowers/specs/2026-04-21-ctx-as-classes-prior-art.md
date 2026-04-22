@@ -1,11 +1,21 @@
 # Prior Art: Entity-Type Registries with Relationships and Resolution
 
-**Date:** 2026-04-21
+**Date:** 2026-04-21 (revised)
 **Companion to:** `2026-04-21-ctx-as-classes-design.md`
 
 ## The Problem Pattern
 
 A framework needs to define entity types (Host, User, Home), their relationships (host has many users, user belongs to host), and how entity instances flow through a resolution pipeline that produces configuration output. How do existing systems separate these concerns?
+
+## Den Terminology
+
+Before drawing parallels, note Den's terminology (see main spec for full definitions):
+- **Entity** — a tangible infrastructure thing (host, user, home)
+- **Schema** — data structure defining what an entity IS (`den.schema.*` + submodule types)
+- **Class** — a Nix configuration class (behavior): `nixos`, `darwin`, `homeManager`
+- **Aspect** — container of behavior (Nix config classes)
+- **Relationship** — how entities transition into each other
+- **`den.ctx`** — deprecated; conflated relationships and behavior in a single construct. Being removed.
 
 ## Comparison Table
 
@@ -21,16 +31,16 @@ A framework needs to define entity types (Host, User, Home), their relationships
 
 ## Detailed Analysis
 
-### Haskell Typeclasses — Closest Analog to den.ctx
+### Haskell Typeclasses — Closest Analog to Den's Three-Way Split
 
-The model class IS the entity definition. A `typeclass instance` declares capabilities separately. `instance Resolvable Host where resolve = ...` adds behavior without modifying the Host definition. Open for extension — new typeclasses can be defined and instances added.
+A `data` declaration defines structure. A `typeclass instance` declares capabilities separately. `instance Resolvable Host where resolve = ...` adds behavior without modifying the Host definition. Open for extension — new typeclasses can be defined and instances added.
 
 **Den mapping:**
-- `den.ctx.host` = type declaration (what a host IS)
-- Capability keys (nixos, darwin) = typeclass instances (what a host CAN DO)
-- Relationship policies = typeclass constraints (`Resolvable a => Deployable a` ��� pipeline ordering)
+- Entity schema (`den.schema.host` + entity submodule) = `data` type declaration (what a host IS)
+- Aspects with Nix config class keys (nixos, darwin) = typeclass instances (what a host CAN DO — behavior)
+- Relationship policies = typeclass constraints (`Resolvable a => Deployable a` — pipeline ordering)
 
-**Takeaway:** Validates separating class definitions from resolution behavior. The class is the type; capabilities and relationships are declared externally.
+**Takeaway:** Validates the three-way separation: entity schemas are pure data, aspects declare behavioral capabilities, relationships constrain ordering. None of these belong in a single conflated construct (which is why `den.ctx` — merging relationships and behavior — is being removed).
 
 **Anti-pattern:** Orphan instances (defining behavior for a type in a third-party module) cause coherence problems. Den should ensure capability declarations are co-located or explicitly imported, never ambient.
 
@@ -39,11 +49,11 @@ The model class IS the entity definition. A `typeclass instance` declares capabi
 CRDs define pure schema (what fields a resource has). Controllers provide reconciliation behavior (converge actual state toward desired state). They're separate processes — the API server stores data, controllers add behavior.
 
 **Den mapping:**
-- Entity type options = CRD spec (declared shape)
+- Entity schema options = CRD spec (declared shape)
 - Resolution pipeline = controller (converges aspects into NixOS config)
 - `config.resolved` = status (observed output)
 
-**Takeaway:** Validates keeping the class definition as pure data with no behavioral `__functor`. Level-triggered reconciliation ("converge to desired state") is the right mental model for the resolution pipeline.
+**Takeaway:** Validates keeping entity schemas as pure data with no behavioral functor. Level-triggered reconciliation ("converge to desired state") is the right mental model for the resolution pipeline.
 
 **Anti-pattern:** Relationships are an afterthought. Owner references are primitive. No way to declare "a Database requires a Cluster" at the schema level — controllers just fail at runtime if dependencies are missing. Den should make relationships first-class.
 
@@ -52,12 +62,12 @@ CRDs define pure schema (what fields a resource has). Controllers provide reconc
 `has_many :users`, `belongs_to :host` — declarative macros that read as prose. Relationships are metadata, not behavior. Rails also separates schema (migrations) from the model class.
 
 **Den mapping:**
-- `den.relationships.host-users = { from = "host"; to = "user"; ... }` follows the same declarative pattern
+- `den.relationships.host-to-users = { from = "host"; to = "user"; ... }` follows the same declarative pattern
 - The relationship spec is metadata that the pipeline walks
 
 **Takeaway:** The declarative relationship macros are the gold standard for readability. Rails' `through:` for indirect relationships maps to den's "host has homes through users" pattern.
 
-**Anti-pattern:** Rails merges too much into model classes — god-object models with 500+ lines mixing query logic, validation, and callbacks. Den should resist adding behavior to class definitions.
+**Anti-pattern:** Rails merges too much into model classes — god-object models with 500+ lines mixing query logic, validation, and callbacks. Den should resist adding behavior to relationship declarations (the same trap `den.ctx` fell into).
 
 ### Terraform Providers/Resources — Implicit Relationship Detection
 
@@ -76,9 +86,9 @@ Terraform infers its dependency DAG from attribute references (`vpc_id = aws_vpc
 Entity is NOTHING — just an ID. All meaning comes from which components are attached. A "Host" is an entity with `{HostConfig, NetworkConfig, StorageConfig}` components. Systems query by component signature.
 
 **Den mapping:**
-- An entity gains capabilities by which aspects are attached, not by its class hierarchy
-- The class registry defines structural shape; actual configuration comes from aspect composition
-- Classes are constraints on valid compositions, not behavior prescriptions
+- An entity gains capabilities by which aspects are attached, not by its entity type
+- Entity schemas define structural shape; actual configuration comes from aspect composition
+- Entity types are constraints on valid compositions, not behavior prescriptions
 
 **Takeaway:** Validates den's aspect model. The ECS framing confirms: identity comes from composition, not classification.
 
@@ -102,7 +112,7 @@ Everything in one class: fields, relationships, validators, managers, custom met
 - Entity definitions could have a "meta" section for structural metadata (capabilities, pipeline ordering) separate from the fields/aspects
 - Django's Manager pattern (customizing how entities are queried/resolved) maps to den's adapter concept
 
-**Anti-pattern:** The monolithic model. Django models become god-objects even faster than Rails.
+**Anti-pattern:** The monolithic model. Django models become god-objects even faster than Rails. `den.ctx` exhibited the same problem — conflating relationships and behavior into one construct.
 
 ## Universal Insight
 
@@ -112,9 +122,9 @@ Every system that ages well separates three concerns:
 2. **How entities RELATE** (transitions) — `den.relationships`
 3. **How entities RESOLVE** (behavior) — `den.aspects` + fx pipeline handlers
 
-Systems that merge any two develop god-object problems. Den's `den.ctx` merged relationships and behavior — the redesign separates them. Note: "class" in Den is reserved for Nix configuration classes (nixos, darwin, homeManager) — a behavioral concept, not entity types.
+Systems that merge any two develop god-object problems. Den's `den.ctx` merged relationships and behavior — the redesign separates them.
 
-The closest formal model is Haskell typeclasses: entity types declaring capabilities via typeclass-like instances, with constraints encoding pipeline ordering. The vocabulary maps almost 1:1:
-- typeclass = capability interface
-- instance = entity type's implementation
-- constraint = pipeline dependency
+The closest formal model is Haskell typeclasses:
+- `data` type = entity schema (pure structure)
+- typeclass instance = aspect with Nix config class keys (behavioral capability)
+- typeclass constraint = relationship policy (ordering/dependency)

@@ -13,6 +13,7 @@ Before anything else, align on terms:
 | **Entity** | A tangible thing in the user's infrastructure | A host, a user, a home |
 | **Schema** | The data structure defining what an entity IS | `den.schema.host` + `den.schema.base` + hostSubmodule from types.nix |
 | **Class** (Nix config class) | A category of behavior/configuration | `nixos`, `darwin`, `homeManager`, custom classes |
+| **`den.ctx`** | Deprecated — conflated relationships and behavior. Being fully removed by this spec | `den.ctx.host`, `den.ctx.hm-host`, `den.ctx.default` |
 | **Aspect** | A container of behavior (Nix config classes) | `den.aspects.gaming` — defines nixos/darwin/homeManager configs |
 | **Relationship** | How entities transition into or relate to each other | host fans out into users, host transitions into hm-host |
 
@@ -142,20 +143,34 @@ den.aspects.hm-host-config = {
 
 The `hm-host` aspect continues to exist in `den.aspects` (not `den.ctx`). The relationship pipeline activates it when the `host-to-hm-host` transition fires. This is closest to current behavior — the aspect just loses its `into.*` and moves from `den.ctx.hm-host` to `den.aspects.hm-host`.
 
+**Activation mechanism for Option C:** When a relationship resolves (e.g., `host-to-hm-host`), the relationship handler looks up `den.aspects.${target}` (e.g., `den.aspects.hm-host`) and includes it in the resolution scope for that transition. This mirrors what the current `transitionHandler` does when it visits a ctx node — it resolves the node's aspect. The difference is that the aspect no longer carries `into.*`; the relationship handler drives the traversal and the aspect just provides behavior.
+
+Concretely, a relationship declaration can reference a target aspect:
+```nix
+den.relationships.host-to-hm-host = {
+  from = "host";
+  to = "hm-host";
+  resolve = detectHost { ... };
+  aspect = "hm-host";  # activates den.aspects.hm-host when this transition fires
+};
+```
+
 **Recommendation:** Option C for migration simplicity. The intermediate aspects already work; they just need to stop being the place where relationships are declared. Moving them from `den.ctx` to `den.aspects` is a rename, not a redesign.
 
 ### The `default` Stage
 
 `default` is a ground context stage. Every entity kind transitions into it (`host.into.default`, `user.into.default`, `home.into.default`). It provides a place to put behavior that applies unconditionally to all entities.
 
-Under the new model, `default` is a relationship target — every entity kind has a relationship to default:
+Under the new model, `default` is a relationship target. Rather than requiring every entity kind to declare a boilerplate relationship, `default` should be structural — the relationship system automatically creates a `*-to-default` transition for every entity kind that participates in the pipeline. This avoids the need to add `den.relationships.cluster-to-default` whenever a new entity kind is introduced.
+
 ```nix
-den.relationships.host-to-default = { from = "host"; to = "default"; resolve = lib.singleton; };
-den.relationships.user-to-default = { from = "user"; to = "default"; resolve = lib.singleton; };
-den.relationships.home-to-default = { from = "home"; to = "default"; resolve = lib.singleton; };
+# Built-in: every entity kind automatically gets a relationship to default.
+# Equivalent to:
+#   den.relationships.${kind}-to-default = { from = kind; to = "default"; resolve = lib.singleton; };
+# for every registered entity kind. No explicit declaration needed.
 ```
 
-And `default` behavior lives in `den.aspects.default` (or `den.default` as it is currently aliased).
+`default` behavior lives in `den.aspects.default` (or `den.default` as it is currently aliased).
 
 ### Flake Output Stages
 
@@ -176,6 +191,40 @@ den.relationships.flake-system-to-os = {
 ```
 
 Their behavior (the output adapters that produce `nixosConfigurations`, `homeConfigurations`, etc.) moves to `den.aspects` with relationship-scoped activation.
+
+### The makeHomeEnv Chain (host → hm-host → hm-user)
+
+The `makeHomeEnv` factory currently generates a 3-node ctx chain for each home environment (home-manager, hjem, maid):
+
+```
+host.into.hm-host → hm-host.into.hm-user → hm-user.provides.hm-user
+```
+
+Under the new model, this becomes relationship declarations + aspects:
+
+```nix
+# Relationships (what makeHomeEnv generates):
+den.relationships.host-to-hm-host = {
+  from = "host";
+  to = "hm-host";
+  resolve = detectHost { className = "homeManager"; ... };
+  aspect = "hm-host";  # activates den.aspects.hm-host
+};
+den.relationships.hm-host-to-hm-user = {
+  from = "hm-host";
+  to = "hm-user";
+  resolve = intoClassUsers "homeManager";
+  aspect = "hm-user";  # activates den.aspects.hm-user
+};
+
+# Behavior (the aspects that activate at each stage):
+den.aspects.hm-host = { host }: {
+  ${host.class}.imports = [ host.homeManager.module ];
+};
+den.aspects.hm-user = forwardToHost { ... };
+```
+
+The `makeHomeEnv` factory continues to exist but generates relationship + aspect pairs instead of ctx nodes. Its interface stays the same — callers pass `{ className, optionPath, getModule, forwardPathFn }` and get declarations back.
 
 ### Scope Binding (What ctxApply Becomes)
 
@@ -238,7 +287,7 @@ modules/relationships/
 
 ### Migration Path
 
-**Phase 1 (this branch):** Consolidate entity types into `nix/lib/entities/` (rename + split, no behavioral changes). Keep `den.ctx` working as-is during this phase.
+**Phase 1 (this branch):** Consolidate entity types into `nix/lib/entities/` (rename + split, no behavioral changes). Keep `den.ctx` working as-is during this phase. The `nix/lib/types.nix` split must provide re-exports from the original path so existing imports (`modules/options.nix`, `modules/aspects/definition.nix`, and any flake-level consumers) continue to work. Verify by grepping for all `types.nix` imports before splitting.
 
 **Phase 2 (relationship policies):** Introduce `den.relationships`. Extract `into.*` from ctx nodes into relationship declarations. Behavior on ctx nodes moves to `den.aspects`.
 
@@ -248,7 +297,7 @@ modules/relationships/
 
 ## Relationship to Other Specs
 
-- **Relationship Policies** (`2026-04-20-relationship-policies-design.md`): Defines the `den.relationships` system in detail. This spec provides the motivation and the migration path for getting there.
+- **Relationship Policies** (`2026-04-20-relationship-policies-design.md`): Defines the `den.relationships` system in detail. This spec provides the motivation and the migration path for getting there. **Note:** The April 20 spec predates Vic's feedback and still references `den.ctx` in its "What stays" section and activation model (level 3: `den.ctx.<kind>.relationships`). It needs revision to align with the full ctx removal decision — specifically, the inline sugar section and activation model level 3 need new homes outside `den.ctx`.
 - **Capabilities Design**: Aspects contain capability keys (Nix config classes). Structural detection determines which classes an aspect emits. Orthogonal to this spec — capabilities are about behavior, not data or relationships.
 - **provide-to Effects**: Cross-entity routing currently in `provides` moves to relationship policies, which emit `provide-to` effects.
 
@@ -283,6 +332,6 @@ Systems that merge any two develop god-object problems. `den.ctx` merged relatio
 
 1. **Scoped behavior activation mechanism**: How exactly does behavior know it should activate when a relationship resolves? Option A (behavior on relationship), Option B (conditional aspects with predicates), or Option C (intermediate aspects activated by pipeline) — needs prototyping to determine the right ergonomics.
 
-2. **Schema entry auto-resolution**: Currently `options.nix` checks `den.ctx ? ${kind}` to gate entity participation. With `den.ctx` removed, what gates this? Does `den.schema ? ${kind}` suffice, or do we need an explicit entity kind registry?
+2. **Schema entry auto-resolution**: Currently `options.nix` checks `den.ctx ? ${kind}` to gate entity participation. With `den.ctx` removed, what gates this? Likely answer: check whether any relationship has `from = kind` or `to = kind` — if an entity kind participates in any relationship, it participates in resolution. Alternatively, `den.schema ? ${kind}` may suffice since schema existence already implies the entity kind is registered. Needs confirmation during Phase 2.
 
 3. **Provides self-identity**: Currently `den.ctx.host.provides.host = {host}: host.aspect`. This is universal — every entity's aspect IS its identity. With ctx removed, does the pipeline infer this automatically, or does each relationship declare it?
