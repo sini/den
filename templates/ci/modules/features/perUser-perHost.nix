@@ -77,7 +77,7 @@
           pingu = { };
         };
 
-        den.ctx.user.includes = [ den.provides.mutual-provider ];
+        den.stages.user.includes = [ den.provides.mutual-provider ];
 
         den.aspects.igloo.nixos.options.funny = lib.mkOption {
           default = [ ];

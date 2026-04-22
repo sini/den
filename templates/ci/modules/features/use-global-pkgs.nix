@@ -8,7 +8,8 @@
         den.hosts.x86_64-linux.igloo.users.tux = { };
 
         # hm-host context is activated when host has HM support
-        den.ctx.hm-host.nixos.home-manager.useGlobalPkgs = true;
+        den.stages.hm-host.nixos.home-manager.useGlobalPkgs = true;
+        den.stages.hm-host.includes = [ ];
 
         expr = igloo.home-manager.useGlobalPkgs;
         expected = true;
@@ -28,7 +29,8 @@
       { den, config, ... }:
       {
         den.hosts.x86_64-linux.igloo = { };
-        den.ctx.hm-host.nixos.home-manager.useGlobalPkgs = true;
+        den.stages.hm-host.nixos.home-manager.useGlobalPkgs = true;
+        den.stages.hm-host.includes = [ ];
 
         expr = config.flake.nixosConfigurations.igloo.config ? home-manager;
         expected = false;

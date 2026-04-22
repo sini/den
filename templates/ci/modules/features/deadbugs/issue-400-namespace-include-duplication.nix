@@ -59,7 +59,7 @@
           den.hosts.x86_64-linux.igloo.users.tux = { };
           den.aspects.igloo.includes = [ test-module ];
 
-          den.ctx.host.includes = [
+          den.stages.host.includes = [
             test.aspect
             test.provided.provides.provider
             test.provided.provides.included
@@ -89,7 +89,7 @@
           den.hosts.x86_64-linux.igloo.users.tux = { };
           den.aspects.igloo.includes = [ test-module ];
 
-          den.ctx.host.includes = [
+          den.stages.host.includes = [
             test.aspect
             test.provided.provides.provider
             test.provided.provides.included

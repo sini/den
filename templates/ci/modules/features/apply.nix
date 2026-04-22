@@ -13,7 +13,8 @@
           ];
         };
 
-      den.ctx.foobar.funny.names = [ "owned" ];
+      den.stages.foobar.funny.names = [ "owned" ];
+      den.stages.foobar.includes = [ ];
 
       expr = funnyNames (
         den.ctx.foobar {

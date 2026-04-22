@@ -26,7 +26,8 @@
           {
             funny.names = [ "hello-${who}" ];
           };
-        den.ctx.greet.funny.names = [ "owned" ];
+        den.stages.greet.funny.names = [ "owned" ];
+        den.stages.greet.includes = [ ];
 
         expr = funnyNames (den.ctx.greet { who = "nix"; });
         expected = [

@@ -41,7 +41,7 @@
           {
             funny.names = [ foo ];
           };
-        den.ctx.foo.includes = [
+        den.stages.foo.includes = [
           { funny.names = [ "static-include" ]; }
           (
             { foo, ... }:
@@ -69,7 +69,8 @@
           {
             funny.names = [ x ];
           };
-        den.ctx.bar.funny.names = [ "owned" ];
+        den.stages.bar.funny.names = [ "owned" ];
+        den.stages.bar.includes = [ ];
 
         expr = funnyNames (den.ctx.bar { x = "val"; });
         expected = [

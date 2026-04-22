@@ -64,7 +64,7 @@
         imports = [ inputs.den.flakeOutputs.packages ];
         den.hosts.x86_64-linux.igloo = { };
 
-        den.ctx.flake-packages.includes = [ den.aspects.igloo ];
+        den.stages.flake-packages.includes = [ den.aspects.igloo ];
 
         den.aspects.igloo = {
           packages =
@@ -99,7 +99,7 @@
             };
         };
 
-        den.ctx.flake-apps.includes = [ den.aspects.foo ];
+        den.stages.flake-apps.includes = [ den.aspects.foo ];
 
         expr = lib.getName config.flake.apps.x86_64-linux.hello;
         expected = "hello";
@@ -125,7 +125,7 @@
             };
         };
 
-        den.ctx.flake-checks.includes = [ den.aspects.foo ];
+        den.stages.flake-checks.includes = [ den.aspects.foo ];
 
         expr = lib.getName config.flake.checks.x86_64-linux.hello;
         expected = "hello";
@@ -153,7 +153,7 @@
             };
         };
 
-        den.ctx.flake-devShells.includes = [ den.aspects.foo ];
+        den.stages.flake-devShells.includes = [ den.aspects.foo ];
 
         expr = config.flake.devShells.x86_64-linux ? default;
         expected = true;

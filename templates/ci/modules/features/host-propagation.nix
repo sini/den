@@ -20,7 +20,7 @@
     {
 
       den.hosts.x86_64-linux.igloo.users.tux = { };
-      den.ctx.user.includes = [ den.provides.mutual-provider ];
+      den.stages.user.includes = [ den.provides.mutual-provider ];
 
       den.aspects.igloo.funny.names = [ "host-owned" ];
       den.aspects.igloo.includes = [
@@ -105,8 +105,8 @@
         ))
       ];
 
-      den.ctx.hm-host.funny.names = [ "hm-host detected" ];
-      den.ctx.hm-host.includes = [
+      den.stages.hm-host.funny.names = [ "hm-host detected" ];
+      den.stages.hm-host.includes = [
         (
           { host, ... }@ctx:
           {
@@ -115,7 +115,7 @@
         )
       ];
 
-      den.ctx.hm-user.includes = [
+      den.stages.hm-user.includes = [
         (
           { host, user, ... }@ctx:
           {

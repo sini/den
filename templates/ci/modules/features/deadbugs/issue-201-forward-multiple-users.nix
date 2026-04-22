@@ -13,7 +13,7 @@
       }:
       {
         den.default.homeManager.home.stateVersion = "25.11";
-        den.ctx.user.includes = [ den.provides.mutual-provider ];
+        den.stages.user.includes = [ den.provides.mutual-provider ];
 
         den.hosts.x86_64-linux.igloo.users = {
           tux = { };
