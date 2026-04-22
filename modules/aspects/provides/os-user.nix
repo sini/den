@@ -47,5 +47,5 @@ let
 
 in
 {
-  den.ctx.user.includes = [ fwd ];
+  den.stages.user.includes = [ fwd ];
 }

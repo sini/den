@@ -29,5 +29,5 @@ let
 
 in
 {
-  den.ctx.default.includes = [ os-class ];
+  den.stages.default.includes = [ os-class ];
 }
