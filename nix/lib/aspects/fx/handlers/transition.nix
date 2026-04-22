@@ -136,6 +136,7 @@ let
           targetAspect
           // {
             includes = (targetAspect.includes or [ ]) ++ [ stageAsInclude ];
+            provides = (targetAspect.provides or { }) // (stageAspect.provides or { });
           }
         else if stageAspect != null then
           stageAspect

@@ -4,8 +4,6 @@ let
   ctx.flake-system.into.flake-hm =
     { system }: map (home: { inherit home; }) (builtins.attrValues den.homes.${system} or { });
 
-  ctx.flake-system.provides.flake-hm = _: hmFwd;
-
   hmFwd =
     { home }:
     den.provides.forward {
@@ -26,4 +24,5 @@ let
 in
 {
   den.ctx = ctx;
+  den.stages.flake-system.provides.flake-hm = _: hmFwd;
 }

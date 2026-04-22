@@ -99,13 +99,16 @@ let
         host.into."${ctxName}-host" = detectHost { inherit className supportedOses optionPath; };
 
         "${ctxName}-host" = {
-          provides."${ctxName}-host" =
-            { host }:
-            {
-              ${host.class}.imports = [ host.${optionPath}.module ];
-            };
           into."${ctxName}-user" = intoClassUsers className;
         };
+      };
+
+      stages = {
+        "${ctxName}-host".provides."${ctxName}-host" =
+          { host }:
+          {
+            ${host.class}.imports = [ host.${optionPath}.module ];
+          };
 
         "${ctxName}-user".provides."${ctxName}-user" = forwardToHost {
           inherit className ctxName forwardPathFn;

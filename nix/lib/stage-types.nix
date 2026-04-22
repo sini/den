@@ -16,6 +16,7 @@ let
         stageNodeKeys = [
           "_"
           "includes"
+          "provides"
           "_module"
         ];
         hasKey = x: builtins.any (k: x ? ${k}) stageNodeKeys;

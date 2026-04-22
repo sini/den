@@ -22,12 +22,14 @@ let
   };
 
   homeCtx = {
-    home.provides.home = { home }: home.aspect;
     home.into.default = lib.singleton;
   };
 
 in
 {
   den.ctx = result.ctx // homeCtx;
+  den.stages = result.stages // {
+    home.provides.home = { home }: home.aspect;
+  };
   den.schema.host.imports = [ result.hostConf ];
 }

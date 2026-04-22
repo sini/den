@@ -23,11 +23,9 @@ let
   '';
 
   ctx.user.into.default = lib.singleton;
-  ctx.user.provides.user = from-user;
-
-  from-user = { host, user }: user.aspect;
 
 in
 {
   den.ctx = ctx;
+  den.stages.user.provides.user = { host, user }: user.aspect;
 }

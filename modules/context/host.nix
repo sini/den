@@ -18,9 +18,9 @@ let
 
   ctx.host.into.user = { host }: map (user: { inherit host user; }) (lib.attrValues host.users);
   ctx.host.into.default = lib.singleton;
-  ctx.host.provides.host = { host }: host.aspect;
 
 in
 {
   den.ctx = ctx;
+  den.stages.host.provides.host = { host }: host.aspect;
 }
