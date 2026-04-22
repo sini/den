@@ -24,7 +24,7 @@ let
       optionPath,
     }:
     ctx:
-    if !(ctx ? host) then
+    if !(ctx ? host) || !(builtins.isAttrs ctx.host) then
       [ ]
     else
       let
@@ -38,7 +38,7 @@ let
   # Reusable intoClassUsers — mirrors nix/lib/home-env.nix intoClassUsers.
   mkIntoClassUsers =
     className: ctx:
-    if !(ctx ? host) then
+    if !(ctx ? host) || !(builtins.isAttrs ctx.host) || !(ctx.host ? users) then
       [ ]
     else
       map (user: {
@@ -104,10 +104,10 @@ in
       to = "wsl-host";
       resolve =
         ctx:
-        if !(ctx ? host) then
+        if !(ctx ? host) || !(builtins.isAttrs ctx.host) then
           [ ]
         else
-          lib.optional (ctx.host.class == "nixos" && (ctx.host.wsl or { }).enable or false) {
+          lib.optional (ctx.host.class or "" == "nixos" && (ctx.host.wsl or { }).enable or false) {
             inherit (ctx) host;
           };
     };

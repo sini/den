@@ -96,47 +96,56 @@ let
     }:
     let
       # Synthesize den.relationships into an into-style function.
+      # Only include relationships whose `from` matches this root aspect's
+      # name — e.g. when resolving den.ctx.host (name="host"), only
+      # relationships with from="host" fire. This prevents flake/battery
+      # relationships from polluting host pipelines and vice versa.
       relationships = den.relationships or { };
+      selfName = self.name or "";
+      matchingRels = lib.filter (rel: rel.from == selfName) (builtins.attrValues relationships);
       relationshipInto =
-        if relationships == { } then
+        if matchingRels == [ ] then
           null
         else
           rCtx:
-          builtins.foldl' (
-            acc: rel:
-            let
-              targets = rel.resolve rCtx;
-            in
-            acc
-            // {
-              ${rel.to} = (acc.${rel.to} or [ ]) ++ (if builtins.isList targets then targets else [ targets ]);
-            }
-          ) { } (builtins.attrValues relationships);
+          let
+            raw = builtins.foldl' (
+              acc: rel:
+              let
+                targets = rel.resolve rCtx;
+                targetList = if builtins.isList targets then targets else [ targets ];
+              in
+              if targetList == [ ] then
+                acc
+              else
+                acc
+                // {
+                  ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList;
+                }
+            ) { } matchingRels;
+          in
+          raw;
 
-      # Merge relationship into with aspect's existing into.
+      # Merge relationship transitions with the aspect's existing into.
+      # Relationships are additive — they contribute new target keys alongside
+      # whatever the existing into already declares. Overlapping target keys
+      # are deduplicated downstream by ctx-seen.
       existingInto = self.meta.into or self.into or null;
       mergedInto =
-        if relationshipInto != null && existingInto != null then
-          ctx':
+        if existingInto != null && relationshipInto != null then
+          # Both exist: merge results at call time.
+          rCtx:
           let
-            a = existingInto ctx';
-            b = relationshipInto ctx';
+            existing = existingInto rCtx;
+            fromRels = relationshipInto rCtx;
           in
-          a
-          // builtins.mapAttrs (
-            k: vb:
-            if a ? ${k} then
-              let
-                va = a.${k};
-              in
-              if builtins.isList va && builtins.isList vb then va ++ vb else vb
-            else
-              vb
-          ) b
+          existing // (builtins.removeAttrs fromRels (builtins.attrNames existing))
+        else if existingInto != null then
+          existingInto
         else if relationshipInto != null then
           relationshipInto
         else
-          existingInto;
+          null;
 
       # Inject merged into onto self
       effectiveSelf =
