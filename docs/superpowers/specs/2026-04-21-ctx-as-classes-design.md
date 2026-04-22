@@ -21,7 +21,7 @@ Before anything else, align on terms:
 
 ## Problem
 
-`den.ctx` conflates two of the three concerns:
+`den.ctx` conflates three concerns that should be separate:
 
 1. **Relationships** — `into.*` transitions define how to move between context stages (`{host}` → `{host, user}`)
 2. **Behavior** — each ctx node IS an aspect, so `den.ctx.hm-host.nixos.foo = "bar"` and `den.ctx.default.includes = [z]` work
@@ -43,19 +43,21 @@ Because `den.ctx` is both relationships AND behavior:
 - Users struggle to understand what `den.ctx` is for — the name describes an implementation detail, not a declarative concept
 - The 3-node `makeHomeEnv` chains (`host.into.X-host` → `X-host.into.X-user` → `X-user.provides`) exist solely to thread context through intermediate aspect nodes
 
-## Design: Three Clean Separations
+## Design: Four Clean Separations
 
-### The Three Concerns
+### The Four Concerns
 
 ```
 Data (Schema)        — what entities ARE       — den.schema.* + entity types
 Relationships        — how entities RELATE     — den.relationships (new)
+Stages               — where behavior BINDS    — den.stages (new, replaces den.ctx scoped behavior)
 Behavior             — how entities RESOLVE    — den.aspects.* + fx pipeline
 ```
 
-`den.ctx` is fully removed. Its two roles split cleanly:
+`den.ctx` is fully removed. Its two roles split into three:
 - `into.*` transitions → `den.relationships`
-- Aspect behavior (`.nixos`, `.includes`, freeform class keys) → `den.aspects` with relationship-scoped activation
+- Scoped behavior (`.nixos`, `.includes` on ctx nodes) → `den.stages`
+- Reusable behavior definitions → `den.aspects` (unchanged)
 
 ### Data: Entity Schemas
 
@@ -115,59 +117,65 @@ den.ctx.default.nixos.x = "y";            # applies to all entities
 den.ctx.default.includes = [ z ];          # includes for everything
 ```
 
-After removing `den.ctx`, this scoped behavior needs a new home. Two options:
+After removing `den.ctx`, this scoped behavior needs a new home. Three options were considered:
 
-**Option A: Behavior on relationship declarations**
+**Option A: Behavior on relationship declarations** (`relationship.aspect = ...`)
+Rejected — couples topology to behavior. The relationship fixes which behavior runs when it fires, re-creating the conflation problem that `den.ctx` had.
+
+**Option B: Behavior declares its own scope** (`aspect.meta.stage = "hm-host"`)
+Rejected — couples behavior to topology in the other direction. The aspect knows which stage it belongs to, which is not its concern.
+
+**Option C (rejected form): Pipeline-matched stage names**
+Both A and B move the coupling rather than eliminating it. Neither the relationship nor the aspect should know about the other.
+
+### Accepted: `den.stages` — Named Scopes
+
+**`den.stages`** is a new namespace: named scopes where behavior can be attached, independent of both the relationships that create them and the aspects that run in them. This is the cleanest migration path from `den.ctx` — it's literally what `den.ctx.hm-host.includes = [...]` was doing, minus the transition topology.
+
 ```nix
+# Relationship — pure topology (no behavior reference)
 den.relationships.host-to-hm-host = {
   from = "host";
   to = "hm-host";
   resolve = detectHost { ... };
-  # Behavior that activates when this relationship resolves:
-  aspects.nixos.foo = "bar";
-  aspects.includes = [ someAspect ];
+};
+
+# Stage — named scope for attaching behavior
+den.stages.hm-host.nixos.foo = "bar";
+den.stages.hm-host.includes = [ someAspect ];
+
+# Aspect — pure behavior (no stage awareness)
+den.aspects.my-hm-config = { host, ... }: {
+  nixos.services.something.enable = true;
 };
 ```
 
-**Option B: Conditional aspects with relationship predicates**
+**Separation preserved:**
+- **Relationship** declares "host transitions to hm-host" — pure topology
+- **Stage** declares "when at hm-host, include this behavior" — the binding point
+- **Aspect** declares "here is configuration" — pure behavior
+
+The stage is the **binding point** that connects topology and behavior without either knowing about the other. Like Kubernetes labels + selectors: neither the pod nor the service owns the binding.
+
+**Migration from `den.ctx`:**
 ```nix
-den.aspects.hm-host-config = {
-  # Only activates when the host-to-hm-host relationship resolved
-  meta.when = "host-to-hm-host";
-  nixos.foo = "bar";
-  includes = [ someAspect ];
-};
+# Before:
+den.ctx.hm-host.nixos.foo = "bar";
+den.ctx.hm-host.includes = [ someAspect ];
+
+# After:
+den.stages.hm-host.nixos.foo = "bar";
+den.stages.hm-host.includes = [ someAspect ];
 ```
 
-**Option C: Keep intermediate aspects as regular aspects, activated by relationships**
+Mechanical rename: `den.ctx.X` → `den.stages.X` for scoped behavior. The `into.*` part goes to `den.relationships` separately.
 
-The `hm-host` aspect continues to exist in `den.aspects` (not `den.ctx`). The relationship pipeline activates it when the `host-to-hm-host` transition fires. This is closest to current behavior — the aspect just loses its `into.*` and moves from `den.ctx.hm-host` to `den.aspects.hm-host`.
+**Pipeline activation:** When a relationship resolves and the pipeline enters stage `hm-host`, the pipeline looks up `den.stages.hm-host` and includes its behavior in the resolution scope for that transition. The stage is an aspect-shaped attrset (same structure as `den.aspects.*`) — it has class keys, `includes`, etc. — but it lives in a separate namespace to make its role clear: stages are scoped behavior bindings, aspects are reusable behavior definitions.
 
-**Activation mechanism for Option C:** The relationship declares topology only (`from`/`to`/`resolve`). The aspect declares its own activation scope — it knows which relationship stage it belongs to. When the pipeline transitions into a stage, it looks up aspects that are scoped to that stage and includes them.
-
+**Stages support nesting** for namespace reuse (denful batteries):
 ```nix
-# Relationship: pure topology, no behavior reference
-den.relationships.host-to-hm-host = {
-  from = "host";
-  to = "hm-host";
-  resolve = detectHost { ... };
-  # No `aspect` field — relationships don't reference behavior
-};
-
-# Aspect: behavior scoped to a relationship stage
-den.aspects.hm-host = {
-  # This aspect activates when the pipeline is at the "hm-host" stage
-  meta.stage = "hm-host";
-  nixos.foo = "bar";
-  includes = [ someAspect ];
-};
+den.ns.desktop.stages.hm-host.includes = [ ... ];
 ```
-
-This preserves the three-way separation: the relationship doesn't know what behavior runs at its target stage, and the aspect doesn't know which relationship brought it there. They're connected by the stage name (`"hm-host"`) but neither owns the other.
-
-**Why not `aspect = ...` on relationships?** (Vic's feedback) Putting an aspect reference on the relationship definition couples behavior to topology — the relationship fixes which behavior runs when it fires. This re-creates the conflation problem that `den.ctx` had. Relationships should be pure topology; behavior attaches independently via stage scoping.
-
-**Recommendation:** Option C for migration simplicity. The intermediate aspects already work; they just need to stop being the place where relationships are declared. Moving them from `den.ctx` to `den.aspects` is a rename, not a redesign. Activation is via stage name matching, not relationship→aspect references.
 
 ### The `default` Stage
 
@@ -184,7 +192,7 @@ den.relationships.host-to-default = {
 };
 ```
 
-`default` behavior lives in `den.aspects.default` (or `den.default` as it is currently aliased). Den core may still ship default-to-* relationships as batteries, but they are not structural/automatic — users enable them like any other relationship.
+`default` behavior lives in `den.stages.default` (migrated from `den.ctx.default` / `den.default`). Den core may still ship default-to-* relationships as batteries, but they are not structural/automatic ��� users enable them like any other relationship.
 
 ### Flake Output Stages
 
@@ -229,17 +237,11 @@ den.relationships.hm-host-to-hm-user = {
   resolve = intoClassUsers "homeManager";
 };
 
-# Behavior — aspects scoped to relationship stages:
-den.aspects.hm-host = {
-  meta.stage = "hm-host";
-  includes = [
-    ({ host }: { ${host.class}.imports = [ host.homeManager.module ]; })
-  ];
-};
-den.aspects.hm-user = {
-  meta.stage = "hm-user";
-  includes = [ (forwardToHost { ... }) ];
-};
+# Stages — behavior scoped to relationship stages:
+den.stages.hm-host.includes = [
+  ({ host }: { ${host.class}.imports = [ host.homeManager.module ]; })
+];
+den.stages.hm-user.includes = [ (forwardToHost { ... }) ];
 ```
 
 The `makeHomeEnv` factory continues to exist but generates relationship + aspect pairs instead of ctx nodes. Its interface stays the same — callers pass `{ className, optionPath, getModule, forwardPathFn }` and get declarations back.
@@ -287,10 +289,21 @@ nix/lib/relationships/
   handler.nix         # relationship handler for fx pipeline (replaces transitionHandler)
 
 modules/relationships/
-  host.nix            # host-to-users, host-to-default, host-to-hm-host, etc.
-  user.nix            # user-to-default
-  home.nix            # home-to-default
+  host.nix            # host-to-users, host-to-hm-host, etc.
+  user.nix            # user-to-* relationships
+  home.nix            # home-to-* relationships
   flake.nix           # flake output pipeline relationships
+```
+
+**Stages (new, replaces den.ctx scoped behavior):**
+```
+nix/lib/stages/
+  types.nix           # stageType (aspect-shaped, nested-capable for namespace reuse)
+
+modules/stages/
+  default.nix         # den.stages.default (from den.ctx.default)
+  hm.nix              # den.stages.hm-host, den.stages.hm-user (from makeHomeEnv)
+  flake.nix           # den.stages.flake-*, if needed for output behavior
 ```
 
 **Deletions:**
@@ -307,34 +320,35 @@ modules/relationships/
 
 **Phase 1 (this branch):** Consolidate entity types into `nix/lib/entities/` (rename + split, no behavioral changes). Keep `den.ctx` working as-is during this phase. The `nix/lib/types.nix` split must provide re-exports from the original path so existing imports (`modules/options.nix`, `modules/aspects/definition.nix`, and any flake-level consumers) continue to work. Verify by grepping for all `types.nix` imports before splitting.
 
-**Phase 2 (relationship policies):** Introduce `den.relationships`. Extract `into.*` from ctx nodes into relationship declarations. Behavior on ctx nodes moves to `den.aspects`.
+**Phase 2 (relationships + stages):** Introduce `den.relationships` and `den.stages`. Extract `into.*` from ctx nodes into relationship declarations. Scoped behavior on ctx nodes (`.nixos`, `.includes`) moves to `den.stages`.
 
 **Phase 3 (ctx removal):** Remove `den.ctx` entirely. Update all consumers (templates, batteries, tests).
 
-**Downstream migration surface:** Templates and batteries referencing intermediate ctx nodes (`den.ctx.hm-host`, `den.ctx.flake-packages`, etc.) need updating in Phase 3. This includes `templates/ci/modules/features/` test fixtures and `templates/flake-parts-modules/` which builds custom `into` chains. Battery modules contributing `includes` to ctx nodes (`den.ctx.user.includes`, `den.ctx.default.includes`) move to contributing to the equivalent `den.aspects` entries.
+**Downstream migration surface:** Templates and batteries referencing intermediate ctx nodes (`den.ctx.hm-host`, `den.ctx.flake-packages`, etc.) need updating in Phase 3. This includes `templates/ci/modules/features/` test fixtures and `templates/flake-parts-modules/` which builds custom `into` chains. Battery modules contributing `includes` to ctx nodes (`den.ctx.user.includes`, `den.ctx.default.includes`) move to contributing to the equivalent `den.stages` entries.
 
 ## Relationship to Other Specs
 
-- **Relationship Policies** (`2026-04-20-relationship-policies-design.md`): Defines the `den.relationships` system in detail. This spec provides the motivation and the migration path for getting there. **Note:** The April 20 spec predates Vic's feedback and still references `den.ctx` in its "What stays" section and activation model (level 3: `den.ctx.<kind>.relationships`). It needs revision to align with the full ctx removal decision — specifically, the inline sugar section and activation model level 3 need new homes outside `den.ctx`.
+- **Relationship Policies** (`2026-04-20-relationship-policies-design.md`): Defines the `den.relationships` system in detail. This spec provides the motivation and the migration path for getting there. Updated to align with ctx removal — inline sugar removed, activation model level 3 moved from `den.ctx.<kind>` to `den.aspects.<kind>`.
 - **Capabilities Design**: Aspects contain capability keys (Nix config classes). Structural detection determines which classes an aspect emits. Orthogonal to this spec — capabilities are about behavior, not data or relationships.
 - **provide-to Effects**: Cross-entity routing currently in `provides` moves to relationship policies, which emit `provide-to` effects.
 
 ## Prior Art and Design Rationale
 
-The three-way separation (entity structure, entity relationships, resolution behavior) is a universal pattern in mature systems. See companion document `2026-04-21-ctx-as-classes-prior-art.md` for detailed analysis.
+The separation of entity structure, relationships, and resolution behavior is a universal pattern in mature systems. Den adds a fourth concern (stages as binding points) to avoid coupling topology to behavior. See companion document `2026-04-21-ctx-as-classes-prior-art.md` for detailed analysis.
 
 ### Key insight
 
-Every system that ages well separates three concerns:
+Den separates four concerns:
 1. **What an entity IS** (structure/schema) — `den.schema.*` + entity type definitions
 2. **How entities RELATE** (transitions) — `den.relationships`
-3. **How entities RESOLVE** (behavior) — `den.aspects` + fx pipeline handlers
+3. **Where behavior BINDS** (scoped activation) — `den.stages`
+4. **How entities RESOLVE** (behavior) — `den.aspects` + fx pipeline handlers
 
-Systems that merge any two develop god-object problems. `den.ctx` merged relationships and behavior — this design separates them.
+`den.ctx` conflated concerns 2, 3, and 4 into a single construct. This design separates them. Stages are the key insight: they are the binding point between topology and behavior that neither relationships nor aspects should own.
 
 ## Resolved Questions (from Vic's feedback)
 
-1. **`default` is not an entity type.** It is a ground stage. Transitions to `default` are **not automatic** — the legacy auto-transitions caused duplicate resolution and re-firing. Users opt in via explicit relationships. Behavior lives in `den.aspects.default`.
+1. **`default` is not an entity type.** It is a ground stage. Transitions to `default` are **not automatic** — the legacy auto-transitions caused duplicate resolution and re-firing. Users opt in via explicit relationships. Behavior lives in `den.stages.default`.
 
 2. **Flake output stages are not entities.** They are context shapes (argument attrsets) for output generation. They become relationships in the output pipeline.
 
@@ -342,13 +356,13 @@ Systems that merge any two develop god-object problems. `den.ctx` merged relatio
 
 4. **`ctxTreeType` nesting is needed** — for organizational purposes in large namespace trees (denful). Relationships inherit this nested structure.
 
-5. **Battery `includes` on intermediate nodes** (e.g., `den.ctx.hm-host.includes`): These are behavior scoped to a relationship stage. After migration, the behavior moves to `den.aspects.hm-host` (or equivalent) which activates when the corresponding relationship resolves.
+5. **Battery `includes` on intermediate nodes** (e.g., `den.ctx.hm-host.includes`): These are behavior scoped to a relationship stage. After migration, the behavior moves to `den.stages.hm-host` — a named scope where behavior is attached independently of both the relationship that creates the stage and the aspects that run in it.
 
-6. **`den.ctx` is fully removed.** It is not renamed, not kept for backwards compat. The `into` part becomes `den.relationships`. The behavior part becomes regular `den.aspects`. The name "ctx" leaks implementation details of the old context-passing mechanism.
+6. **`den.ctx` is fully removed.** It is not renamed, not kept for backwards compat. The `into` part becomes `den.relationships`. The scoped behavior part becomes `den.stages`. Reusable behavior stays in `den.aspects`. The name "ctx" leaks implementation details of the old context-passing mechanism.
 
 ## Open Questions
 
-1. **Scoped behavior activation mechanism**: Option C with stage-name matching (see Behavior section). Aspects declare `meta.stage = "hm-host"` and the pipeline activates them when entering that stage. Relationships do NOT carry aspect references — this preserves the separation. Needs prototyping to confirm the `meta.stage` ergonomics and determine how the pipeline discovers stage-scoped aspects (eager lookup table at pipeline entry vs lazy per-transition query).
+1. **Scoped behavior activation mechanism**: Resolved — `den.stages` (see Behavior section). Stages are named scopes where behavior is attached, independent of both relationships and aspects. Neither relationship nor aspect carries a reference to the other. The pipeline looks up `den.stages.${target}` when entering a stage. Needs prototyping to confirm: eager lookup table at pipeline entry vs lazy per-transition query, and whether stages should support the full aspect submodule type or a subset.
 
 2. **Schema entry auto-resolution**: Currently `options.nix` checks `den.ctx ? ${kind}` to gate entity participation. With `den.ctx` removed, what gates this? Likely answer: check whether any relationship has `from = kind` or `to = kind` — if an entity kind participates in any relationship, it participates in resolution. Alternatively, `den.schema ? ${kind}` may suffice since schema existence already implies the entity kind is registered. Needs confirmation during Phase 2.
 
@@ -367,10 +381,10 @@ den.ctx.hm-host.nixos.foo = "bar";
 den.ctx.default.includes = [ myAspect ];
 
 # After:
-den.aspects.hm-host.nixos.foo = "bar";
-den.aspects.default.includes = [ myAspect ];
+den.stages.hm-host.nixos.foo = "bar";
+den.stages.default.includes = [ myAspect ];
 ```
-Mechanical rename — `den.ctx.X` becomes `den.aspects.X` for behavior.
+Mechanical rename — `den.ctx.X` becomes `den.stages.X` for scoped behavior.
 
 **`den.ctx.*.into` (relationship declarations):**
 ```nix
@@ -399,25 +413,25 @@ den.ctx.my-stage.provides.my-stage = { host, user }: ...;
 
 - **`den.schema.*`** — unchanged. Schema definitions, entity options, and the mixin system are not affected.
 - **`den.hosts` / `den.homes`** — unchanged. Entity declarations stay the same.
-- **`den.aspects.*`** — unchanged. Aspect definitions (behavior) work exactly as before. They gain new members from migrated ctx behavior.
+- **`den.aspects.*`** — unchanged. Aspect definitions (behavior) work exactly as before.
 - **Parametric functions** (`{ host, user }: { nixos = ...; }`) — unchanged. Handler-based resolution continues to work; scope binding just moves from `ctxApply` into the relationship handler.
 - **`hasAspect`** — unchanged. Entity query API is orthogonal to ctx removal.
 
 ### What gets simpler
 
-- **No more `den.ctx` to explain.** Users define entities (data), aspects (behavior), and relationships (transitions) — three concepts with clear purposes instead of one overloaded construct.
-- **No intermediate node proliferation.** Users don't need to create `den.ctx.my-custom-stage` nodes with `into` + aspect behavior just to scope configuration to a transition. Relationships are declared separately from behavior.
-- **Namespace batteries become clearer.** Shared batteries (denful) export `relationships` + `aspects` as separate concerns. Consumers only need to provide their own entities (data). The division of what's reusable vs local is explicit.
+- **No more `den.ctx` to explain.** Users define entities (data), aspects (behavior), relationships (transitions), and stages (scoped behavior bindings) — four concepts with clear purposes instead of one overloaded construct.
+- **No intermediate node proliferation.** Users don't need to create `den.ctx.my-custom-stage` nodes with `into` + aspect behavior just to scope configuration to a transition. Relationships and stages are declared separately.
+- **Namespace batteries become clearer.** Shared batteries (denful) export `relationships` + `stages` + `aspects` as separate concerns. Consumers only need to provide their own entities (data). The division of what's reusable vs local is explicit.
 
 ### Migration effort by user type
 
 | User type | Impact | Effort |
 |-----------|--------|--------|
 | **Basic** (only `den.hosts`/`den.homes` + aspects) | None — `den.ctx` was never touched directly | Zero |
-| **Intermediate** (uses `den.ctx.default.includes` or `den.ctx.hm-host.nixos`) | Mechanical renames to `den.aspects.*` | Low — find/replace |
-| **Advanced** (custom `den.ctx` nodes with `into`/`provides`) | Shape change to `den.relationships` + `den.aspects` | Medium — requires understanding the new model |
-| **Battery authors** (writing reusable Den modules) | Must export relationships + aspects separately | Medium — conceptual shift but cleaner result |
+| **Intermediate** (uses `den.ctx.default.includes` or `den.ctx.hm-host.nixos`) | Mechanical renames to `den.stages.*` | Low — find/replace |
+| **Advanced** (custom `den.ctx` nodes with `into`/`provides`) | Split to `den.relationships` + `den.stages` | Medium — requires understanding the new model |
+| **Battery authors** (writing reusable Den modules) | Must export relationships + stages + aspects separately | Medium — conceptual shift but cleaner result |
 
 ### Deprecation timeline
 
-Phase 1 and 2 can provide compatibility shims: `den.ctx.X.nixos` can emit a deprecation warning and forward to `den.aspects.X.nixos`. This allows a grace period where existing configs continue to work while users migrate. Phase 3 removes the shims.
+Phase 1 and 2 can provide compatibility shims: `den.ctx.X.nixos` can emit a deprecation warning and forward to `den.stages.X.nixos`. This allows a grace period where existing configs continue to work while users migrate. Phase 3 removes the shims.

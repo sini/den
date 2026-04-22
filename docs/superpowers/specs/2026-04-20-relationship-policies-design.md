@@ -4,7 +4,7 @@
 
 Three coupled problems in den's context transition system:
 
-1. **Hardcoded transition topology**: `into` functions on ctx nodes (`den.ctx.host.into.user`) couple topology to entity type definitions. Adding new entity types (kubernetes clusters, environments) requires new ctx nodes with custom wiring. (Note: `den.ctx` is being fully removed — see `2026-04-21-ctx-as-classes-design.md`. Current `into` transitions move to `den.relationships`; behavior on ctx nodes moves to `den.aspects`.)
+1. **Hardcoded transition topology**: `into` functions on ctx nodes (`den.ctx.host.into.user`) couple topology to entity type definitions. Adding new entity types (kubernetes clusters, environments) requires new ctx nodes with custom wiring. (Note: `den.ctx` is being fully removed — see `2026-04-21-ctx-as-classes-design.md`. Current `into` transitions move to `den.relationships`; scoped behavior on ctx nodes moves to `den.stages`.)
 
 2. **`__functor` on submodule-evaluated attrsets**: ctx nodes need to be callable for `den.ctx.host { host = config; }`. The `__functor` causes `lib.isFunction` probing issues during NixOS module loading — forcing evaluation chains that reach `config.den` before it's available. (Resolved by ctx removal — no more callable ctx nodes.)
 
@@ -579,7 +579,7 @@ This separates concerns cleanly:
 
 **`den.ctx.host.into.user = fn`** → Phase 2 deprecation shim forwards to `den.relationships`. Phase 3 removes the shim entirely.
 
-**`den.ctx.*.nixos/includes`** (behavior on ctx nodes) → Phase 2 deprecation shim forwards to `den.aspects.*`. Phase 3 removes.
+**`den.ctx.*.nixos/includes`** (scoped behavior on ctx nodes) → Phase 2 deprecation shim forwards to `den.stages.*`. Phase 3 removes.
 
 **`den.hosts.x86_64-linux.igloo.users.tux = {}`** → unchanged: `users` stays as structure. The `host-to-users` policy reads it.
 
@@ -592,7 +592,7 @@ This separates concerns cleanly:
 ## What stays
 
 - Entity types and schema (`den.hosts`, `den.users`, `den.homes`)
-- `den.aspects` for aspect definitions (gains members from migrated ctx behavior)
+- `den.aspects` for aspect definitions (unchanged — reusable behavior stays here)
 - `den.schema.*` for validation
 - The fx pipeline and effects system
 - `__scopeHandlers` for context propagation
@@ -600,7 +600,7 @@ This separates concerns cleanly:
 
 ## What changes
 
-- `den.ctx` → fully removed (behavior → `den.aspects`, transitions → `den.relationships`)
+- `den.ctx` → fully removed (transitions → `den.relationships`, scoped behavior → `den.stages`)
 - `ctxApply` → dissolved; scope binding moves into relationship handler
 - `__functor` on ctxSubmodule → removed (no more callable ctx nodes)
 - Transition handler → sends per-relationship named effects
@@ -611,6 +611,7 @@ This separates concerns cleanly:
 ## What's new
 
 - `den.relationships` option for formal policy declarations
+- `den.stages` for scoped behavior bindings (replaces `den.ctx.*.nixos/includes`)
 - `den.default.relationships` for cross-cutting policy activation
 - `den.aspects.<kind>.relationships` for entity-kind-scoped policy activation
 - Per-relationship effect handlers
@@ -704,7 +705,7 @@ The thunk wrapping (`_: [...] ++ [param]`) prevents `deepSeq` from forcing aspec
 1. Add `den.relationships` option type and module
 2. Implement per-relationship effect handlers
 3. Move `den.ctx.*.into` declarations to `den.relationships` (with deprecation shims on `den.ctx`)
-4. Move `den.ctx.*` behavior (`.nixos`, `.includes`) to `den.aspects.*` (with deprecation shims)
+4. Move `den.ctx.*` scoped behavior (`.nixos`, `.includes`) to `den.stages.*` (with deprecation shims)
 5. Update transition handler for effect-based dispatch + routing decision
 6. Add `provideToHandler` to `defaultHandlers`
 7. Add `distributeProvideTo` orchestration function
@@ -743,7 +744,7 @@ The pipeline needs `scope.provide` because constantHandler bindings are stateles
 
 ## TL;DR
 
-Three clean separations: **Data** (entity schemas — `den.schema.*`), **Relationships** (topology — `den.relationships`), **Behavior** (Nix config classes — `den.aspects`). `den.ctx` is fully removed — it conflated relationships and behavior.
+Four clean separations: **Data** (entity schemas — `den.schema.*`), **Relationships** (topology — `den.relationships`), **Stages** (scoped behavior bindings — `den.stages`), **Behavior** (Nix config classes — `den.aspects`). `den.ctx` is fully removed — it conflated relationships, stages, and behavior.
 
 **Relationship policies** define topology — how entities connect. Policies are first-class data in `den.relationships`, activated via `den.default.relationships` or scoped to an entity kind/instance.
 
