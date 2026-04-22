@@ -1,8 +1,5 @@
 { lib, den, ... }:
 let
-  ctx.flake-system.into.flake-os =
-    { system }: map (host: { inherit host; }) (builtins.attrValues den.hosts.${system} or { });
-
   osFwd =
     { host }:
     den.provides.forward {
@@ -24,6 +21,5 @@ let
     };
 in
 {
-  den.ctx = ctx;
   den.stages.flake-system.provides.flake-os = _: osFwd;
 }

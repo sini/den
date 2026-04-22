@@ -18,10 +18,10 @@ let
     );
 
   ctx.flake-parts = { };
-  ctx.flake-parts-system.provides.flake-parts-system = perSystemFwd;
   perSystemModule = den.lib.aspects.resolve "flake-parts" (den.lib.resolveStage "flake-parts" { });
 in
 {
   den.ctx = ctx;
+  den.stages.flake-parts-system.provides.flake-parts-system = perSystemFwd;
   perSystem.imports = [ perSystemModule ];
 }

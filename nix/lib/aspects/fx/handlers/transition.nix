@@ -107,41 +107,111 @@ let
   # Resolve a single transition: look up target aspect, check dedup, resolve each context value.
   # Also emits cross-providers: if sourceAspect.provides.${targetKey} exists,
   # that provider is resolved in the scoped context (e.g. flake-system.provides.flake-packages).
+  # Build a target aspect from stages (canonical) + ctx (fallback during transition).
+  # Stages are the primary source; ctx supplements with class keys and includes.
+  # Relationships are synthesized onto the target for nested transitions.
+  buildTarget =
+    transition:
+    let
+      targetKey = lib.concatStringsSep "." transition.path;
+      ctxAspect = lib.attrByPath transition.path null (den.ctx or { });
+      stageAspect = lib.attrByPath transition.path null (den.stages or { });
+
+      # Structural keys to strip when extracting class keys
+      structural = [
+        "includes"
+        "name"
+        "description"
+        "meta"
+        "provides"
+        "into"
+        "__functor"
+        "_module"
+        "_"
+      ];
+
+      # Stage is canonical: use its name, provides, includes as the base.
+      # Ctx supplements with class keys and additional includes during transition.
+      baseTarget =
+        if stageAspect != null && ctxAspect != null then
+          let
+            ctxClassAttrs = builtins.removeAttrs ctxAspect structural;
+            stageClassAttrs = builtins.removeAttrs stageAspect structural;
+          in
+          ctxClassAttrs
+          // stageClassAttrs
+          // {
+            name = stageAspect.name or ctxAspect.name or targetKey;
+            provides = (ctxAspect.provides or { }) // (stageAspect.provides or { });
+            includes = (ctxAspect.includes or [ ]) ++ (stageAspect.includes or [ ]);
+          }
+        else if stageAspect != null then
+          stageAspect
+        else if ctxAspect != null then
+          let
+            # Ctx-only target: extract what we need without __functor baggage
+            ctxClassAttrs = builtins.removeAttrs ctxAspect structural;
+          in
+          ctxClassAttrs
+          // {
+            name = ctxAspect.name or targetKey;
+            provides = ctxAspect.provides or { };
+            includes = ctxAspect.includes or [ ];
+          }
+        else
+          null;
+
+      # Synthesize relationships onto target for nested transitions.
+      targetName = if baseTarget != null then baseTarget.name or "" else "";
+      relationships = den.relationships or { };
+      matchingRels = lib.filter (rel: rel.from == targetName) (builtins.attrValues relationships);
+      relationshipInto =
+        if matchingRels == [ ] then
+          null
+        else
+          rCtx:
+          builtins.foldl' (
+            acc: rel:
+            let
+              targets = rel.resolve rCtx;
+              targetList = if builtins.isList targets then targets else [ targets ];
+            in
+            if targetList == [ ] then acc else acc // { ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList; }
+          ) { } matchingRels;
+
+      # Merge existing into (from ctx during transition) with relationship into.
+      existingInto = if ctxAspect != null then ctxAspect.meta.into or ctxAspect.into or null else null;
+      mergedInto =
+        if existingInto != null && relationshipInto != null then
+          rCtx:
+          let
+            existing = existingInto rCtx;
+            fromRels = relationshipInto rCtx;
+          in
+          existing // (builtins.removeAttrs fromRels (builtins.attrNames existing))
+        else if relationshipInto != null then
+          relationshipInto
+        else
+          existingInto;
+    in
+    if baseTarget != null && mergedInto != null then
+      baseTarget
+      // {
+        meta = (baseTarget.meta or { }) // {
+          into = mergedInto;
+        };
+      }
+    else if baseTarget != null then
+      baseTarget
+    else
+      null;
+
   resolveTransition =
     sourceAspect: currentCtx: results: transition:
     let
       key = lib.concatStringsSep "/" transition.path;
       targetKey = lib.concatStringsSep "." transition.path;
-      targetAspect = lib.attrByPath transition.path null (den.ctx or { });
-      stageAspect = lib.attrByPath transition.path null (den.stages or { });
-      # Merge stage behavior into target via includes (not shallow //).
-      # During coexistence, both ctx and stage behavior must be preserved.
-      effectiveTarget =
-        if targetAspect != null && stageAspect != null then
-          let
-            stageClassAttrs = builtins.removeAttrs stageAspect [
-              "includes"
-              "name"
-              "description"
-              "meta"
-              "provides"
-              "_module"
-              "_"
-            ];
-            stageAsInclude = stageClassAttrs // {
-              name = "${targetAspect.name or "?"}.stage";
-              includes = stageAspect.includes or [ ];
-            };
-          in
-          targetAspect
-          // {
-            includes = (targetAspect.includes or [ ]) ++ [ stageAsInclude ];
-            provides = (targetAspect.provides or { }) // (stageAspect.provides or { });
-          }
-        else if stageAspect != null then
-          stageAspect
-        else
-          targetAspect;
+      effectiveTarget = buildTarget transition;
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
       # Emit cross-provider result by tagging with __scopeHandlers and resolving.

@@ -1,5 +1,9 @@
 { inputs, ... }:
 {
   imports = [ inputs.files.flakeModules.default ];
-  den.ctx.flake-parts.into.flake-parts-system = _: [ { fromClass = _: "files"; } ];
+  den.relationships.flake-parts-to-flake-parts-system-files = {
+    from = "flake-parts";
+    to = "flake-parts-system";
+    resolve = _: [ { fromClass = _: "files"; } ];
+  };
 }

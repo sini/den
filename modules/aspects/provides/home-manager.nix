@@ -21,13 +21,11 @@ let
       ];
   };
 
-  homeCtx = {
-    home.into.default = lib.singleton;
-  };
-
 in
 {
-  den.ctx = result.ctx // homeCtx;
+  den.ctx = result.ctx // {
+    home.includes = [ ];
+  };
   den.stages = result.stages // {
     home.provides.home = { home }: home.aspect;
   };

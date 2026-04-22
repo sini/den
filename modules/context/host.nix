@@ -16,9 +16,9 @@ let
       -  atLeast{host} parametric includes like ({ host }: { nixos.foo = ...; })
   '';
 
-  ctx.host.into.user = { host }: map (user: { inherit host user; }) (lib.attrValues host.users);
-  ctx.host.into.default = lib.singleton;
-
+  # includes triggers ctxTreeType leaf detection so the node remains
+  # a ctxSubmodule (callable via __functor) during transition.
+  ctx.host.includes = [ ];
 in
 {
   den.ctx = ctx;

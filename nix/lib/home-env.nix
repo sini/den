@@ -95,12 +95,10 @@ let
       forwardPathFn,
     }:
     {
+      # Empty ctx skeletons — register node names for transition handler lookup
       ctx = {
-        host.into."${ctxName}-host" = detectHost { inherit className supportedOses optionPath; };
-
-        "${ctxName}-host" = {
-          into."${ctxName}-user" = intoClassUsers className;
-        };
+        "${ctxName}-host".includes = [ ];
+        "${ctxName}-user".includes = [ ];
       };
 
       stages = {

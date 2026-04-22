@@ -1,5 +1,9 @@
 { inputs, ... }:
 {
   imports = [ inputs.treefmt-nix.flakeModule ];
-  den.ctx.flake-parts.into.flake-parts-system = _: [ { fromClass = _: "treefmt"; } ];
+  den.relationships.flake-parts-to-flake-parts-system-treefmt = {
+    from = "flake-parts";
+    to = "flake-parts-system";
+    resolve = _: [ { fromClass = _: "treefmt"; } ];
+  };
 }
