@@ -10,6 +10,7 @@
   imports = map (f: import f (args // { den = config.den; })) [
     ./lib.nix
     ./ctx.nix
+    ./stages.nix
     ./aspects.nix
   ];
 }
