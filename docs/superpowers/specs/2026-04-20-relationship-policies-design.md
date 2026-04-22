@@ -129,9 +129,9 @@ den.default.relationships = [
   den.relationships.mutual-provider
 ];
 
-# 3. den.aspects.<kind>.relationships — scoped to entity kind, user opt-in.
+# 3. den.schema.<kind>.relationships — scoped to entity kind, user opt-in.
 #    Applies when resolving any entity of that kind.
-den.aspects.host.relationships = [
+den.schema.host.relationships = [
   den.relationships.host-to-peers
 ];
 
@@ -142,9 +142,9 @@ den.hosts.x86_64-linux.igloo.relationships = [
 ];
 ```
 
-> **Update (2026-04-21):** Level 3 changed from `den.ctx.<kind>.relationships` to `den.aspects.<kind>.relationships` — `den.ctx` is being fully removed. Entity-scoped relationship activation lives on the entity's aspect instead.
+> **Update (2026-04-21):** Level 3 changed from `den.ctx.<kind>.relationships` to `den.schema.<kind>.relationships` — `den.ctx` is being fully removed. Entity-scoped relationship activation lives on the entity schema (the type declaration), consistent with Haskell's typeclass model where capabilities are declared on the data type.
 
-**Battery pattern:** a battery module defines the policy in `den.relationships.*` (available). The user enables it via `den.default.relationships` or `den.aspects.<kind>.relationships` (active). Same as `den.aspects.user.includes = [ den.provides.mutual-provider ]` today.
+**Battery pattern:** a battery module defines the policy in `den.relationships.*` (available). The user enables it via `den.default.relationships` or `den.schema.<kind>.relationships` (active). Same as `den.stages.user.includes = [ den.provides.mutual-provider ]` today.
 
 **External flakes:** an external flake can provide policies in its flake module. The user imports the flake and enables its policies — no implicit activation from imports.
 
@@ -613,7 +613,7 @@ This separates concerns cleanly:
 - `den.relationships` option for formal policy declarations
 - `den.stages` for scoped behavior bindings (replaces `den.ctx.*.nixos/includes`)
 - `den.default.relationships` for cross-cutting policy activation
-- `den.aspects.<kind>.relationships` for entity-kind-scoped policy activation
+- `den.schema.<kind>.relationships` for entity-kind-scoped policy activation
 - Per-relationship effect handlers
 - `provideToHandler` for cross-entity collection
 - `distributeProvideTo` orchestration function

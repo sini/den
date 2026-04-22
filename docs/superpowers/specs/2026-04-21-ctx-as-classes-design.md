@@ -328,7 +328,7 @@ modules/stages/
 
 ## Relationship to Other Specs
 
-- **Relationship Policies** (`2026-04-20-relationship-policies-design.md`): Defines the `den.relationships` system in detail. This spec provides the motivation and the migration path for getting there. Updated to align with ctx removal — inline sugar removed, activation model level 3 moved from `den.ctx.<kind>` to `den.aspects.<kind>`.
+- **Relationship Policies** (`2026-04-20-relationship-policies-design.md`): Defines the `den.relationships` system in detail. This spec provides the motivation and the migration path for getting there. Updated to align with ctx removal — inline sugar removed, activation model level 3 moved from `den.ctx.<kind>` to `den.schema.<kind>` (entity type declares its relationship participation, consistent with Haskell typeclass model).
 - **Capabilities Design**: Aspects contain capability keys (Nix config classes). Structural detection determines which classes an aspect emits. Orthogonal to this spec — capabilities are about behavior, not data or relationships.
 - **provide-to Effects**: Cross-entity routing currently in `provides` moves to relationship policies, which emit `provide-to` effects.
 
