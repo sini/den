@@ -335,3 +335,71 @@ Systems that merge any two develop god-object problems. `den.ctx` merged relatio
 2. **Schema entry auto-resolution**: Currently `options.nix` checks `den.ctx ? ${kind}` to gate entity participation. With `den.ctx` removed, what gates this? Likely answer: check whether any relationship has `from = kind` or `to = kind` — if an entity kind participates in any relationship, it participates in resolution. Alternatively, `den.schema ? ${kind}` may suffice since schema existence already implies the entity kind is registered. Needs confirmation during Phase 2.
 
 3. **Provides self-identity**: Currently `den.ctx.host.provides.host = {host}: host.aspect`. This is universal — every entity's aspect IS its identity. With ctx removed, does the pipeline infer this automatically, or does each relationship declare it?
+
+## Expected User Impact
+
+### What breaks
+
+Any flake using `den.ctx` directly will need migration. The main patterns that break:
+
+**`den.ctx.*.nixos/darwin/homeManager` (behavior on ctx nodes):**
+```nix
+# Before:
+den.ctx.hm-host.nixos.foo = "bar";
+den.ctx.default.includes = [ myAspect ];
+
+# After:
+den.aspects.hm-host.nixos.foo = "bar";
+den.aspects.default.includes = [ myAspect ];
+```
+Mechanical rename — `den.ctx.X` becomes `den.aspects.X` for behavior.
+
+**`den.ctx.*.into` (relationship declarations):**
+```nix
+# Before:
+den.ctx.host.into.my-stage = { host }: [ ... ];
+
+# After:
+den.relationships.host-to-my-stage = {
+  from = "host";
+  to = "my-stage";
+  resolve = { host }: [ ... ];
+};
+```
+Shape change — `into` functions become relationship declarations with `from`/`to`/`resolve`.
+
+**`den.ctx.*.provides` (cross-entity forwarding):**
+```nix
+# Before:
+den.ctx.my-stage.provides.my-stage = { host, user }: ...;
+
+# After:
+# Self-identity is implicit. Cross-entity provides move to relationship policies.
+```
+
+### What doesn't break
+
+- **`den.schema.*`** — unchanged. Schema definitions, entity options, and the mixin system are not affected.
+- **`den.hosts` / `den.homes`** — unchanged. Entity declarations stay the same.
+- **`den.aspects.*`** — unchanged. Aspect definitions (behavior) work exactly as before. They gain new members from migrated ctx behavior.
+- **Parametric functions** (`{ host, user }: { nixos = ...; }`) — unchanged. Handler-based resolution continues to work; scope binding just moves from `ctxApply` into the relationship handler.
+- **`hasAspect`** — unchanged. Entity query API is orthogonal to ctx removal.
+
+### What gets simpler
+
+- **No more `den.ctx` to explain.** Users define entities (data), aspects (behavior), and relationships (transitions) — three concepts with clear purposes instead of one overloaded construct.
+- **No intermediate node proliferation.** Users don't need to create `den.ctx.my-custom-stage` nodes with `into` + aspect behavior just to scope configuration to a transition. Relationships are declared separately from behavior.
+- **Namespace batteries become clearer.** Shared batteries (denful) export `relationships` + `aspects` as separate concerns. Consumers only need to provide their own entities (data). The division of what's reusable vs local is explicit.
+
+### Migration effort by user type
+
+| User type | Impact | Effort |
+|-----------|--------|--------|
+| **Basic** (only `den.hosts`/`den.homes` + aspects) | None — `den.ctx` was never touched directly | Zero |
+| **Intermediate** (uses `den.ctx.default.includes` or `den.ctx.hm-host.nixos`) | Mechanical renames to `den.aspects.*` | Low — find/replace |
+| **Advanced** (custom `den.ctx` nodes with `into`/`provides`) | Shape change to `den.relationships` + `den.aspects` | Medium — requires understanding the new model |
+| **Battery authors** (writing reusable Den modules) | Must export relationships + aspects separately | Medium — conceptual shift but cleaner result |
+
+### Deprecation timeline
+
+Phase 1 and 2 can provide compatibility shims: `den.ctx.X.nixos` can emit a deprecation warning and forward to `den.aspects.X.nixos`. This allows a grace period where existing configs continue to work while users migrate. Phase 3 removes the shims.
