@@ -180,6 +180,7 @@ let
         // extraState
         // {
           currentCtx = _: ctx;
+          inherit class;
         };
     } comp;
 

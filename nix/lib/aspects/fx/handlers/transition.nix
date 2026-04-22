@@ -146,9 +146,14 @@ let
       null;
 
   resolveTransition =
-    sourceAspect: currentCtx: results: transition:
+    targetClass: sourceAspect: currentCtx: results: transition:
     let
-      key = lib.concatStringsSep "/" transition.path;
+      # Include the target class in the dedup key so that the same stage
+      # resolved for different class targets (e.g., nixos vs homeManager)
+      # is treated as distinct. Without this, host→default (class=nixos)
+      # blocks user→default (class=homeManager) via ctx-seen, causing
+      # homeManager modules from den.default to never reach the HM pipeline.
+      key = "${targetClass}/${lib.concatStringsSep "/" transition.path}";
       targetKey = lib.concatStringsSep "." transition.path;
       effectiveTarget = buildTarget transition;
       sourceProvides = sourceAspect.provides or { };
@@ -280,10 +285,12 @@ let
         currentCtx = rootCtx;
         intoResult = param.intoFn currentCtx;
         transitions = flattenInto intoResult [ ];
+        targetClass = state.class or "nixos";
       in
       {
         resume = builtins.foldl' (
-          acc: transition: fx.bind acc (results: resolveTransition sourceAspect currentCtx results transition)
+          acc: transition:
+          fx.bind acc (results: resolveTransition targetClass sourceAspect currentCtx results transition)
         ) (fx.pure [ ]) transitions;
         inherit state;
       };
