@@ -32,6 +32,7 @@ let
     take = ./take.nix;
     lastFunctionTo = ./last-function-to.nix;
     relationshipTypes = ./relationship-types.nix;
+    resolveStage = ./resolve-stage.nix;
     stageTypes = ./stage-types.nix;
     strict = ./strict.nix;
     fx = ./fx.nix;
