@@ -32,5 +32,5 @@ let
   };
 in
 {
-  inherit stageTreeType;
+  inherit stageSubmodule stageTreeType;
 }

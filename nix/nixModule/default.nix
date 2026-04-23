@@ -10,7 +10,7 @@
   imports = map (f: import f (args // { den = config.den; })) [
     ./lib.nix
     ./stages.nix
-    ./relationships.nix
+    ./policies.nix
     ./aspects.nix
   ];
 }

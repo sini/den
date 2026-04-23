@@ -117,7 +117,7 @@
             };
           includes = [ shared ];
         };
-        den.relationships.a-to-b = {
+        den.policies.a-to-b = {
           from = "a";
           to = "b";
           resolve = ctx: if ctx ? host then [ { host = "${ctx.host}!"; } ] else [ ];

@@ -1,5 +1,5 @@
-# Tests for relationship-based transitions (formerly ctx nested into).
-# Nested-path into was removed with den.ctx — only flat relationships remain.
+# Tests for policy-based transitions (formerly ctx nested into).
+# Nested-path into was removed with den.ctx — only flat policies remain.
 { denTest, lib, ... }:
 {
   flake.tests.ctx-nested = {
@@ -13,7 +13,7 @@
             funny.names = [ x ];
           };
 
-        den.relationships.test-root-to-flat = {
+        den.policies.test-root-to-flat = {
           from = "root";
           to = "flat";
           resolve = ctx: if !(builtins.isAttrs ctx) then [ ] else [ ctx ];
@@ -35,7 +35,7 @@
 
         imports = [
           {
-            den.relationships.test-root-to-leaf-a = {
+            den.policies.test-root-to-leaf-a = {
               from = "root";
               to = "leaf";
               resolve = _: [ { v = "a"; } ];
@@ -43,7 +43,7 @@
           }
 
           {
-            den.relationships.test-root-to-leaf-b = {
+            den.policies.test-root-to-leaf-b = {
               from = "root";
               to = "leaf";
               resolve = _: [ { v = "b"; } ];
@@ -51,7 +51,7 @@
           }
 
           {
-            den.relationships.test-root-to-leaf-c = {
+            den.policies.test-root-to-leaf-c = {
               from = "root";
               to = "leaf";
               resolve = _: [ { v = "c"; } ];
@@ -59,7 +59,7 @@
           }
 
           {
-            den.relationships.test-root-to-leaf-d = {
+            den.policies.test-root-to-leaf-d = {
               from = "root";
               to = "leaf";
               resolve = _: [ { v = "d"; } ];

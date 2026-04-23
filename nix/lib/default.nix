@@ -29,11 +29,11 @@ let
     parametric = ./parametric.nix;
     take = ./take.nix;
     lastFunctionTo = ./last-function-to.nix;
-    relationshipTypes = ./relationship-types.nix;
+    policyTypes = ./policy-types.nix;
     resolveStage = ./resolve-stage.nix;
     stageTypes = ./stage-types.nix;
     strict = ./strict.nix;
-    synthesizeRelationships = ./synthesize-relationships.nix;
+    synthesizePolicies = ./synthesize-policies.nix;
     fx = ./fx.nix;
   };
 in

@@ -187,7 +187,7 @@
             };
         };
 
-        den.relationships.flake-system-to-host = {
+        den.policies.flake-system-to-host = {
           from = "flake-system";
           to = "host";
           resolve =

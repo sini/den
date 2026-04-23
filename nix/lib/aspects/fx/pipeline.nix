@@ -91,32 +91,26 @@ let
       ctx,
     }:
     let
-      # Synthesize den.relationships into an into-style function.
-      # Only include relationships whose `from` matches this root aspect's
-      # name — e.g. when resolving the host stage (name="host"), only
-      # relationships with from="host" fire. This prevents flake/battery
-      # relationships from polluting host pipelines and vice versa.
+      # Only include policies whose `from` matches this root aspect's name.
       selfName = self.name or "";
-      relationshipInto = den.lib.synthesizeRelationships selfName;
+      policyInto = den.lib.synthesizePolicies selfName;
 
-      # Merge relationship transitions with the aspect's existing into.
-      # Relationships are additive — they contribute new target keys alongside
+      # Policies are additive — they contribute new target keys alongside
       # whatever the existing into already declares. Overlapping target keys
       # are deduplicated downstream by ctx-seen.
       existingInto = self.meta.into or self.into or null;
       mergedInto =
-        if existingInto != null && relationshipInto != null then
-          # Both exist: merge results at call time.
+        if existingInto != null && policyInto != null then
           rCtx:
           let
             existing = existingInto rCtx;
-            fromRels = relationshipInto rCtx;
+            fromPolicies = policyInto rCtx;
           in
-          existing // (builtins.removeAttrs fromRels (builtins.attrNames existing))
+          existing // (builtins.removeAttrs fromPolicies (builtins.attrNames existing))
         else if existingInto != null then
           existingInto
-        else if relationshipInto != null then
-          relationshipInto
+        else if policyInto != null then
+          policyInto
         else
           null;
 

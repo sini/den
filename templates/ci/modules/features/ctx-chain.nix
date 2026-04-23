@@ -14,10 +14,10 @@ let
               funny.names = [ "${name}-${x}" ];
             };
         };
-        withRelationship =
+        withPolicy =
           if i + 1 < n then
             {
-              den.relationships."${name}-to-${next}" = {
+              den.policies."${name}-to-${next}" = {
                 from = name;
                 to = next;
                 resolve = ctx: if ctx ? x then [ { x = "${ctx.x}+${toString i}"; } ] else [ ];
@@ -27,7 +27,7 @@ let
             { };
       in
       { den, ... }:
-      lib.recursiveUpdate baseStage withRelationship
+      lib.recursiveUpdate baseStage withPolicy
     ) n;
 in
 {
@@ -72,7 +72,7 @@ in
                 {
                   funny.names = [ "root-${x}" ];
                 };
-              den.relationships.root-to-leaf = {
+              den.policies.root-to-leaf = {
                 from = "root";
                 to = "leaf";
                 resolve = ctx: if ctx ? x then lib.genList (i: { x = "${ctx.x}-${toString i}"; }) 20 else [ ];

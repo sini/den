@@ -100,7 +100,7 @@ let
 
 in
 {
-  den.relationships = {
+  den.policies = {
     host-to-microvm-host = {
       from = "host";
       to = "microvm-host";

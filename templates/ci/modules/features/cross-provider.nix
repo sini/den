@@ -21,7 +21,7 @@
           {
             funny.names = [ "parent-for-child-${x}-${y}" ];
           };
-        den.relationships.test-parent-to-child = {
+        den.policies.test-parent-to-child = {
           from = "parent";
           to = "child";
           resolve =
@@ -71,7 +71,7 @@
           {
             funny.names = [ "src-for-${x}-${toString i}" ];
           };
-        den.relationships.test-src-to-dst = {
+        den.policies.test-src-to-dst = {
           from = "src";
           to = "dst";
           resolve =
@@ -121,7 +121,7 @@
           {
             funny.names = [ x ];
           };
-        den.relationships.test-src-to-dst-no-cross = {
+        den.policies.test-src-to-dst-no-cross = {
           from = "src";
           to = "dst";
           resolve = ctx: if !(ctx ? x) then [ ] else [ { y = ctx.x; } ];

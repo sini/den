@@ -15,7 +15,7 @@
           {
             funny.names = [ hello ];
           };
-        den.relationships.test-greeting-to-shout = {
+        den.policies.test-greeting-to-shout = {
           from = "greeting";
           to = "shout";
           resolve = ctx: if !(ctx ? hello) then [ ] else [ { shout = lib.toUpper ctx.hello; } ];

@@ -1,5 +1,5 @@
 # See usage at: templates/example/modules/aspects/{defaults.nix,alice.nix,igloo.nix}
-{ den, ... }:
+{ den, lib, ... }:
 let
 
   description = ''
@@ -59,8 +59,32 @@ let
       ];
     };
 
+  inherit (den.lib.aspects.fx.handlers) constantHandler;
+
+  # For standalone homes bound to a host (name@host), resolve the
+  # host-named provider with host/user context from the home entity.
+  # Without this, the provider's { host, user } args would be unresolvable
+  # since the home pipeline only has { home } in scope.
   mutual-standalone-home =
-    { home }: if home.hostName == null then { } else home.aspect.provides.${home.hostName} or { };
+    { home }:
+    if home.hostName == null then
+      { }
+    else
+      let
+        prov = home.aspect.provides.${home.hostName} or null;
+        ctx = lib.filterAttrs (_: v: v != null) {
+          host = home.host or null;
+          user = home.user or null;
+        };
+      in
+      if prov == null then
+        { }
+      else
+        prov
+        // lib.optionalAttrs (ctx != { }) {
+          __scopeHandlers = constantHandler ctx;
+          __ctx = ctx;
+        };
 
 in
 {

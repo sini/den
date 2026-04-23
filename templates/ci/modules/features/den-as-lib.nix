@@ -86,7 +86,7 @@ in
               {
                 my.names = [ "foo ${name}" ];
               };
-            den.relationships.foo-to-bar = {
+            den.policies.foo-to-bar = {
               from = "foo";
               to = "bar";
               resolve = ctx: if ctx ? name then lib.singleton { shout = lib.toUpper ctx.name; } else [ ];
