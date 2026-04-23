@@ -9,7 +9,7 @@ let
   inherit (den.lib.aspects.fx.handlers) constantHandler;
   inherit (den.lib.aspects) isParametricWrapper isMeaningfulName;
 
-  structuralKeys = [
+  structuralKeysSet = lib.genAttrs [
     "name"
     "description"
     "meta"
@@ -24,7 +24,7 @@ let
     "__ctxId"
     "__parametricResolved"
     "_module"
-  ];
+  ] (_: true);
 
   # Emit emit-class for each non-structural attr on the aspect.
   emitClasses =
@@ -253,7 +253,7 @@ let
     aspect:
     let
       nodeIdentity = identity.pathKey (identity.aspectPath aspect);
-      classKeys = builtins.filter (k: !(builtins.elem k structuralKeys)) (builtins.attrNames aspect);
+      classKeys = builtins.filter (k: !(structuralKeysSet ? ${k})) (builtins.attrNames aspect);
       rawName = aspect.name or "<anon>";
       isMeaningful = isMeaningfulName rawName;
     in

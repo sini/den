@@ -77,15 +77,18 @@ let
         # Also check prefix matches: excluding "monitoring" cascades to "monitoring/node-exporter".
         entries = registry.${identity} or [ ];
         prefixEntries =
-          let
-            parts = lib.splitString "/" identity;
-            # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
-            prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
-              builtins.length parts - 1
-            );
-            getEntries = p: registry.${p} or [ ];
-          in
-          if builtins.length parts > 1 then builtins.concatMap getEntries prefixes else [ ];
+          if registry == { } then
+            [ ]
+          else
+            let
+              parts = lib.splitString "/" identity;
+              # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
+              prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
+                builtins.length parts - 1
+              );
+              getEntries = p: registry.${p} or [ ];
+            in
+            if builtins.length parts > 1 then builtins.concatMap getEntries prefixes else [ ];
         allEntries = entries ++ prefixEntries;
         scopedEntries = builtins.filter inScope allEntries;
         firstEntry = if scopedEntries == [ ] then null else builtins.head scopedEntries;
@@ -219,18 +222,23 @@ let
         ctx = param;
         # Unwrap thunk chain.
         deferred = (state.deferredIncludes or (_: [ ])) null;
-        satisfiable = builtins.filter (d: builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs) deferred;
-        remaining = builtins.filter (
-          d: !(builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs)
-        ) deferred;
       in
-      {
-        resume = satisfiable;
-        state = state // {
-          # Re-wrap remaining as thunk chain.
-          deferredIncludes = _: remaining;
+      if deferred == [ ] then
+        {
+          resume = [ ];
+          inherit state;
+        }
+      else
+        let
+          partitioned = lib.partition (d: builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs) deferred;
+        in
+        {
+          resume = partitioned.right;
+          state = state // {
+            # Re-wrap remaining as thunk chain.
+            deferredIncludes = _: partitioned.wrong;
+          };
         };
-      };
   };
 
 in

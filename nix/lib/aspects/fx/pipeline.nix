@@ -73,7 +73,6 @@ let
     imports = _: [ ];
     constraintRegistry = { };
     constraintFilters = [ ];
-    paths = [ ];
     pathSet = { };
     includesChain = [ ];
     # Thunk chain (like imports) so trampoline's deepSeq doesn't force
