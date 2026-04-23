@@ -1,0 +1,40 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-23-effectful-pipeline-bootstrap.md",
+  "tasks": [
+    {
+      "id": 14,
+      "subject": "Task 1: Add handlers field to policyType",
+      "status": "pending",
+      "description": "Extend policyType with optional handlers field (lazyAttrsOf raw, default {}). Add test.",
+      "metadata": {
+        "files": ["nix/lib/policy-types.nix", "templates/ci/modules/features/policies.nix"],
+        "verifyCommand": "nix develop -c just ci",
+        "acceptanceCriteria": ["policyType has handlers option", "existing policies unchanged", "test for policy with handlers"]
+      }
+    },
+    {
+      "id": 15,
+      "subject": "Task 2: Lift policy merge into pipeline computation",
+      "status": "pending",
+      "description": "Move policy merge from pre-computation setup into fx.handle via resolve-policy effect. Add resolvePolicyHandler to defaultHandlers.",
+      "metadata": {
+        "files": ["nix/lib/aspects/fx/pipeline.nix"],
+        "verifyCommand": "nix develop -c just ci",
+        "acceptanceCriteria": ["resolve-policy effect sent", "default handler calls mergePolicyInto", "API unchanged", "465 tests pass"]
+      }
+    },
+    {
+      "id": 16,
+      "subject": "Task 3: Replace buildTarget with resolve-target effect + policy handlers",
+      "status": "pending",
+      "blockedBy": [14, 15],
+      "description": "Delete buildTarget, send resolve-target effect instead. Collect policy handlers and scope.provide them per-transition. Add test for handler scoping.",
+      "metadata": {
+        "files": ["nix/lib/aspects/fx/handlers/transition.nix", "nix/lib/aspects/fx/pipeline.nix", "templates/ci/modules/features/policies.nix"],
+        "verifyCommand": "nix develop -c just ci",
+        "acceptanceCriteria": ["buildTarget deleted", "resolve-target effect", "resolveTargetHandler in defaultHandlers", "policy handlers via scope.provide", "core effects protected", "handler scoping test passes"]
+      }
+    }
+  ],
+  "lastUpdated": "2026-04-23T00:00:00Z"
+}
