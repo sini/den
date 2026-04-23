@@ -67,9 +67,10 @@ let
           {
             ${intoClass} = value;
             # Forward results are context-dependent — sourceModule
-            # differs per entity. Without this, classCollectorHandler
-            # strips ctxId and deduplicates per-host outputs.
-            __parametricResolved = true;
+            # differs per entity. Use meta (not __parametricResolved)
+            # because freeform deferredModule destroys raw booleans
+            # but meta uses lib.types.unspecified which preserves them.
+            meta.contextDependent = true;
           };
 
       freeformMod = {
@@ -119,7 +120,7 @@ let
       adaptArgv = if adaptArgs == null then { } else lib.functionArgs adaptArgs;
 
       adapter = {
-        __parametricResolved = true;
+        meta.contextDependent = true;
         includes = [
           (forward [
             "den"
@@ -176,7 +177,7 @@ let
 
       canDirectImport = adapterModule == null;
 
-      topLevelAdapter.__parametricResolved = true;
+      topLevelAdapter.meta.contextDependent = true;
       topLevelAdapter.${intoClass} = {
         __functionArgs = guardArgs;
         __functor =
