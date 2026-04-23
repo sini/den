@@ -153,9 +153,6 @@ let
     in
     if provides ? ${name} then
       let
-        _t = builtins.trace "emitSelfProvide: ${name} scope=${
-          if scopeHandlers != null then "yes" else "no"
-        } providerArgs=${toString (builtins.attrNames providerArgs)}";
         # Positional-arg providers (_: { funny... }) can't be resolved via
         # bind.fn (no named args). Call them directly with ctx — ctx comes
         # from entry-point __ctx (ctxApply), not from __scopeHandlers.
@@ -207,7 +204,7 @@ let
             // lib.optionalAttrs (scopeHandlers != null) { __parentScopeHandlers = scopeHandlers; }
             // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; };
       in
-      _t (fx.send "emit-include" include)
+      fx.send "emit-include" include
     else
       fx.pure [ ];
 
@@ -256,17 +253,14 @@ let
     let
       nodeIdentity = identity.pathKey (identity.aspectPath aspect);
       classKeys = builtins.filter (k: !(builtins.elem k structuralKeys)) (builtins.attrNames aspect);
-      _t = builtins.trace "compileStatic: name=${aspect.name or "?"} identity=${nodeIdentity} classKeys=${toString classKeys} allKeys=${toString (builtins.attrNames aspect)}";
       rawName = aspect.name or "<anon>";
       isMeaningful =
         rawName != "<anon>" && rawName != "<function body>" && !(lib.hasPrefix "[definition " rawName);
     in
-    _t (
-      fx.bind (fx.seq [
-        (emitClasses aspect classKeys nodeIdentity)
-        (registerConstraints aspect)
-      ]) (_: resolveChildren aspect { inherit isMeaningful nodeIdentity; })
-    );
+    fx.bind (fx.seq [
+      (emitClasses aspect classKeys nodeIdentity)
+      (registerConstraints aspect)
+    ]) (_: resolveChildren aspect { inherit isMeaningful nodeIdentity; });
 
   # The aspect compiler.
   #
@@ -298,83 +292,67 @@ let
             args: rawFn (args // { __scopeKeys = builtins.attrNames scopeHandlers; })
           else
             rawFn;
-        _t = builtins.trace "aspectToEffect: name=${aspect.name or "?"} parametric args=${toString (builtins.attrNames userArgs)} scope=${
-          if scopeFn != null then "yes" else "no"
-        }";
-        # Use bind.fn with __args as extra attrs so optional/required args
-        # are resolved via effects. For named-arg functions this merges with
-        # lib.functionArgs; for positional-arg wrappers (__fn = resolvedArgs: ...)
-        # it provides the full arg spec since lib.functionArgs returns {}.
         resolveFn = if scopeFn != null then scopeFn (fx.bind.fn userArgs fn) else fx.bind.fn userArgs fn;
       in
-      _t (
-        fx.bind resolveFn (
-          resolved:
-          let
-            _t2 = builtins.trace "aspectToEffect: resolved name=${aspect.name or "?"} type=${builtins.typeOf resolved} isAttrs=${toString (builtins.isAttrs resolved)} keys=${
-              toString (if builtins.isAttrs resolved then builtins.attrNames resolved else [ ])
-            }";
-          in
-          _t2 (
-            let
-              base = {
-                inherit (aspect) name;
-                meta = (aspect.meta or { }) // (if builtins.isAttrs resolved then resolved.meta or { } else { });
-              }
-              // lib.optionalAttrs (aspect ? into) { inherit (aspect) into; }
-              // lib.optionalAttrs (aspect ? provides) { inherit (aspect) provides; };
-              # If resolved is still a function (curried provider), wrap it
-              # as another parametric level for the next bind.fn pass.
-              # Exception: submodule functions ({ config, lib, ... }: ...) are
-              # NixOS modules, not parametric — merge them through the type system.
-              isResolvedSubmoduleFn =
-                lib.isFunction resolved
-                && !builtins.isAttrs resolved
-                && den.lib.canTake.upTo {
-                  inherit lib;
-                  config = true;
-                  options = true;
-                } resolved;
-              # Identity — parametric wrappers use __fn/__args, resolved
-              # children don't carry spurious functor attrs.
-              forwardWrap = child: child;
-              next =
-                if lib.isFunction resolved && !builtins.isAttrs resolved then
-                  if isResolvedSubmoduleFn then
-                    let
-                      merged = den.lib.aspects.types.aspectType.merge (aspect.meta.loc or [ (aspect.name or "<anon>") ]) [
-                        {
-                          file = aspect.meta.file or "<parametric>";
-                          value = resolved;
-                        }
-                      ];
-                    in
-                    base // builtins.removeAttrs merged [ "meta" ]
-                  else
-                    base
-                    // {
-                      __fn = resolved;
-                      __args = lib.functionArgs resolved;
+      fx.bind resolveFn (
+        resolved:
+        let
+          base = {
+            inherit (aspect) name;
+            meta = (aspect.meta or { }) // (if builtins.isAttrs resolved then resolved.meta or { } else { });
+          }
+          // lib.optionalAttrs (aspect ? into) { inherit (aspect) into; }
+          // lib.optionalAttrs (aspect ? provides) { inherit (aspect) provides; };
+          # If resolved is still a function (curried provider), wrap it
+          # as another parametric level for the next bind.fn pass.
+          # Exception: submodule functions ({ config, lib, ... }: ...) are
+          # NixOS modules, not parametric — merge them through the type system.
+          isResolvedSubmoduleFn =
+            lib.isFunction resolved
+            && !builtins.isAttrs resolved
+            && den.lib.canTake.upTo {
+              inherit lib;
+              config = true;
+              options = true;
+            } resolved;
+          # Identity — parametric wrappers use __fn/__args, resolved
+          # children don't carry spurious functor attrs.
+          forwardWrap = child: child;
+          next =
+            if lib.isFunction resolved && !builtins.isAttrs resolved then
+              if isResolvedSubmoduleFn then
+                let
+                  merged = den.lib.aspects.types.aspectType.merge (aspect.meta.loc or [ (aspect.name or "<anon>") ]) [
+                    {
+                      file = aspect.meta.file or "<parametric>";
+                      value = resolved;
                     }
-                else
-                  forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
-              # Propagate __scopeHandlers and __ctxId so children inherit context.
-              # Merge parent's scopeHandlers with resolved value's scopeHandlers
-              # (from fixedTo/expands shims that stamp __scopeHandlers on wrappers).
-              parentScopeHandlers = aspect.__scopeHandlers or { };
-              resolvedScopeHandlers = if builtins.isAttrs next then next.__scopeHandlers or { } else { };
-              mergedScopeHandlers = parentScopeHandlers // resolvedScopeHandlers;
-              tagged =
-                next
-                // lib.optionalAttrs (mergedScopeHandlers != { }) { __scopeHandlers = mergedScopeHandlers; }
-                // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
+                  ];
+                in
+                base // builtins.removeAttrs merged [ "meta" ]
+              else
+                base
                 // {
-                  __parametricResolved = true;
-                };
-            in
-            aspectToEffect tagged
-          )
-        )
+                  __fn = resolved;
+                  __args = lib.functionArgs resolved;
+                }
+            else
+              forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
+          # Propagate __scopeHandlers and __ctxId so children inherit context.
+          # Merge parent's scopeHandlers with resolved value's scopeHandlers
+          # (from fixedTo/expands shims that stamp __scopeHandlers on wrappers).
+          parentScopeHandlers = aspect.__scopeHandlers or { };
+          resolvedScopeHandlers = if builtins.isAttrs next then next.__scopeHandlers or { } else { };
+          mergedScopeHandlers = parentScopeHandlers // resolvedScopeHandlers;
+          tagged =
+            next
+            // lib.optionalAttrs (mergedScopeHandlers != { }) { __scopeHandlers = mergedScopeHandlers; }
+            // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
+            // {
+              __parametricResolved = true;
+            };
+        in
+        aspectToEffect tagged
       )
     else
       compileStatic (

@@ -149,58 +149,51 @@ let
     {
       "emit-class" =
         { param, state }:
-        let
-          _t = builtins.trace "classCollector: class=${param.class} target=${targetClass} identity=${param.identity or "?"} match=${
-            toString (param.class == targetClass)
-          }";
-        in
-        _t (
-          if param.class != targetClass then
-            {
-              resume = null;
-              inherit state;
-            }
-          else
-            let
-              identity = param.identity or "<anon>";
-              # Strip __ctxId suffix from identity for module keying.
-              # Static aspects produce the same module regardless of context,
-              # so nixos@shared-tools should dedup with nixos@shared-tools/{igloo,tux}.
-              # Strip __ctxId suffix for static aspects so the same aspect
-              # included from multiple contexts deduplicates (e.g. shared-tools
-              # from both {igloo} and {tux}). Parametric resolutions produce
-              # different modules per context, so their ctxId must be preserved.
-              baseIdentity =
-                if param.contextDependent or false then identity else lib.head (lib.splitString "/{" identity);
-              loc = "${param.class}@${baseIdentity}";
-              # Named aspects get a key for NixOS module-level dedup: two
-              # resolve calls emitting the same aspect:class produce the
-              # same key, so the module system keeps only the first.
-              # Anonymous/synthetic names must not be keyed — multiple
-              # anonymous includes with the same identity are distinct.
-              isAnon =
-                identity == "<anon>"
-                || identity == "<function body>"
-                || lib.hasPrefix "[definition " identity
-                || lib.hasPrefix "<root>/" identity
-                || lib.hasInfix "/<anon>:" identity;
-              mod =
-                if isAnon then
-                  lib.setDefaultModuleLocation loc param.module
-                else
-                  {
-                    key = loc;
-                    _file = loc;
-                    imports = [ param.module ];
-                  };
-            in
-            {
-              resume = null;
-              state = state // {
-                imports = x: (state.imports x) ++ [ mod ];
-              };
-            }
-        );
+        if param.class != targetClass then
+          {
+            resume = null;
+            inherit state;
+          }
+        else
+          let
+            identity = param.identity or "<anon>";
+            # Strip __ctxId suffix from identity for module keying.
+            # Static aspects produce the same module regardless of context,
+            # so nixos@shared-tools should dedup with nixos@shared-tools/{igloo,tux}.
+            # Strip __ctxId suffix for static aspects so the same aspect
+            # included from multiple contexts deduplicates (e.g. shared-tools
+            # from both {igloo} and {tux}). Parametric resolutions produce
+            # different modules per context, so their ctxId must be preserved.
+            baseIdentity =
+              if param.contextDependent or false then identity else lib.head (lib.splitString "/{" identity);
+            loc = "${param.class}@${baseIdentity}";
+            # Named aspects get a key for NixOS module-level dedup: two
+            # resolve calls emitting the same aspect:class produce the
+            # same key, so the module system keeps only the first.
+            # Anonymous/synthetic names must not be keyed — multiple
+            # anonymous includes with the same identity are distinct.
+            isAnon =
+              identity == "<anon>"
+              || identity == "<function body>"
+              || lib.hasPrefix "[definition " identity
+              || lib.hasPrefix "<root>/" identity
+              || lib.hasInfix "/<anon>:" identity;
+            mod =
+              if isAnon then
+                lib.setDefaultModuleLocation loc param.module
+              else
+                {
+                  key = loc;
+                  _file = loc;
+                  imports = [ param.module ];
+                };
+          in
+          {
+            resume = null;
+            state = state // {
+              imports = x: (state.imports x) ++ [ mod ];
+            };
+          };
     };
 
   # Accumulates parametric includes whose args aren't available yet.

@@ -72,29 +72,26 @@ let
         __scopeHandlers = scopeHandlers;
         __ctxId = ctxId;
       };
-      _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} scope=${toString (builtins.attrNames scopedCtx)}";
     in
-    _t (
-      fx.bind (aspectToEffect tagged) (
-        childResult:
-        # Drain deferred includes now satisfiable with the new context.
-        fx.bind (fx.send "drain-deferred" scopedCtx) (
-          satisfiable:
-          builtins.foldl' (
-            acc: d:
-            fx.bind acc (
-              prevResults:
-              let
-                deferredTagged = d.child // {
-                  __scopeHandlers = scopeHandlers;
-                  __ctx = scopedCtx;
-                  __ctxId = ctxId;
-                };
-              in
-              fx.bind (aspectToEffect deferredTagged) (resolved: fx.pure (prevResults ++ [ resolved ]))
-            )
-          ) (fx.pure (results ++ [ childResult ])) satisfiable
-        )
+    fx.bind (aspectToEffect tagged) (
+      childResult:
+      # Drain deferred includes now satisfiable with the new context.
+      fx.bind (fx.send "drain-deferred" scopedCtx) (
+        satisfiable:
+        builtins.foldl' (
+          acc: d:
+          fx.bind acc (
+            prevResults:
+            let
+              deferredTagged = d.child // {
+                __scopeHandlers = scopeHandlers;
+                __ctx = scopedCtx;
+                __ctxId = ctxId;
+              };
+            in
+            fx.bind (aspectToEffect deferredTagged) (resolved: fx.pure (prevResults ++ [ resolved ]))
+          )
+        ) (fx.pure (results ++ [ childResult ])) satisfiable
       )
     );
 

@@ -179,7 +179,6 @@ let
         # Filter out args available in __scopeHandlers (pure check, no effects needed).
         # Remaining required args are probed via has-handler against root handlers.
         unresolvedKeys = builtins.filter (k: !(childScopeHandlers ? ${k})) requiredKeys;
-        _t = builtins.trace "keepChild: ${child.name or "?"} args=${toString (builtins.attrNames childArgs)} scopeKeys=${toString (builtins.attrNames childScopeHandlers)} unresolved=${toString unresolvedKeys}";
         probeArgs =
           keys:
           if keys == [ ] then
@@ -193,36 +192,29 @@ let
               isAvailable: if isAvailable then probeArgs rest else fx.pure false
             );
       in
-      _t (
-        fx.bind (probeArgs unresolvedKeys) (
-          allAvailable:
+      fx.bind (probeArgs unresolvedKeys) (
+        allAvailable:
+        if allAvailable then
+          fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ])
+        else
+          # Emit a resolve-complete for the deferred child so it appears in traces,
+          # then defer-include it for later resolution when context widens.
           let
-            _t2 = builtins.trace "keepChild: ${child.name or "?"} allAvailable=${toString allAvailable}";
+            stub = {
+              name = child.name or "<anon>";
+              meta = (child.meta or { }) // {
+                deferred = true;
+              };
+              includes = [ ];
+            };
           in
-          _t2 (
-            if allAvailable then
-              fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ])
-            else
-              # Emit a resolve-complete for the deferred child so it appears in traces,
-              # then defer-include it for later resolution when context widens.
-              let
-                stub = {
-                  name = child.name or "<anon>";
-                  meta = (child.meta or { }) // {
-                    deferred = true;
-                  };
-                  includes = [ ];
-                };
-              in
-              fx.bind (fx.send "resolve-complete" stub) (
-                _:
-                fx.bind (fx.send "defer-include" {
-                  inherit child requiredKeys;
-                  requiredArgs = unresolvedKeys;
-                }) (_: fx.pure [ ])
-              )
+          fx.bind (fx.send "resolve-complete" stub) (
+            _:
+            fx.bind (fx.send "defer-include" {
+              inherit child requiredKeys;
+              requiredArgs = unresolvedKeys;
+            }) (_: fx.pure [ ])
           )
-        )
       )
     else
       fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ]);
@@ -263,13 +255,10 @@ let
             withScope // { name = nameAnon state idx (withScope.__ctxId or null); }
           else
             withScope;
-        _ti = builtins.trace "includeHandler: name=${child.name or "?"} scope=${
-          toString (child ? __scopeHandlers)
-        } isParametric=${toString ((child.__args or { }) != { })}";
         childIdentity = identity.pathKey (identity.aspectPath child);
         isConditional = builtins.isAttrs child && child ? meta && child.meta ? guard;
       in
-      _ti {
+      {
         resume =
           if isConditional then
             resolveConditional child
