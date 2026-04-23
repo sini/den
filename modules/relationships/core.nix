@@ -1,8 +1,6 @@
 # modules/relationships/core.nix
 #
 # Core entity relationships — fundamental transitions between entity kinds.
-# These parallel den.ctx.*.into declarations. Both coexist during migration;
-# existing into targets take priority (relationships add new targets only).
 { lib, ... }:
 {
   den.relationships = {

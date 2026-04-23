@@ -50,7 +50,7 @@ let
             # safely by tooling and only fire when actually invoked.
             err = throw (
               "hasAspect: ${config.name or "<unnamed entity>"} has no config.resolved "
-              + "(no matching den.ctx.<kind> defined)."
+              + "(no matching den.stages.<kind> defined)."
             );
           in
           if config ? resolved then

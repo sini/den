@@ -97,7 +97,7 @@ let
     let
       # Synthesize den.relationships into an into-style function.
       # Only include relationships whose `from` matches this root aspect's
-      # name — e.g. when resolving den.ctx.host (name="host"), only
+      # name — e.g. when resolving the host stage (name="host"), only
       # relationships with from="host" fire. This prevents flake/battery
       # relationships from polluting host pipelines and vice versa.
       relationships = den.relationships or { };

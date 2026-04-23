@@ -1,8 +1,6 @@
 # modules/relationships/flake.nix
 #
 # Flake output relationships — transitions from flake-level entity kinds.
-# These parallel den.ctx.*.into declarations. Both coexist during migration;
-# ctx-seen dedup prevents double resolution.
 #
 # All resolve functions guard on expected context keys so they are safe to
 # call from any pipeline context (the pipeline applies all relationships to

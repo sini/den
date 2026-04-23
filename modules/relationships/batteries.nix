@@ -1,10 +1,7 @@
 # modules/relationships/batteries.nix
 #
 # Battery relationships — home-environment (hm, hjem, maid) and WSL
-# transitions.  These parallel the ctx.into declarations in
-# modules/aspects/provides/{home-manager,hjem,maid,wsl}.nix and
-# nix/lib/home-env.nix.  Both coexist during migration; ctx-seen dedup
-# prevents double resolution.
+# transitions.
 #
 # All resolve functions guard on expected context keys so they are safe
 # to call from any pipeline context.

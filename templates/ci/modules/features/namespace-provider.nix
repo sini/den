@@ -14,7 +14,7 @@
       {
         imports = [ (inputs.den.namespace "provider" [ inputs.provider ]) ];
         expr = funnyNames (provider.simple { }); # call as function
-        expected = [ "from-provider-ctx" ];
+        expected = [ "from-provider" ];
       }
     );
 
