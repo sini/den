@@ -41,7 +41,7 @@ let
             description = "Aspect that configures this host.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default = den.aspects.${config.name};
+            default = den.aspects.${config.name} or { };
           };
           description = strOpt "host description" "${config.class}.${config.hostName}@${config.system}";
           users = lib.mkOption {
@@ -139,7 +139,7 @@ let
             description = "Aspect that configures this user.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default = den.aspects.${config.name};
+            default = den.aspects.${config.name} or { };
           };
           host = lib.mkOption {
             default = host;

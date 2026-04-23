@@ -73,7 +73,7 @@ let
             description = "Aspect that configures this home.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default = den.aspects.${config.name};
+            default = den.aspects.${config.name} or { };
           };
           description = strOpt "home description" "home.${config.name}@${config.system}";
           pkgs = lib.mkOption {
