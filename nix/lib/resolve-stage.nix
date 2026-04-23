@@ -1,6 +1,3 @@
-# resolveStage — pipeline entry point.
-# Builds an aspect-shaped attrset from a stage node + context.
-# Synthesizes relationships for transitions.
 {
   lib,
   den,

@@ -86,9 +86,8 @@ let
         ]
       );
     in
-    # Add __functor so merged aspects are callable — replaces the old
-    # ctx __functor that was removed with den.ctx. Preserve explicit
-    # functors (e.g. den.provides.forward).
+    # __functor makes merged aspects callable (aspect { host = ...; }).
+    # Explicit functors (e.g. den.provides.forward) take priority.
     merged
     // {
       __functor = if originalFunctor != null then originalFunctor else resolveAspectWith;

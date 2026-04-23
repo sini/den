@@ -1,15 +1,6 @@
-# into-transition handler — processes context transitions via handler-closures.
-# Handles: into-transition
-# Sends: ctx-seen (dedup), resolve-complete (missing transition tombstone),
-#        then aspectToEffect with __scopeHandlers-tagged target aspects.
-# Cross-providers: if source.provides.${targetKey} exists, tagged and resolved alongside.
+# Sends: ctx-seen, resolve-complete, aspectToEffect
 # State reads: currentCtx
-# External dependency: den.stages (target aspect registry, looked up by transition path)
-#                      den.relationships (synthesized onto targets for nested transitions)
-#
-# Context propagation: transitions tag target aspects with __scopeHandlers.
-# aspectToEffect derives scope.provide at point of use to resolve parametric args.
-# __ctxId is preserved for fan-out identity/dedup.
+# External: den.stages (target registry), den.relationships (nested transitions)
 {
   lib,
   den,
@@ -21,7 +12,6 @@ let
   inherit (den.lib.aspects.fx.handlers) constantHandler;
   inherit (den.lib.aspects) isParametricWrapper;
 
-  # Derive a stable identity string from a context attrset.
   mkCtxId =
     ctx:
     lib.concatStringsSep "," (
@@ -43,7 +33,6 @@ let
       )
     );
 
-  # Flatten a nested into attrset into a flat list of { path, contexts }.
   flattenInto =
     attrset: prefix:
     lib.concatLists (
@@ -127,7 +116,6 @@ let
     else
       null;
 
-  # Resolve a cross-provider (source.provides.${targetKey}) in scoped context.
   emitCrossProvider =
     {
       crossProvider,
@@ -175,7 +163,6 @@ let
       in
       fx.bind (aspectToEffect wrapped) (crossResolved: fx.pure (prevResults ++ [ crossResolved ]));
 
-  # Resolve fan-out target in a separate pipeline with fresh dedup state.
   resolveFanOut =
     {
       targetClass,

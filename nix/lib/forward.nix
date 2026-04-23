@@ -1,6 +1,5 @@
 { den, lib, ... }:
 let
-  # Build a direct forward: resolve source and set at target path.
   mkDirectForward =
     {
       intoClass,
@@ -32,7 +31,6 @@ let
         meta.contextDependent = true;
       };
 
-  # Build an adapter forward: wraps source in a submodule with specialArgs.
   mkAdapter =
     {
       fromClass,
@@ -117,6 +115,8 @@ let
       };
     };
 
+  # Guards must wrap individual module configs, not import lists — the module
+  # system evaluates imports lazily, so we recurse into { imports } nodes.
   guardTree =
     guard: outerArgs: node:
     if builtins.isAttrs node && node ? imports then

@@ -44,7 +44,6 @@ let
     in
     a // b // sharedComposed;
 
-  # Default handler set for the unified pipeline.
   defaultHandlers =
     { class, ctx }:
     handlers.constantHandler (
@@ -81,8 +80,6 @@ let
     deferredIncludes = _: [ ];
   };
 
-  # Configurable pipeline builder. Runs aspectToEffect on the root aspect
-  # with the full handler set.
   mkPipeline =
     {
       extraHandlers ? { },
@@ -160,7 +157,6 @@ let
         };
     } rootEffect;
 
-  # Full pipeline: aspect compilation → handler-driven resolution → module collection.
   # Returns raw fx.handle result with { value, state }.
   fxFullResolve =
     {

@@ -11,8 +11,7 @@
   ...
 }:
 let
-  # Constraint registry. Handles register-constraint and check-constraint effects.
-  # Supports identity-based (exclude, substitute) and predicate-based (filter).
+  # Two constraint types: identity-based (exclude, substitute) and predicate-based (filter).
   constraintRegistryHandler = {
     "register-constraint" =
       { param, state }:
@@ -115,7 +114,6 @@ let
           mkDecision "keep" { };
   };
 
-  # Maintains includes-path stack. chain-push appends identity, chain-pop removes last.
   chainHandler = {
     "chain-push" =
       { param, state }:
@@ -142,7 +140,6 @@ let
       };
   };
 
-  # Accumulates class modules from emit-class effects.
   # Only collects modules for the specified target class.
   classCollectorHandler =
     {
@@ -196,8 +193,7 @@ let
           };
     };
 
-  # Accumulates parametric includes whose args aren't available yet.
-  # Deferred includes are drained by drain-deferred when context widens.
+  # Drained by drain-deferred when context widens.
   deferredIncludeHandler = {
     "defer-include" =
       { param, state }:
@@ -210,8 +206,6 @@ let
       };
   };
 
-  # Partitions deferred includes into satisfiable (args now in ctx) and
-  # remaining. Returns satisfiable list — caller resolves via aspectToEffect.
   drainDeferredHandler = {
     "drain-deferred" =
       { param, state }:

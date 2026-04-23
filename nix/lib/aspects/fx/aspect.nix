@@ -26,7 +26,6 @@ let
     "_module"
   ] (_: true);
 
-  # Emit emit-class for each non-structural attr on the aspect.
   emitClasses =
     aspect: classKeys: nodeIdentity:
     fx.seq (
@@ -42,7 +41,6 @@ let
       ) classKeys
     );
 
-  # Register constraints from meta.handleWith and meta.excludes.
   registerConstraints =
     aspect:
     let
@@ -99,14 +97,10 @@ let
     in
     go 0 (fx.pure [ ]);
 
-  # Emit into-transition effects for each key in aspect.into.
-  # into is a function ctx → attrset. We pass the unevaluated function
-  # to the handler which evaluates it with the current context.
   emitTransitions =
     aspect:
     let
-      # into can be on the aspect directly (non-ctx aspects with into option)
-      # or in meta.into (ctxApply stores it there to survive freeform deferredModule).
+      # meta.into survives freeform deferredModule; aspect.into is the fallback.
       intoFn = aspect.meta.into or aspect.into or null;
     in
     if intoFn != null && lib.isFunction intoFn then
@@ -117,7 +111,6 @@ let
     else
       fx.pure [ ];
 
-  # Positional-arg provider: call fn directly with ctx, wrap result.
   mkPositionalInclude =
     {
       innerFn,
@@ -149,7 +142,6 @@ let
       }
       // lib.optionalAttrs (aspect ? __ctxId) { __ctxId = aspect.__ctxId; };
 
-  # Named-arg provider: wrap as parametric for bind.fn resolution.
   mkNamedInclude =
     {
       innerFn,
@@ -180,7 +172,6 @@ let
     // lib.optionalAttrs (scopeHandlers != null) { __parentScopeHandlers = scopeHandlers; }
     // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; };
 
-  # Self-provide: if aspect.provides.${aspect.name} exists, emit it as an include.
   emitSelfProvide =
     aspect:
     let
@@ -233,7 +224,6 @@ let
     else
       fx.pure [ ];
 
-  # Wrap a computation in chain-push/chain-pop if the node is meaningful.
   chainWrap =
     nodeIdentity: isMeaningful: comp:
     if isMeaningful then
@@ -243,8 +233,6 @@ let
     else
       comp;
 
-  # Resolve children, assemble the result, and emit resolve-complete.
-  # Propagates __scopeHandlers to children via emitIncludes.
   resolveChildren =
     aspect:
     { isMeaningful, nodeIdentity }:
@@ -272,7 +260,6 @@ let
       fx.bind (fx.send "resolve-complete" resolved) (_: fx.pure resolved)
     );
 
-  # Compile a static (non-functor) aspect into an effectful computation.
   compileStatic =
     aspect:
     let
@@ -286,7 +273,6 @@ let
       (registerConstraints aspect)
     ]) (_: resolveChildren aspect { inherit isMeaningful nodeIdentity; });
 
-  # Build the "next" aspect from a parametric bind.fn result.
   # Submodule functions merge through the type system; bare functions
   # become another parametric level; attrsets merge directly.
   mkParametricNext =
@@ -316,7 +302,6 @@ let
     else
       base // builtins.removeAttrs resolved [ "meta" ];
 
-  # Tag a resolved parametric result with scope handlers and ctxId.
   tagParametricResult =
     aspect: next:
     let

@@ -1,7 +1,5 @@
-# Standalone emit-include handler — owns recursion via aspectToEffect.
 # Handles: emit-include
-# Sends: check-constraint, resolve-complete, get-path-set (via resolveConditional)
-# State reads: (none directly — delegates to other handlers via effects)
+# Sends: check-constraint, resolve-complete, get-path-set
 {
   lib,
   den,
@@ -28,9 +26,6 @@ let
         }
       ];
 
-  # Wrap bare function includes in an aspect envelope.
-  # lib.isFunction catches raw lambdas and real functor attrsets (ctx nodes,
-  # Wrap a functor attrset (has __functor) as a parametric include.
   wrapFunctorChild =
     child:
     let
@@ -57,7 +52,6 @@ let
         includes = child.includes or [ ];
       };
 
-  # Wrap a bare function as a parametric include.
   wrapBareFn =
     child:
     if isSubmoduleFn child then
@@ -70,7 +64,8 @@ let
         __args = lib.functionArgs child;
       };
 
-  # Wrap bare function includes in an aspect envelope.
+  # lib.isFunction is true for both raw lambdas and functor attrsets,
+  # so the first branch re-dispatches to wrapFunctorChild vs wrapBareFn.
   wrapChild =
     child:
     if lib.isFunction child then
@@ -96,7 +91,6 @@ let
       )
     ) (fx.pure [ ]) aspects;
 
-  # Handle includeIf guards via get-path-set.
   resolveConditional =
     condNode:
     fx.bind (fx.send "get-path-set" null) (
@@ -116,7 +110,6 @@ let
         tombstoneAll condNode.meta.aspects
     );
 
-  # Exclude: create tombstone and emit resolve-complete.
   excludeChild =
     child: owner:
     let
@@ -208,7 +201,6 @@ let
     else
       fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ]);
 
-  # Derive a stable name for anonymous aspects from parent chain + index.
   nameAnon =
     state: idx: ctxId:
     let
@@ -228,14 +220,12 @@ let
         wrapped = wrapChild rawChild;
         parentCtxId = param.__parentCtxId or null;
         parentScopeHandlers = param.__parentScopeHandlers or null;
-        # Propagate parent's __scopeHandlers and __ctxId to child.
         withScope =
           wrapped
           // lib.optionalAttrs (parentScopeHandlers != null && !(wrapped ? __scopeHandlers)) {
             __scopeHandlers = parentScopeHandlers;
           }
           // lib.optionalAttrs (parentCtxId != null && !(wrapped ? __ctxId)) { __ctxId = parentCtxId; };
-        # Replace anonymous names with parent+index derived identity.
         child =
           if idx != null && !(isMeaningfulName (withScope.name or "<anon>")) then
             withScope // { name = nameAnon state idx (withScope.__ctxId or null); }

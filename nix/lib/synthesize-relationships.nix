@@ -1,6 +1,3 @@
-# synthesizeRelationships — shared helper.
-# Filters den.relationships by `from == stageName`, folds matching rels,
-# and builds { ${rel.to} = [...] }.
 # Returns null when no relationships match (callers decide default).
 {
   lib,

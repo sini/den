@@ -9,8 +9,6 @@ let
   hasAspect = import ./has-aspect.nix { inherit den lib; };
   fx = import ./fx { inherit den lib; };
 
-  # Normalize a root value (bare fn, functor attrset, module fn) into
-  # an aspect-shaped attrset suitable for the fx pipeline.
   normalizeRoot =
     resolved:
     let

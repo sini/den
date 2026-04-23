@@ -1,4 +1,3 @@
-# Query whether an aspect is structurally present in a resolved tree.
 # Entity-facing wiring lives in modules/context/has-aspect.nix.
 { lib, den, ... }:
 let

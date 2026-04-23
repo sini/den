@@ -63,7 +63,6 @@ let
       };
   };
 
-  # Handler for get-path-set effect. Returns accumulated paths as a set.
   pathSetHandler = {
     "get-path-set" =
       { param, state }:
