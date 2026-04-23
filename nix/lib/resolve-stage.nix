@@ -17,6 +17,7 @@ let
     "provides"
     "_module"
     "_"
+    "__functor"
   ];
 
   # Synthesize relationships into an into-style function for a given stage name.
