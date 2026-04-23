@@ -127,70 +127,90 @@ let
     else
       null;
 
+  # Resolve a cross-provider (source.provides.${targetKey}) in scoped context.
+  emitCrossProvider =
+    {
+      crossProvider,
+      sourceAspect,
+      targetKey,
+    }:
+    scopedCtx: scopeHandlers: ctxId: prevResults:
+    if crossProvider == null then
+      fx.pure prevResults
+    else
+      let
+        wrapped =
+          if isParametricWrapper crossProvider && crossProvider.__args != { } then
+            crossProvider
+            // {
+              __scopeHandlers = scopeHandlers;
+              __ctx = scopedCtx;
+              __ctxId = ctxId;
+            }
+          else
+            let
+              rawFn = if isParametricWrapper crossProvider then crossProvider.__fn else crossProvider;
+              crossProviderArgs = lib.functionArgs rawFn;
+              crossCtx =
+                if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
+              crossResult = rawFn crossCtx;
+            in
+            if lib.isFunction crossResult && !builtins.isAttrs crossResult then
+              {
+                name = "${sourceAspect.name or "?"}.provides.${targetKey}";
+                meta = crossProvider.meta or { };
+                __fn = crossResult;
+                __args = lib.functionArgs crossResult;
+                __scopeHandlers = scopeHandlers;
+                __ctx = scopedCtx;
+                __ctxId = ctxId;
+              }
+            else
+              crossResult
+              // {
+                __scopeHandlers = scopeHandlers;
+                __ctx = scopedCtx;
+                __ctxId = ctxId;
+              };
+      in
+      fx.bind (aspectToEffect wrapped) (crossResolved: fx.pure (prevResults ++ [ crossResolved ]));
+
+  # Resolve fan-out target in a separate pipeline with fresh dedup state.
+  resolveFanOut =
+    {
+      targetClass,
+      effectiveTarget,
+      scopedCtx,
+      scopeHandlers,
+      ctxNames,
+    }:
+    innerResults:
+    let
+      tagged = effectiveTarget // {
+        __scopeHandlers = scopeHandlers;
+        __ctxId = ctxNames;
+      };
+      subResult = den.lib.aspects.fx.pipeline.fxFullResolve {
+        class = targetClass;
+        self = tagged;
+        ctx = scopedCtx;
+      };
+      subImports = subResult.state.imports null;
+      mergeImports = fx.effects.state.modify (st: st // { imports = x: (st.imports x) ++ subImports; });
+    in
+    fx.bind mergeImports (_: fx.pure innerResults);
+
   resolveTransition =
     targetClass: sourceAspect: currentCtx: results: transition:
     let
-      # Include the target class in the dedup key so that the same stage
-      # resolved for different class targets (e.g., nixos vs homeManager)
-      # is treated as distinct. Without this, host→default (class=nixos)
-      # blocks user→default (class=homeManager) via ctx-seen, causing
-      # homeManager modules from den.default to never reach the HM pipeline.
       key = "${targetClass}/${lib.concatStringsSep "/" transition.path}";
       targetKey = lib.concatStringsSep "." transition.path;
       effectiveTarget = buildTarget transition;
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
-      # Emit cross-provider result by tagging with __scopeHandlers and resolving.
-      emitCrossProvider =
-        scopedCtx: scopeHandlers: ctxId: prevResults:
-        if crossProvider != null then
-          let
-            # Parametric wrappers with named args are resolved by aspectToEffect
-            # directly — just tag with scope and pass through.
-            # Positional-arg wrappers (__args == {}) must be called with ctx
-            # first to get the actual provider function (e.g. _: osFwd becomes osFwd).
-            wrapped =
-              if isParametricWrapper crossProvider && crossProvider.__args != { } then
-                crossProvider
-                // {
-                  __scopeHandlers = scopeHandlers;
-                  __ctx = scopedCtx;
-                  __ctxId = ctxId;
-                }
-              else
-                let
-                  # For parametric wrappers with empty args, call __fn with ctx.
-                  # For bare functions, call directly.
-                  rawFn = if isParametricWrapper crossProvider then crossProvider.__fn else crossProvider;
-                  crossProviderArgs = lib.functionArgs rawFn;
-                  crossCtx =
-                    if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
-                  crossResult = rawFn crossCtx;
-                in
-                if lib.isFunction crossResult && !builtins.isAttrs crossResult then
-                  {
-                    name = "${sourceAspect.name or "?"}.provides.${targetKey}";
-                    meta = crossProvider.meta or { };
-                    __fn = crossResult;
-                    __args = lib.functionArgs crossResult;
-                    __scopeHandlers = scopeHandlers;
-                    __ctx = scopedCtx;
-                    __ctxId = ctxId;
-                  }
-                else
-                  crossResult
-                  // {
-                    __scopeHandlers = scopeHandlers;
-                    __ctx = scopedCtx;
-                    __ctxId = ctxId;
-                  };
-          in
-          fx.bind (aspectToEffect wrapped) (crossResolved: fx.pure (prevResults ++ [ crossResolved ]))
-        else
-          fx.pure prevResults;
+      emitCross = emitCrossProvider { inherit crossProvider sourceAspect targetKey; };
     in
     if effectiveTarget == null && crossProvider == null then
-      # No target ctx node and no cross-provider — emit tombstone.
       let
         ts = {
           name = "~<missing-transition:${key}>";
@@ -205,9 +225,6 @@ let
       fx.bind (fx.send "resolve-complete" ts) (_: fx.pure (results ++ [ ts ]))
     else
       let
-        # For fan-out transitions (multiple contexts), use per-context
-        # dedup keys so each context gets its own resolution. For
-        # single-context transitions, use the plain target key.
         isFanOut = builtins.length transition.contexts > 1;
       in
       builtins.foldl' (
@@ -217,42 +234,21 @@ let
           let
             scopedCtx = currentCtx // newCtx;
             ctxNames = mkCtxId newCtx;
-            # For fan-out, include ctxId in dedup key so each
-            # context resolves independently.
             ctxKey = if isFanOut then "${key}/{${ctxNames}}" else key;
-            # Build handler-closure for this transition context.
             scopeHandlers = constantHandler scopedCtx;
-            # Update state.currentCtx so nested transitions' intoFn
-            # receives accumulated context.
             updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
-            # For fan-out transitions, resolve the target in a SEPARATE
-            # pipeline (fresh dedup state) so inner transitions within each
-            # context don't block across contexts. The separate pipeline's
-            # imports are merged into the current pipeline's state.
             withTarget =
               if effectiveTarget != null then
                 if isFanOut && targetClass == "flake" then
-                  let
-                    tagged = effectiveTarget // {
-                      __scopeHandlers = scopeHandlers;
-                      __ctxId = ctxNames;
-                    };
-                    targetClass' = targetClass;
-                    subResult = den.lib.aspects.fx.pipeline.fxFullResolve {
-                      class = targetClass';
-                      self = tagged;
-                      ctx = scopedCtx;
-                    };
-                    subImports = subResult.state.imports null;
-                    mergeImports = fx.effects.state.modify (
-                      st:
-                      st
-                      // {
-                        imports = x: (st.imports x) ++ subImports;
-                      }
-                    );
-                  in
-                  fx.bind mergeImports (_: fx.pure innerResults)
+                  resolveFanOut {
+                    inherit
+                      targetClass
+                      effectiveTarget
+                      scopedCtx
+                      scopeHandlers
+                      ctxNames
+                      ;
+                  } innerResults
                 else
                   resolveContextValue currentCtx effectiveTarget innerResults newCtx
               else
@@ -264,8 +260,7 @@ let
               fx.pure innerResults
             else
               fx.bind updateCtx (
-                _:
-                fx.bind withTarget (targetResults: emitCrossProvider scopedCtx scopeHandlers ctxNames targetResults)
+                _: fx.bind withTarget (targetResults: emitCross scopedCtx scopeHandlers ctxNames targetResults)
               )
           )
         )
