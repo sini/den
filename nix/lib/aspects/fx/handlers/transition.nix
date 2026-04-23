@@ -19,6 +19,7 @@ let
   fx = den.lib.fx;
   inherit (den.lib.aspects.fx.aspect) aspectToEffect;
   inherit (den.lib.aspects.fx.handlers) constantHandler;
+  inherit (den.lib.aspects) isParametricWrapper;
 
   # Derive a stable identity string from a context attrset.
   mkCtxId =
@@ -140,7 +141,6 @@ let
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
       # Emit cross-provider result by tagging with __scopeHandlers and resolving.
-      isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
       emitCrossProvider =
         scopedCtx: scopeHandlers: ctxId: prevResults:
         if crossProvider != null then

@@ -11,6 +11,7 @@ let
   fx = den.lib.fx;
   identity = den.lib.aspects.fx.identity;
   inherit (den.lib.aspects.fx.aspect) aspectToEffect emitIncludes;
+  inherit (den.lib.aspects) isSubmoduleFn isMeaningfulName;
 
   # Normalize a NixOS module function ({ config, lib, ... }: ...) into an aspect
   # attrset by running it through the type system's merge. This extracts class keys
@@ -44,13 +45,7 @@ let
           let
             innerFn = child.__functor child;
             innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
-            isModuleFn =
-              builtins.isFunction innerFn
-              && den.lib.canTake.upTo {
-                lib = true;
-                config = true;
-                options = true;
-              } innerFn;
+            isModuleFn = builtins.isFunction innerFn && isSubmoduleFn innerFn;
           in
           if isModuleFn then
             normalizeModuleFn innerFn
@@ -74,11 +69,7 @@ let
         else
           let
             args = lib.functionArgs child;
-            isModuleFn = den.lib.canTake.upTo {
-              lib = true;
-              config = true;
-              options = true;
-            } child;
+            isModuleFn = isSubmoduleFn child;
           in
           if isModuleFn then
             normalizeModuleFn child
@@ -228,9 +219,6 @@ let
       suffix = if ctxId != null then "/${ctxId}" else "";
     in
     "${parent}/<anon>:${toString idx}${suffix}";
-
-  isMeaningfulName =
-    name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
 
   # The handler. param is { child, idx, __parentScopeHandlers? } from emitIncludes.
   includeHandler = {

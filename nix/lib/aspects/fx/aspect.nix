@@ -7,6 +7,7 @@ let
   fx = den.lib.fx;
   identity = den.lib.aspects.fx.identity;
   inherit (den.lib.aspects.fx.handlers) constantHandler;
+  inherit (den.lib.aspects) isParametricWrapper isMeaningfulName;
 
   structuralKeys = [
     "name"
@@ -133,9 +134,9 @@ let
       # Detect __fn/__args wrappers (from take.exactly, perCtx, etc.) and
       # preserve them as-is so aspectToEffect can handle them correctly
       # (including meta.exactMatch injection, scope.provide, etc.).
-      isParametricWrapper = builtins.isAttrs providerVal && providerVal ? __fn && providerVal ? __args;
+      isParamWrapper = isParametricWrapper providerVal;
       innerFn =
-        if isParametricWrapper then
+        if isParamWrapper then
           providerVal.__fn
         else if builtins.isAttrs providerVal && providerVal ? __fn then
           providerVal.__fn
@@ -144,7 +145,7 @@ let
         else
           providerVal;
       providerArgs =
-        if isParametricWrapper then
+        if isParamWrapper then
           providerVal.__args
         else if lib.isFunction innerFn then
           lib.functionArgs innerFn
@@ -190,7 +191,7 @@ let
               meta =
                 providerMeta
                 // (
-                  if isParametricWrapper then
+                  if isParamWrapper then
                     builtins.removeAttrs (providerVal.meta or { }) [
                       "provider"
                       "selfProvide"
@@ -254,8 +255,7 @@ let
       nodeIdentity = identity.pathKey (identity.aspectPath aspect);
       classKeys = builtins.filter (k: !(builtins.elem k structuralKeys)) (builtins.attrNames aspect);
       rawName = aspect.name or "<anon>";
-      isMeaningful =
-        rawName != "<anon>" && rawName != "<function body>" && !(lib.hasPrefix "[definition " rawName);
+      isMeaningful = isMeaningfulName rawName;
     in
     fx.bind (fx.seq [
       (emitClasses aspect classKeys nodeIdentity)

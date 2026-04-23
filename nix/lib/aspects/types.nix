@@ -25,6 +25,9 @@ let
 
   isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
 
+  isMeaningfulName =
+    name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
+
   aspectType =
     cnf:
     let
@@ -296,5 +299,7 @@ in
     providerType
     parametricType
     isParametricWrapper
+    isSubmoduleFn
+    isMeaningfulName
     ;
 }
