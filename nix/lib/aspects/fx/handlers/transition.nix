@@ -280,9 +280,13 @@ let
         sourceAspect = param.self;
         # currentCtx is wrapped in a thunk (_: ctx) to survive deepSeq.
         rootCtx = (state.currentCtx or (_: { })) null;
-        # rootCtx feeds the into function. Nested transitions get parent
-        # context from __scopeHandlers, not from data merging.
-        currentCtx = rootCtx;
+        # Merge the source aspect's __ctx so that stages resolved with
+        # explicit context (e.g. resolveStage "user" {host, user}) have
+        # their context available for evaluating the into function.
+        # Without this, the separate HM pipeline starts with empty ctx
+        # and relationship guards like (ctx ? user) fail.
+        aspectCtx = sourceAspect.__ctx or { };
+        currentCtx = rootCtx // aspectCtx;
         intoResult = param.intoFn currentCtx;
         transitions = flattenInto intoResult [ ];
         targetClass = state.class or "nixos";

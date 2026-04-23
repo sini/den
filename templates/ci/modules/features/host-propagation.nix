@@ -155,20 +155,19 @@
         }
       );
 
+      # Post-ctx semantics: default resolves once via host→default.
+      # Includes fire once with available context. Deferred includes
+      # (requiring user) fire when context widens via drain-deferred.
+      # No include fires twice — no per-source re-resolution.
       expected = [
-        "default-anyctx {aspect-chain,class}"
-        "default-anyctx {host,user}"
-        "default-anyctx {host}"
-
         "default-host+user-lax {host,user}"
-        "default-host-lax {host,user}"
         "default-host-lax {host}"
 
         "default-owned"
 
         "default-static"
 
-        "default-user-lax {host,user}"
+        "default-user-lax {user}"
 
         "hm-host detected"
         "hm-host host-lax {host}"
@@ -178,13 +177,13 @@
         "host+user-lax {host,user}"
 
         "host-exact"
-        "host-lax {host,user}"
+        "host-lax {host}"
 
         "host-owned"
         "host-static"
 
         "user-exact"
-        "user-lax {host,user}"
+        "user-lax {user}"
         "user-owned"
         "user-static"
       ];

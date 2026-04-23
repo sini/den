@@ -35,7 +35,12 @@ let
     child:
     if lib.isFunction child then
       (
-        if builtins.isAttrs child then
+        # Merged aspects have __functor (for callability) but should NOT
+        # be treated as functor-based providers. Detect them by the
+        # presence of declared submodule options (name + includes).
+        if builtins.isAttrs child && child ? name && child ? includes && builtins.isList child.includes then
+          child
+        else if builtins.isAttrs child then
           let
             innerFn = child.__functor child;
             innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };

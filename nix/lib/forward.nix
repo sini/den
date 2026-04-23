@@ -26,7 +26,7 @@ let
       # forward's class pipeline. Without this, inline parametric includes
       # like ({ host, ... }: ...) would be deferred and lost.
       asp =
-        if fwd ? fromCtx && builtins.isAttrs rawAsp && !(lib.isFunction rawAsp) then
+        if fwd ? fromCtx && builtins.isAttrs rawAsp && !(builtins.isFunction rawAsp) then
           let
             ctx = fwd.fromCtx item;
             inherit (den.lib.aspects.fx.handlers) constantHandler;
