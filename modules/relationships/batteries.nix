@@ -96,6 +96,8 @@ in
     };
 
     # --- WSL ---
+    # WSL activation is host-config-driven (wsl.enable), not user-class-driven,
+    # so it doesn't use mkDetectHost which requires matching user classes.
     host-to-wsl-host = {
       from = "host";
       to = "wsl-host";
