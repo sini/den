@@ -1,0 +1,13 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-22-ctx-removal.md",
+  "tasks": [
+    {"id": 0, "subject": "Task 0: Create resolveStage — ctxApply replacement", "status": "completed", "lastUpdated": "2026-04-22T14:00:00Z"},
+    {"id": 1, "subject": "Task 1: Replace ctxApply calls in production code", "status": "completed", "lastUpdated": "2026-04-22T14:30:00Z"},
+    {"id": 2, "subject": "Task 2: Move ctx provides to stages", "status": "completed", "lastUpdated": "2026-04-22T15:00:00Z"},
+    {"id": 3, "subject": "Task 3: Migrate transition handler + remove production into", "status": "completed", "lastUpdated": "2026-04-22T16:00:00Z"},
+    {"id": 4, "subject": "Task 4: Migrate CI test fixtures", "status": "completed", "lastUpdated": "2026-04-22T17:00:00Z"},
+    {"id": 5, "subject": "Task 5: Delete ctx infrastructure", "status": "completed", "lastUpdated": "2026-04-22T17:30:00Z"},
+    {"id": 6, "subject": "Task 6: Debug 45 test regressions + final push", "status": "pending"}
+  ],
+  "lastUpdated": "2026-04-22T17:30:00Z"
+}

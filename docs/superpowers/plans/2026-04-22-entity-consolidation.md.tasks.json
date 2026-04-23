@@ -1,0 +1,88 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-22-entity-consolidation.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Create shared entity helpers (_types.nix)",
+      "status": "pending",
+      "description": "Extract strOpt helper into nix/lib/entities/_types.nix",
+      "metadata": {
+        "files": ["nix/lib/entities/_types.nix"],
+        "verifyCommand": "nix-instantiate --parse nix/lib/entities/_types.nix",
+        "acceptanceCriteria": ["_types.nix exports strOpt", "Takes standard args"]
+      }
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Extract host entity type (host.nix)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "Move hostType, userType, systemType, hostsOption into nix/lib/entities/host.nix",
+      "metadata": {
+        "files": ["nix/lib/entities/host.nix"],
+        "verifyCommand": "nix-instantiate --parse nix/lib/entities/host.nix",
+        "acceptanceCriteria": ["exports hostsOption", "strOpt from _types.nix", "identical behavior"]
+      }
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Extract home entity type (home.nix)",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "Move homeType, homeSystemType, homesOption into nix/lib/entities/home.nix",
+      "metadata": {
+        "files": ["nix/lib/entities/home.nix"],
+        "verifyCommand": "nix-instantiate --parse nix/lib/entities/home.nix",
+        "acceptanceCriteria": ["exports homesOption", "strOpt from _types.nix", "identical behavior"]
+      }
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Wire entity files and replace types.nix",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "Update modules/options.nix to import from per-entity files. Replace types.nix with re-export shim.",
+      "metadata": {
+        "files": ["modules/options.nix", "nix/lib/types.nix"],
+        "verifyCommand": "just ci",
+        "acceptanceCriteria": ["options.nix uses entity files", "types.nix is shim", "all tests pass", "format clean"]
+      }
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Move has-aspect.nix to entities directory",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "Co-locate hasAspect module with entity infrastructure.",
+      "metadata": {
+        "files": ["nix/lib/entities/_has-aspect.nix", "modules/context/has-aspect.nix"],
+        "verifyCommand": "just ci",
+        "acceptanceCriteria": ["canonical in entities/", "forward in modules/context/", "all tests pass"]
+      }
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Delete deprecated perHost-perUser.nix (CONDITIONAL)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "Remove deprecated context-level guards. CONDITIONAL: likely blocked — perHost/perUser/perHome used in 6+ test fixtures and 2 core files. Skip if tests fail; defer to Phase 2.",
+      "metadata": {
+        "files": ["modules/context/perHost-perUser.nix"],
+        "verifyCommand": "just ci",
+        "acceptanceCriteria": ["file deleted", "all tests pass"]
+      }
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Verify and push",
+      "status": "pending",
+      "blockedBy": [4, 5],
+      "description": "Full test suite, format check, push to sini/feat/rm-legacy.",
+      "metadata": {
+        "verifyCommand": "just ci",
+        "acceptanceCriteria": ["format clean", "all tests pass", "pushed to sini"]
+      }
+    }
+  ],
+  "lastUpdated": "2026-04-22T00:00:00Z"
+}
