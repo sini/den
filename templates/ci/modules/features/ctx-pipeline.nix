@@ -27,7 +27,7 @@ let
             { };
       in
       { den, ... }:
-      baseStage // withRelationship
+      lib.recursiveUpdate baseStage withRelationship
     ) n;
 
   mkFanOut =
