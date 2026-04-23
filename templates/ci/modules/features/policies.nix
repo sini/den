@@ -57,5 +57,36 @@
       }
     );
 
+    # Policy with handlers field is accepted without error.
+    test-policy-with-handlers = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.stages.test-handler-target = {
+          includes = [ ];
+          nixos.users.users.tux.description = "handler-target";
+        };
+
+        den.policies.host-to-test-handler = {
+          from = "host";
+          to = "test-handler-target";
+          resolve = _: [ { } ];
+          handlers.test-effect =
+            {
+              param,
+              state,
+            }:
+            {
+              resume = "test-value";
+              inherit state;
+            };
+        };
+
+        expr = igloo.users.users.tux.description;
+        expected = "handler-target";
+      }
+    );
+
   };
 }
