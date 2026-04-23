@@ -1,124 +1,53 @@
+# ctxApply — the __functor of ctx nodes.
+#
+# Called as: den.ctx.host { host = config; }
+# Returns an aspect-shaped attrset preserving into/provides for
+# the fx pipeline's transitionHandler and emitSelfProvide to handle.
+#
+# The __ctx field carries the initial context value to the pipeline
+# entry point (fxResolveTree extracts it for defaultHandlers).
 { lib, den, ... }:
-ctxNs:
+_ctxNs:
 let
-  inherit (den.lib) parametric;
-
-  noop = _: { };
-
-  flattenInto =
-    attrset: prefix:
-    lib.concatLists (
-      lib.mapAttrsToList (
-        name: v:
-        let
-          path = prefix ++ [ name ];
-        in
-        if builtins.isList v then
-          [
-            {
-              inherit path;
-              into = v;
-            }
-          ]
-        else
-          flattenInto v path
-      ) attrset
-    );
-
-  resolveAspect = path: lib.attrByPath path null ctxNs;
-
-  getCrossProvider = p: (p.prev.provides.${p.key} or (_: noop)) p.prevCtx;
-
-  traverse =
-    args@{
-      prev,
-      prevCtx,
-      self,
-      ctx,
-      key,
-    }:
-    let
-      intoList = flattenInto ((self.into or noop) ctx) [ ];
-      expandOne =
-        { path, into }:
-        let
-          aspect = resolveAspect path;
-          aspectKey = lib.concatStringsSep "." path;
-          pathHead = lib.head path;
-          hasProvider = self.provides ? ${pathHead};
-        in
-        if aspect != null then
-          lib.concatMap (
-            c:
-            traverse {
-              prev = self;
-              prevCtx = ctx;
-              self = aspect;
-              ctx = c;
-              key = aspectKey;
-            }
-          ) into
-        else if builtins.length path == 1 && hasProvider then
-          lib.concatMap (
-            c:
-            traverse {
-              prev = self;
-              prevCtx = ctx;
-              self = {
-                name = pathHead;
-                into = noop;
-              };
-              ctx = c;
-              key = pathHead;
-            }
-          ) into
-        else
-          [ ];
-    in
-    [ args ] ++ lib.concatMap expandOne intoList;
-
-  buildIncludes =
-    item:
-    let
-      isFirst = !(item.seen ? ${item.key});
-      selfProvider = item.self.provides.${item.self.name} or noop;
-      crossProvider = getCrossProvider item;
-      # Strip into — ctxApply already processed it. Leaving it on would cause
-      # aspectToEffect to re-attach it after parametric resolution, attempting
-      # to call the function without the original context args.
-      stripped = builtins.removeAttrs item.self [ "into" ];
-    in
-    [
-      (if isFirst then parametric.fixedTo item.ctx stripped else parametric.atLeast stripped item.ctx)
-      (selfProvider item.ctx)
-      (crossProvider item.ctx)
-    ];
-
-  assembleIncludes =
-    items:
-    let
-      step = acc: item: {
-        seen = acc.seen // {
-          ${item.key} = true;
-        };
-        result = acc.result ++ (buildIncludes (item // { inherit (acc) seen; }));
-      };
-    in
-    (lib.foldl' step {
-      seen = { };
-      result = [ ];
-    } items).result;
+  # Structural keys that ctxApply always forwards.
+  structuralKeys = [
+    "name"
+    "description"
+    "meta"
+    "includes"
+    "provides"
+    "into"
+    "__functor"
+    "__functionArgs"
+    "__ctx"
+    "_module"
+  ];
 
   ctxApply =
     self: ctx:
-    parametric.withIdentity self {
-      includes = assembleIncludes (traverse {
-        prev = null;
-        prevCtx = null;
-        key = self.name;
-        inherit self ctx;
-      });
+    let
+      meta = self.meta or { };
+      # Preserve class keys (nixos, homeManager, funny, etc.) from the
+      # ctx node definition — these are emitted by compileStatic.
+      classAttrs = builtins.removeAttrs self structuralKeys;
+    in
+    classAttrs
+    // {
+      name = self.name or "<anon>";
+      meta = {
+        handleWith = meta.handleWith or null;
+        excludes = meta.excludes or [ ];
+        provider = meta.provider or [ ];
+      };
+      # Preserve for the pipeline to handle natively:
+      # - into: transitionHandler evaluates with currentCtx, recurses into target ctx nodes
+      # - provides: emitSelfProvide handles provides.${self.name}
+      # - includes: emitIncludes processes child aspects
+      into = self.into or (_: { });
+      provides = self.provides or { };
+      includes = self.includes or [ ];
+      # Carry context to the pipeline entry point.
+      __ctx = ctx;
     };
-
 in
 ctxApply

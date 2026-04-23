@@ -1,7 +1,5 @@
 { den, lib, ... }:
 let
-  inherit (den.lib) parametric;
-
   description = ''
     Projects all `user.classes` like `homeManager` from the host's aspect tree
     onto users who opt in. Requires the fx pipeline.
@@ -18,16 +16,10 @@ let
 
   from-host =
     { host, user }:
-    lib.listToAttrs (
-      map (class: {
-        name = class;
-        value = den.lib.aspects.resolve class (parametric.fixedTo { inherit host user; } host.aspect);
-      }) user.classes
-    );
-
+      lib.genAttrs (user.classes or [ "homeManager" ]) (class: den.lib.aspects.resolve class host.aspect)
 in
 {
-  den.provides.host-aspects = parametric.exactly {
+  den.provides.host-aspects = {
     inherit description;
     includes = [ from-host ];
   };

@@ -12,25 +12,43 @@ let
   fxResolveTree =
     class: resolved:
     let
-      # builtins.isFunction is false for functor attrsets (sets with __functor).
-      # Handle both raw lambdas and functors — forward.nix's fromAspect returns
-      # fixedTo-wrapped aspects which are functor attrsets needing parametric resolution.
-      # Only wrap functors whose inner function has named args (e.g. deepRecurse's
-      # { class, aspect-chain }) — the default functor takes bare `ctx` (args={})
-      # and should go through compileStatic to preserve class keys.
-      isRawFn = builtins.isFunction resolved;
-      isFunctor = builtins.isAttrs resolved && resolved ? __functor;
+      isBareFn = lib.isFunction resolved && !builtins.isAttrs resolved;
+      isFunctor = !isBareFn && builtins.isAttrs resolved && resolved ? __functor;
       functorArgs = if isFunctor then builtins.functionArgs (resolved.__functor resolved) else { };
-      needsWrap = isRawFn || (isFunctor && functorArgs != { });
+      needsWrap = isFunctor && functorArgs != { };
+      bareFnArgs = if isBareFn then lib.functionArgs resolved else { };
+      # NixOS module functions ({ config, lib, ... }: ...) should be normalized
+      # through the type system, not wrapped as parametric aspects.
+      isModuleFn =
+        isBareFn
+        && den.lib.canTake.upTo {
+          lib = true;
+          config = true;
+          options = true;
+        } resolved;
       wrapped =
-        if needsWrap then
-          let
-            innerFn = if isFunctor then resolved.__functor resolved else resolved;
-            innerArgs = if isFunctor then functorArgs else builtins.functionArgs innerFn;
-          in
+        if isModuleFn then
+          den.lib.aspects.types.aspectType.merge
+            [ "<bare-module>" ]
+            [
+              {
+                file = "<bare-module>";
+                value = resolved;
+              }
+            ]
+        # Bare functions (e.g. { class, ... }: { ... }) → wrap as parametric aspect.
+        else if isBareFn then
           {
-            __functor = _: innerFn;
-            __functionArgs = innerArgs;
+            __functor = _: resolved;
+            __functionArgs = bareFnArgs;
+            name = "<bare-fn>";
+            meta = { };
+            includes = [ ];
+          }
+        else if needsWrap then
+          {
+            __functor = _: resolved.__functor resolved;
+            __functionArgs = functorArgs;
             name = resolved.name or "<function body>";
             meta = resolved.meta or { };
             includes = resolved.includes or [ ];
