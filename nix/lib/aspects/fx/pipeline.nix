@@ -91,28 +91,9 @@ let
       ctx,
     }:
     let
-      # Only include policies whose `from` matches this root aspect's name.
       selfName = self.name or "";
-      policyInto = den.lib.synthesizePolicies selfName;
-
-      # Policies are additive — they contribute new target keys alongside
-      # whatever the existing into already declares. Overlapping target keys
-      # are deduplicated downstream by ctx-seen.
       existingInto = self.meta.into or self.into or null;
-      mergedInto =
-        if existingInto != null && policyInto != null then
-          rCtx:
-          let
-            existing = existingInto rCtx;
-            fromPolicies = policyInto rCtx;
-          in
-          existing // (builtins.removeAttrs fromPolicies (builtins.attrNames existing))
-        else if existingInto != null then
-          existingInto
-        else if policyInto != null then
-          policyInto
-        else
-          null;
+      mergedInto = den.lib.synthesizePolicies.mergePolicyInto selfName existingInto;
 
       # Inject merged into onto self
       effectiveSelf =

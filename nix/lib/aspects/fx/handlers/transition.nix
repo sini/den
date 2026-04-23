@@ -99,13 +99,14 @@ let
       stageAspect = lib.attrByPath transition.path null (den.stages or { });
 
       targetName = if stageAspect != null then stageAspect.name or "" else "";
-      policyInto = den.lib.synthesizePolicies targetName;
+      existingInto = if stageAspect != null then stageAspect.meta.into or null else null;
+      mergedInto = den.lib.synthesizePolicies.mergePolicyInto targetName existingInto;
     in
-    if stageAspect != null && policyInto != null then
+    if stageAspect != null && mergedInto != null then
       stageAspect
       // {
         meta = (stageAspect.meta or { }) // {
-          into = policyInto;
+          into = mergedInto;
         };
       }
     else if stageAspect != null then

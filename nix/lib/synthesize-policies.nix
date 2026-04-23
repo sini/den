@@ -4,23 +4,48 @@
   den,
   ...
 }:
-stageName:
 let
-  policies = den.policies or { };
-  matching = lib.filter (policy: policy.from == stageName) (builtins.attrValues policies);
-in
-if matching == [ ] then
-  null
-else
-  rCtx:
-  builtins.foldl' (
-    acc: policy:
+  synthesize =
+    stageName:
     let
-      targets = policy.resolve rCtx;
-      targetList = if builtins.isList targets then targets else [ targets ];
+      policies = den.policies or { };
+      matching = lib.filter (policy: policy.from == stageName) (builtins.attrValues policies);
     in
-    if targetList == [ ] then
-      acc
+    if matching == [ ] then
+      null
     else
-      acc // { ${policy.to} = (acc.${policy.to} or [ ]) ++ targetList; }
-  ) { } matching
+      rCtx:
+      builtins.foldl' (
+        acc: policy:
+        let
+          targets = policy.resolve rCtx;
+          targetList = if builtins.isList targets then targets else [ targets ];
+        in
+        if targetList == [ ] then
+          acc
+        else
+          acc // { ${policy.to} = (acc.${policy.to} or [ ]) ++ targetList; }
+      ) { } matching;
+
+  # Merge an existing into function with synthesized policies for a stage.
+  # Existing into takes priority — policies fill in new target keys.
+  mergePolicyInto =
+    stageName: existingInto:
+    let
+      policyInto = synthesize stageName;
+    in
+    if existingInto != null && policyInto != null then
+      rCtx:
+      let
+        existing = existingInto rCtx;
+        fromPolicies = policyInto rCtx;
+      in
+      existing // (builtins.removeAttrs fromPolicies (builtins.attrNames existing))
+    else if existingInto != null then
+      existingInto
+    else
+      policyInto;
+in
+{
+  inherit synthesize mergePolicyInto;
+}
