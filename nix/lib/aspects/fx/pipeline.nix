@@ -63,7 +63,17 @@ let
     // identity.collectPathsHandler
     // handlers.deferredIncludeHandler
     // handlers.drainDeferredHandler
+    // resolvePolicyHandler
     // fx.effects.state.handler;
+
+  resolvePolicyHandler = {
+    "resolve-policy" =
+      { param, state }:
+      {
+        resume = den.lib.synthesizePolicies.mergePolicyInto param.stageName param.existingInto;
+        inherit state;
+      };
+  };
 
   defaultState = {
     seen = { };
@@ -91,25 +101,31 @@ let
       ctx,
     }:
     let
-      selfName = self.name or "";
       existingInto = self.meta.into or self.into or null;
-      mergedInto = den.lib.synthesizePolicies.mergePolicyInto selfName existingInto;
 
-      # Inject merged into onto self
-      effectiveSelf =
-        if mergedInto != null && mergedInto != existingInto then
-          self
-          // {
-            meta = (self.meta or { }) // {
-              into = mergedInto;
-            };
-          }
-        else
-          self;
+      bootstrapAndResolve =
+        fx.bind
+          (fx.send "resolve-policy" {
+            stageName = self.name or "";
+            inherit existingInto;
+          })
+          (
+            mergedInto:
+            let
+              effectiveSelf =
+                if mergedInto != null && mergedInto != existingInto then
+                  self
+                  // {
+                    meta = (self.meta or { }) // {
+                      into = mergedInto;
+                    };
+                  }
+                else
+                  self;
+            in
+            aspectToEffect effectiveSelf
+          );
 
-      rootEffect = aspectToEffect effectiveSelf;
-      # Override aspect-chain to include root aspect — consumed by provider
-      # functions (home-env.nix) via bind.fn.
       rootHandlers = defaultHandlers {
         inherit class;
         ctx = ctx // {
@@ -119,10 +135,7 @@ let
     in
     fx.handle {
       handlers = composeHandlers rootHandlers extraHandlers;
-      # Wrap currentCtx in a thunk (function) so the trampoline's
-      # builtins.deepSeq on state doesn't force the NixOS config objects
-      # inside ctx (which would eagerly evaluate optional input defaults
-      # like hjem.module).
+      # Wrap currentCtx in a thunk so deepSeq doesn't force NixOS config objects.
       state =
         defaultState
         // extraState
@@ -130,7 +143,7 @@ let
           currentCtx = _: ctx;
           inherit class;
         };
-    } rootEffect;
+    } bootstrapAndResolve;
 
   # Returns raw fx.handle result with { value, state }.
   fxFullResolve =
