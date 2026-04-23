@@ -114,31 +114,53 @@ let
           mkDecision "keep" { };
   };
 
-  chainHandler = {
-    "chain-push" =
-      { param, state }:
-      {
-        resume = null;
-        state = state // {
-          includesChain = (state.includesChain or [ ]) ++ [ param.identity ];
+  chainHandler =
+    let
+      # Derive currentStage from stageStack: last entry or null.
+      topStage = stack: if stack == [ ] then null else lib.last stack;
+    in
+    {
+      "chain-push" =
+        { param, state }:
+        let
+          stage = param.stage or null;
+          stageStack = state.stageStack or [ ];
+          newStageStack = if stage != null then stageStack ++ [ stage ] else stageStack;
+        in
+        {
+          resume = null;
+          state = state // {
+            includesChain = (state.includesChain or [ ]) ++ [ param.identity ];
+            # Parallel stack: one entry per chain entry, null if not a stage root.
+            chainStages = (state.chainStages or [ ]) ++ [ stage ];
+            stageStack = newStageStack;
+            currentStage = topStage newStageStack;
+          };
         };
-      };
-    "chain-pop" =
-      { param, state }:
-      let
-        chain = state.includesChain or [ ];
-      in
-      {
-        resume = null;
-        state = state // {
-          includesChain =
-            if chain == [ ] then
-              throw "fx: chain-pop on empty includesChain — push/pop mismatch in aspect compiler"
-            else
-              lib.init chain;
+      "chain-pop" =
+        { param, state }:
+        let
+          chain = state.includesChain or [ ];
+          chainStages = state.chainStages or [ ];
+          stageStack = state.stageStack or [ ];
+          poppedStage = if chainStages != [ ] then lib.last chainStages else null;
+          newStageStack =
+            if poppedStage != null && stageStack != [ ] then lib.init stageStack else stageStack;
+        in
+        {
+          resume = null;
+          state = state // {
+            includesChain =
+              if chain == [ ] then
+                throw "fx: chain-pop on empty includesChain — push/pop mismatch in aspect compiler"
+              else
+                lib.init chain;
+            chainStages = if chainStages == [ ] then [ ] else lib.init chainStages;
+            stageStack = newStageStack;
+            currentStage = topStage newStageStack;
+          };
         };
-      };
-  };
+    };
 
   # Only collects modules for the specified target class.
   classCollectorHandler =
@@ -169,12 +191,10 @@ let
             # Named aspects get a dedup key so the module system keeps only
             # the first. Synthetic names must not be keyed — multiple
             # anonymous includes with the same identity are distinct.
-            # These synthetic names are produced by normalizeRoot, nameAnon,
-            # and the module system's [definition ...] format. Keep in sync.
+            # Uses isMeaningfulName (types.nix) for base synthetic name check,
+            # plus pipeline-specific patterns from nameAnon.
             isAnon =
-              nodeIdentity == "<anon>"
-              || nodeIdentity == "<function body>"
-              || lib.hasPrefix "[definition " nodeIdentity
+              !(den.lib.aspects.isMeaningfulName nodeIdentity)
               || lib.hasPrefix "<root>/" nodeIdentity
               || lib.hasInfix "/<anon>:" nodeIdentity;
             mod =

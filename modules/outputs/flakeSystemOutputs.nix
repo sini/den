@@ -12,6 +12,18 @@ let
   systemOutputFwd =
     { system, output }:
     { class, aspect-chain }:
+    let
+      # Use the target stage if it has includes (user set den.stages.flake-packages.includes).
+      # Fall back to aspect-chain root for test/inline patterns where packages
+      # class is on the root aspect directly.
+      stageTarget = den.stages."flake-${output}" or null;
+      hasStageContent = stageTarget != null && (stageTarget.includes or [ ]) != [ ];
+      source =
+        if hasStageContent then
+          den.lib.resolveStage "flake-${output}" { inherit system; }
+        else
+          lib.head aspect-chain;
+    in
     den.provides.forward {
       each = lib.optional (class == "flake") output;
       fromClass = _: output;
@@ -23,7 +35,7 @@ let
       ];
       guard = _: has-flake-output output;
       adaptArgs = _: { pkgs = inputs.nixpkgs.legacyPackages.${system}; };
-      fromAspect = _: lib.head aspect-chain;
+      fromAspect = _: source;
     };
 
   outputs = [

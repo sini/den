@@ -70,5 +70,9 @@ in
   inherit (hasAspect) hasAspectIn collectPathSet mkEntityHasAspect;
   mkAspectsType = typeCfg: lib.mapAttrs (_: v: v typeCfg) rawTypes;
   # Predicates exported directly (not through types mapAttrs which applies { } to each value).
-  inherit (rawTypes) isParametricWrapper isSubmoduleFn isMeaningfulName;
+  inherit (rawTypes)
+    isParametricWrapper
+    isSubmoduleFn
+    isMeaningfulName
+    ;
 }

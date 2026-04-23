@@ -52,9 +52,20 @@
     );
 
     test-toPathSet = denTest (
-      { den, ... }:
+      { den, lib, ... }:
+      let
+        inherit (den.lib.aspects.fx.identity) pathKey;
+        toPathSet =
+          paths:
+          builtins.listToAttrs (
+            map (p: {
+              name = pathKey p;
+              value = true;
+            }) paths
+          );
+      in
       {
-        expr = den.lib.aspects.fx.identity.toPathSet [
+        expr = toPathSet [
           [ "a" ]
           [
             "b"

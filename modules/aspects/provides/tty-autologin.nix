@@ -22,6 +22,11 @@ let
     };
 
   __functor = _self: username: {
+    name = "tty-autologin(${username})";
+    meta.provider = [
+      "den"
+      "provides"
+    ];
     nixos = tty-autologin-module username;
   };
 in

@@ -20,6 +20,11 @@ let
           Example: { host }: map (user: { inherit host user; }) (lib.attrValues host.users)
         '';
       };
+      handlers = lib.mkOption {
+        type = lib.types.lazyAttrsOf lib.types.raw;
+        default = { };
+        description = "Named effect handlers installed when this policy fires.";
+      };
     };
   };
 in

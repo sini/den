@@ -17,8 +17,8 @@ let
   #    state so shared keys would double-append.
   # 2. When b returns an effectful resume (computation), the sub-computation runs with
   #    b's state, not a's. State changes from a are lost for the duration of the
-  #    sub-computation. Only correct when a does not produce effectful resumes for
-  #    shared effect names.
+  #    sub-computation. For shared effects, b MUST return plain values (not computations)
+  #    as resume, or a's state mutations will be discarded.
   #
   # Designed for the tracing use case: tracingHandler (b) controls resume,
   # defaultHandlers (a) accumulates paths/imports. Both constraints hold for this case.
@@ -44,6 +44,10 @@ let
     in
     a // b // sharedComposed;
 
+  # Each handler set MUST handle disjoint effect names — `//` merge is
+  # last-wins, so overlap silently shadows. constantHandler generates
+  # dynamic keys from ctx (host, user, class, etc.) which don't collide
+  # with the named handlers below.
   defaultHandlers =
     { class, ctx }:
     handlers.constantHandler (
@@ -63,12 +67,58 @@ let
     // identity.collectPathsHandler
     // handlers.deferredIncludeHandler
     // handlers.drainDeferredHandler
+    // resolvePolicyHandler
+    // resolveTargetHandler
     // fx.effects.state.handler;
+
+  resolvePolicyHandler = {
+    "resolve-policy" =
+      { param, state }:
+      {
+        resume = den.lib.synthesizePolicies.mergePolicyInto param.stageName param.existingInto;
+        inherit state;
+      };
+  };
+
+  resolveTargetHandler = {
+    "resolve-target" =
+      { param, state }:
+      let
+        stageAspect = lib.attrByPath param.path null (den.stages or { });
+        targetName = if stageAspect != null then stageAspect.name or "" else "";
+        stageName = lib.concatStringsSep "." param.path;
+        existingInto = if stageAspect != null then stageAspect.meta.into or null else null;
+        mergedInto = den.lib.synthesizePolicies.mergePolicyInto targetName existingInto;
+        # Tag with __ctxStage so the chainHandler tracks stage transitions.
+        withStage = a: a // { __ctxStage = stageName; };
+      in
+      {
+        resume =
+          if stageAspect != null && mergedInto != null then
+            withStage (
+              stageAspect
+              // {
+                meta = (stageAspect.meta or { }) // {
+                  into = mergedInto;
+                };
+              }
+            )
+          else if stageAspect != null then
+            withStage stageAspect
+          else
+            null;
+        inherit state;
+      };
+  };
 
   defaultState = {
     seen = { };
-    # Thunk chain (not a list) so trampoline's deepSeq on state doesn't
-    # force NixOS config objects. Unwrap with `state.imports null`.
+    # IMPLEMENTATION DETAIL: Thunk chains (`_: []`, `x: (prev x) ++ items`)
+    # survive builtins.deepSeq because deepSeq on a function forces the
+    # closure value itself, not its application. This prevents the trampoline's
+    # per-step deepSeq from eagerly evaluating NixOS config objects inside
+    # collected modules. If a future Nix version changes deepSeq to force
+    # function bodies, this pattern breaks. Unwrap with `state.imports null`.
     imports = _: [ ];
     constraintRegistry = { };
     constraintFilters = [ ];
@@ -91,44 +141,31 @@ let
       ctx,
     }:
     let
-      # Only include policies whose `from` matches this root aspect's name.
-      selfName = self.name or "";
-      policyInto = den.lib.synthesizePolicies selfName;
-
-      # Policies are additive — they contribute new target keys alongside
-      # whatever the existing into already declares. Overlapping target keys
-      # are deduplicated downstream by ctx-seen.
       existingInto = self.meta.into or self.into or null;
-      mergedInto =
-        if existingInto != null && policyInto != null then
-          rCtx:
-          let
-            existing = existingInto rCtx;
-            fromPolicies = policyInto rCtx;
-          in
-          existing // (builtins.removeAttrs fromPolicies (builtins.attrNames existing))
-        else if existingInto != null then
-          existingInto
-        else if policyInto != null then
-          policyInto
-        else
-          null;
 
-      # Inject merged into onto self
-      effectiveSelf =
-        if mergedInto != null && mergedInto != existingInto then
-          self
-          // {
-            meta = (self.meta or { }) // {
-              into = mergedInto;
-            };
-          }
-        else
-          self;
+      bootstrapAndResolve =
+        fx.bind
+          (fx.send "resolve-policy" {
+            stageName = self.name or "";
+            inherit existingInto;
+          })
+          (
+            mergedInto:
+            let
+              effectiveSelf =
+                if mergedInto != null && mergedInto != existingInto then
+                  self
+                  // {
+                    meta = (self.meta or { }) // {
+                      into = mergedInto;
+                    };
+                  }
+                else
+                  self;
+            in
+            aspectToEffect effectiveSelf
+          );
 
-      rootEffect = aspectToEffect effectiveSelf;
-      # Override aspect-chain to include root aspect — consumed by provider
-      # functions (home-env.nix) via bind.fn.
       rootHandlers = defaultHandlers {
         inherit class;
         ctx = ctx // {
@@ -138,10 +175,7 @@ let
     in
     fx.handle {
       handlers = composeHandlers rootHandlers extraHandlers;
-      # Wrap currentCtx in a thunk (function) so the trampoline's
-      # builtins.deepSeq on state doesn't force the NixOS config objects
-      # inside ctx (which would eagerly evaluate optional input defaults
-      # like hjem.module).
+      # Wrap currentCtx in a thunk so deepSeq doesn't force NixOS config objects.
       state =
         defaultState
         // extraState
@@ -149,7 +183,7 @@ let
           currentCtx = _: ctx;
           inherit class;
         };
-    } rootEffect;
+    } bootstrapAndResolve;
 
   # Returns raw fx.handle result with { value, state }.
   fxFullResolve =

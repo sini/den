@@ -11,21 +11,30 @@ let
     It will dynamically provide a module for each class when accessed.
   '';
 
-  __functor =
-    _self: allowed-names:
-    { class, ... }:
-    if
-      (builtins.elem class [
-        "nixos"
-        "darwin"
-        "homeManager"
-      ])
-    then
-      {
-        ${class}.permittedInsecurePackages.packages = allowed-names;
-      }
-    else
-      { };
+  __functor = _self: allowed-names: {
+    name = "insecure(${builtins.concatStringsSep "," allowed-names})";
+    meta.provider = [
+      "den"
+      "provides"
+    ];
+    __fn =
+      { class, ... }:
+      if
+        (builtins.elem class [
+          "nixos"
+          "darwin"
+          "homeManager"
+        ])
+      then
+        {
+          ${class}.permittedInsecurePackages.packages = allowed-names;
+        }
+      else
+        { };
+    __args = {
+      class = true;
+    };
+  };
 in
 {
   den.provides.insecure = {

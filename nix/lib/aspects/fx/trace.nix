@@ -73,41 +73,49 @@ let
       let
         rawName = param.meta.originalName or param.name or "<anon>";
         provPath = lib.concatStringsSep "/" (param.meta.provider or [ ]);
-        ctxStage = param.__ctxStage or (state.currentStage or null);
-        ctxKind = param.__ctxKind or (state.currentKind or null);
-        ctxAspect = param.__ctxAspect or (state.currentCtxAspect or null);
+        ctxStage = state.currentStage or null;
+        # Derive ctxAspect from includes chain: nearest meaningful ancestor's
+        # base name (strip provider path and ctxId suffix for readability).
+        chain = state.includesChain or [ ];
+        chainTip = if chain != [ ] then lib.last chain else null;
+        ctxAspect =
+          if chainTip == null then
+            null
+          else
+            let
+              segments = lib.splitString "/" chainTip;
+              # Drop {ctxId} suffixes (segments starting with "{").
+              base = builtins.filter (s: builtins.match "\\{.*" s == null) segments;
+            in
+            if base == [ ] then chainTip else lib.last base;
         meaningful =
-          n: n != "<anon>" && n != "<function body>" && !(lib.hasPrefix "[definition " n) && n != null;
+          n:
+          n != "<anon>"
+          && n != "<function body>"
+          && !(lib.hasPrefix "[definition " n)
+          && builtins.match ".*<anon>.*" n == null
+          && n != null;
         isAnon = !meaningful rawName;
         name =
           if isAnon && ctxStage != null then
             let
-              stage = ctxStage;
-              kind = if ctxKind != null then ctxKind else "resolve";
               aspectTag = if ctxAspect != null then "(${ctxAspect})" else "";
               provTag = lib.optionalString (provPath != "") ":${provPath}";
             in
-            "${stage}/${kind}${aspectTag}${provTag}"
+            "${ctxStage}/resolve${aspectTag}${provTag}"
           else
             rawName;
         selfFullPath = if provPath != "" then "${provPath}/${name}" else name;
         entry = mkBaseEntry class param // {
-          inherit name ctxStage ctxKind;
-          parent = chainParent (state.includesChain or [ ]) selfFullPath;
+          inherit name ctxStage;
+          parent = chainParent chain selfFullPath;
         };
       in
       {
         resume = param;
-        state =
-          state
-          // {
-            entries = (state.entries or [ ]) ++ [ entry ];
-          }
-          // lib.optionalAttrs (param ? __ctxStage) {
-            currentStage = param.__ctxStage;
-            currentKind = param.__ctxKind or null;
-            currentCtxAspect = param.__ctxAspect or null;
-          };
+        state = state // {
+          entries = (state.entries or [ ]) ++ [ entry ];
+        };
       };
   };
 

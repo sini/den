@@ -5,12 +5,6 @@
 # provides atLeast semantics naturally).
 { den, lib, ... }:
 let
-  allContextKeys = [
-    "host"
-    "user"
-    "home"
-  ];
-
   take.unused = _unused: used: used;
 
   take.exactly =

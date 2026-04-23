@@ -16,13 +16,9 @@ let
   # bind.fn effects. NixOS module functions (taking lib/config/options) are
   # NOT coerced — they're handled by wrapChild's normalizeModuleFn.
 
-  parametricType = lib.types.mkOptionType {
-    name = "parametric";
-    description = "parametric aspect wrapper awaiting bind.fn resolution";
-    check = v: builtins.isAttrs v && v ? __fn && v ? __args;
-    merge = _: defs: (lib.last defs).value;
-  };
-
+  # Duck-typing: any attrset with __fn + __args is treated as a parametric
+  # wrapper. The __ prefix convention makes false positives unlikely but
+  # not impossible. If explicit tagging is ever needed, add _type = "den:parametric".
   isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
 
   isMeaningfulName =
@@ -304,7 +300,6 @@ in
     aspectsType
     aspectType
     providerType
-    parametricType
     isParametricWrapper
     isSubmoduleFn
     isMeaningfulName

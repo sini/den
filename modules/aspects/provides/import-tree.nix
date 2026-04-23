@@ -59,14 +59,23 @@
       you are also free to create your own auto-imports layout following the implementation of these.
   '';
 
-  den.provides.import-tree.__functor =
-    _: root:
-    { class, ... }:
-    let
-      path = "${toString root}/_${class}";
-      aspect.${class}.imports = [ (inputs.import-tree path) ];
-    in
-    if builtins.pathExists path then aspect else { };
+  den.provides.import-tree.__functor = _: root: {
+    name = "import-tree(${baseNameOf (toString root)})";
+    meta.provider = [
+      "den"
+      "provides"
+    ];
+    __fn =
+      { class, ... }:
+      let
+        path = "${toString root}/_${class}";
+        aspect.${class}.imports = [ (inputs.import-tree path) ];
+      in
+      if builtins.pathExists path then aspect else { };
+    __args = {
+      class = true;
+    };
+  };
 
   den.provides.import-tree.provides = {
     host = root: { host, ... }: den.provides.import-tree "${toString root}/${host.name}";

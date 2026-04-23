@@ -64,12 +64,16 @@ let
       scopeHandlers = constantHandler scopedCtx;
       tagged = targetAspect // {
         __scopeHandlers = scopeHandlers;
+        __ctx = scopedCtx;
         __ctxId = ctxId;
       };
     in
     fx.bind (aspectToEffect tagged) (
       childResult:
       # Drain deferred includes now satisfiable with the new context.
+      # Note: drained includes go through aspectToEffect which re-checks
+      # constraints via check-constraint. Constraints registered AFTER the
+      # original deferral will apply — this is intentional (constraints are global).
       fx.bind (fx.send "drain-deferred" scopedCtx) (
         satisfiable:
         builtins.foldl' (
@@ -89,29 +93,35 @@ let
       )
     );
 
-  # Resolve a single transition: look up target aspect, check dedup, resolve each context value.
-  # Also emits cross-providers: if sourceAspect.provides.${targetKey} exists,
-  # that provider is resolved in the scoped context (e.g. flake-system.provides.flake-packages).
-  # Stages provide the target's identity. Policies provide nested transitions.
-  buildTarget =
-    transition:
-    let
-      stageAspect = lib.attrByPath transition.path null (den.stages or { });
+  # Core pipeline effects that policy handlers must not shadow.
+  coreEffects = [
+    "into-transition"
+    "ctx-seen"
+    "resolve-complete"
+    "emit-class"
+    "emit-include"
+    "chain-push"
+    "chain-pop"
+    "check-constraint"
+    "register-constraint"
+    "defer-include"
+    "drain-deferred"
+    "get-path-set"
+    "has-handler"
+    "resolve-policy"
+    "resolve-target"
+  ];
 
-      targetName = if stageAspect != null then stageAspect.name or "" else "";
-      policyInto = den.lib.synthesizePolicies targetName;
+  collectPolicyHandlers =
+    sourceStage: targetKey:
+    let
+      policies = den.policies or { };
+      matching = lib.filter (p: p.from == sourceStage && p.to == targetKey) (
+        builtins.attrValues policies
+      );
+      allHandlers = builtins.foldl' (acc: p: acc // (p.handlers or { })) { } matching;
     in
-    if stageAspect != null && policyInto != null then
-      stageAspect
-      // {
-        meta = (stageAspect.meta or { }) // {
-          into = policyInto;
-        };
-      }
-    else if stageAspect != null then
-      stageAspect
-    else
-      null;
+    builtins.removeAttrs allHandlers coreEffects;
 
   emitCrossProvider =
     {
@@ -180,6 +190,10 @@ let
         ctx = scopedCtx;
       };
       subImports = fanOutResult.state.imports null;
+      # state.modify reads st.imports at the modify call site. This is safe
+      # because fxFullResolve above is a separate pipeline whose results are
+      # fully materialized before the modify runs. No concurrent handlers
+      # can append to imports between construction and handling.
       mergeImports = fx.effects.state.modify (st: st // { imports = x: (st.imports x) ++ subImports; });
     in
     fx.bind mergeImports (_: fx.pure innerResults);
@@ -189,92 +203,114 @@ let
     let
       key = "${targetClass}/${lib.concatStringsSep "/" transition.path}";
       targetKey = lib.concatStringsSep "." transition.path;
-      effectiveTarget = buildTarget transition;
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
       emitCross = emitCrossProvider { inherit crossProvider sourceAspect targetKey; };
+      policyHandlers = collectPolicyHandlers (sourceAspect.name or "") targetKey;
     in
-    if effectiveTarget == null && crossProvider == null then
-      let
-        tombstone = {
-          name = "~<missing-transition:${key}>";
-          meta = {
-            excluded = true;
-            transitionMissing = true;
-            transitionPath = key;
-          };
-          includes = [ ];
-        };
-      in
-      fx.bind (fx.send "resolve-complete" tombstone) (_: fx.pure (results ++ [ tombstone ]))
-    else
-      let
-        isFanOut = builtins.length transition.contexts > 1;
-      in
-      builtins.foldl' (
-        acc: newCtx:
-        fx.bind acc (
-          innerResults:
+    fx.bind
+      (fx.send "resolve-target" {
+        path = transition.path;
+        inherit targetClass;
+      })
+      (
+        effectiveTarget:
+        if effectiveTarget == null && crossProvider == null then
           let
-            scopedCtx = currentCtx // newCtx;
-            ctxNames = mkCtxId newCtx;
-            ctxKey = if isFanOut then "${key}/{${ctxNames}}" else key;
-            scopeHandlers = constantHandler scopedCtx;
-            updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
-            withTarget =
-              if effectiveTarget != null then
-                if isFanOut && targetClass == "flake" then
-                  resolveFanOut {
-                    inherit
-                      targetClass
-                      effectiveTarget
-                      scopedCtx
-                      scopeHandlers
-                      ctxNames
-                      ;
-                  } innerResults
-                else
-                  resolveContextValue currentCtx effectiveTarget innerResults newCtx
-              else
-                fx.pure innerResults;
+            tombstone = {
+              name = "~<missing-transition:${key}>";
+              meta = {
+                excluded = true;
+                transitionMissing = true;
+                transitionPath = key;
+              };
+              includes = [ ];
+            };
           in
-          fx.bind (fx.send "ctx-seen" ctxKey) (
-            { isFirst }:
-            if !isFirst then
-              fx.pure innerResults
-            else
-              fx.bind updateCtx (
-                _: fx.bind withTarget (targetResults: emitCross scopedCtx scopeHandlers ctxNames targetResults)
+          fx.bind (fx.send "resolve-complete" tombstone) (_: fx.pure (results ++ [ tombstone ]))
+        else
+          let
+            isFanOut = builtins.length transition.contexts > 1;
+          in
+          builtins.foldl' (
+            acc: newCtx:
+            fx.bind acc (
+              innerResults:
+              let
+                scopedCtx = currentCtx // newCtx;
+                ctxNames = mkCtxId newCtx;
+                ctxKey = if isFanOut then "${key}/{${ctxNames}}" else key;
+                scopeHandlers = constantHandler scopedCtx;
+                updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
+                baseComputation =
+                  if effectiveTarget != null then
+                    if isFanOut && targetClass == "flake" then
+                      resolveFanOut {
+                        inherit
+                          targetClass
+                          effectiveTarget
+                          scopedCtx
+                          scopeHandlers
+                          ctxNames
+                          ;
+                      } innerResults
+                    else
+                      resolveContextValue currentCtx effectiveTarget innerResults newCtx
+                  else
+                    fx.pure innerResults;
+                # Install policy handlers for aspects resolved under this transition.
+                # Fan-out sub-pipelines (fxFullResolve) create fresh handler scopes,
+                # so policy handlers don't propagate into them. Nested transitions
+                # that install handlers for the same effect name use innermost-wins
+                # semantics (standard scope.provide shadowing).
+                withTarget =
+                  if policyHandlers != { } then
+                    fx.effects.scope.provide policyHandlers baseComputation
+                  else
+                    baseComputation;
+              in
+              fx.bind (fx.send "ctx-seen" ctxKey) (
+                { isFirst }:
+                if !isFirst then
+                  fx.pure innerResults
+                else
+                  fx.bind updateCtx (
+                    _: fx.bind withTarget (targetResults: emitCross scopedCtx scopeHandlers ctxNames targetResults)
+                  )
               )
-          )
-        )
-      ) (fx.pure results) transition.contexts;
+            )
+          ) (fx.pure results) transition.contexts
+      );
+
+  maxTransitionDepth = 50;
 
   transitionHandler = {
     "into-transition" =
       { param, state }:
       let
         sourceAspect = param.self;
-        # currentCtx is wrapped in a thunk (_: ctx) to survive deepSeq.
         rootCtx = (state.currentCtx or (_: { })) null;
         # Merge the source aspect's __ctx so that stages resolved with
-        # explicit context (e.g. resolveStage "user" {host, user}) have
-        # their context available for evaluating the into function.
-        # Without this, the separate HM pipeline starts with empty ctx
-        # and policy guards like (ctx ? user) fail.
+        # explicit context have their context available for the into function.
         aspectCtx = sourceAspect.__ctx or { };
         currentCtx = rootCtx // aspectCtx;
+        depth = state.transitionDepth or 0;
         intoResult = param.intoFn currentCtx;
         transitions = flattenInto intoResult [ ];
         targetClass = state.class or "nixos";
       in
-      {
-        resume = builtins.foldl' (
-          acc: transition:
-          fx.bind acc (results: resolveTransition targetClass sourceAspect currentCtx results transition)
-        ) (fx.pure [ ]) transitions;
-        inherit state;
-      };
+      if depth >= maxTransitionDepth then
+        throw "den: transition depth exceeded ${toString maxTransitionDepth} — likely a cycle in den.policies (${sourceAspect.name or "?"})"
+      else
+        {
+          resume = builtins.foldl' (
+            acc: transition:
+            fx.bind acc (results: resolveTransition targetClass sourceAspect currentCtx results transition)
+          ) (fx.pure [ ]) transitions;
+          state = state // {
+            transitionDepth = depth + 1;
+          };
+        };
   };
 
 in

@@ -225,17 +225,18 @@ let
       fx.pure [ ];
 
   chainWrap =
-    nodeIdentity: isMeaningful: comp:
+    aspect: nodeIdentity: isMeaningful: comp:
     if isMeaningful then
-      fx.bind (fx.send "chain-push" { identity = nodeIdentity; }) (
-        _: fx.bind comp (result: fx.bind (fx.send "chain-pop" null) (_: fx.pure result))
-      )
+      fx.bind (fx.send "chain-push" {
+        identity = nodeIdentity;
+        stage = aspect.__ctxStage or null;
+      }) (_: fx.bind comp (result: fx.bind (fx.send "chain-pop" null) (_: fx.pure result)))
     else
       comp;
 
   resolveChildren =
     aspect:
-    { isMeaningful, nodeIdentity }:
+    { isMeaningful, chainIdentity }:
     let
       scopeHandlers = aspect.__scopeHandlers or null;
       ctxId = aspect.__ctxId or null;
@@ -250,7 +251,7 @@ let
         )
       );
     in
-    fx.bind (chainWrap nodeIdentity isMeaningful childResolution) (
+    fx.bind (chainWrap aspect chainIdentity isMeaningful childResolution) (
       allChildren:
       let
         resolved = aspect // {
@@ -264,6 +265,10 @@ let
     aspect:
     let
       nodeIdentity = identity.pathKey (identity.aspectPath aspect);
+      # Chain identity strips ctxId — the chain tracks includes provenance,
+      # not fan-out dedup. This keeps chain entries aligned with entry
+      # fullNames (provider/name) so parent resolution in graph.nix works.
+      chainIdentity = identity.pathKey ((aspect.meta.provider or [ ]) ++ [ (aspect.name or "<anon>") ]);
       classKeys = builtins.filter (k: !(structuralKeysSet ? ${k})) (builtins.attrNames aspect);
       rawName = aspect.name or "<anon>";
       isMeaningful = isMeaningfulName rawName;
@@ -271,7 +276,7 @@ let
     fx.bind (fx.seq [
       (emitClasses aspect classKeys nodeIdentity)
       (registerConstraints aspect)
-    ]) (_: resolveChildren aspect { inherit isMeaningful nodeIdentity; });
+    ]) (_: resolveChildren aspect { inherit isMeaningful chainIdentity; });
 
   # Submodule functions merge through the type system; bare functions
   # become another parametric level; attrsets merge directly.
@@ -316,8 +321,8 @@ let
       __parametricResolved = true;
     };
 
-  # The aspect compiler.
-  #
+  maxParametricDepth = 10;
+
   # Two cases:
   # 1. __args has named args → parametric. Resolve via bind.fn, compile result.
   # 2. Otherwise → static. Strip __fn/__args, compile the attrset directly.
@@ -326,38 +331,45 @@ let
     let
       userArgs = aspect.__args or { };
       isParametric = userArgs != { };
+      depth = aspect.__parametricDepth or 0;
       scopeHandlers = aspect.__scopeHandlers or null;
       scopeFn = if scopeHandlers != null then fx.effects.scope.provide scopeHandlers else null;
     in
     if isParametric then
-      let
-        rawFn = aspect.__fn;
-        fn =
-          if (aspect.meta.exactMatch or false) && scopeHandlers != null then
-            args: rawFn (args // { __scopeKeys = builtins.attrNames scopeHandlers; })
-          else
-            rawFn;
-        resolveFn = if scopeFn != null then scopeFn (fx.bind.fn userArgs fn) else fx.bind.fn userArgs fn;
-      in
-      fx.bind resolveFn (
-        resolved:
+      if depth >= maxParametricDepth then
+        throw "den: parametric resolution exceeded ${toString maxParametricDepth} levels for '${aspect.name or "<anon>"}' — likely a curried function that never bottoms out"
+      else
         let
-          base = {
-            inherit (aspect) name;
-            meta = (aspect.meta or { }) // (if builtins.isAttrs resolved then resolved.meta or { } else { });
-          }
-          // lib.optionalAttrs (aspect ? into) { inherit (aspect) into; }
-          // lib.optionalAttrs (aspect ? provides) { inherit (aspect) provides; };
-          next = mkParametricNext aspect base resolved;
-          tagged = tagParametricResult aspect next;
+          rawFn = aspect.__fn;
+          fn =
+            if (aspect.meta.exactMatch or false) && scopeHandlers != null then
+              args: rawFn (args // { __scopeKeys = builtins.attrNames scopeHandlers; })
+            else
+              rawFn;
+          resolveFn = if scopeFn != null then scopeFn (fx.bind.fn userArgs fn) else fx.bind.fn userArgs fn;
         in
-        aspectToEffect tagged
-      )
+        fx.bind resolveFn (
+          resolved:
+          let
+            base = {
+              inherit (aspect) name;
+              meta = (aspect.meta or { }) // (if builtins.isAttrs resolved then resolved.meta or { } else { });
+            }
+            // lib.optionalAttrs (aspect ? into) { inherit (aspect) into; }
+            // lib.optionalAttrs (aspect ? provides) { inherit (aspect) provides; };
+            next = mkParametricNext aspect base resolved;
+            tagged = tagParametricResult aspect next // {
+              __parametricDepth = depth + 1;
+            };
+          in
+          aspectToEffect tagged
+        )
     else
       compileStatic (
         builtins.removeAttrs aspect [
           "__fn"
           "__args"
+          "__parametricDepth"
         ]
       );
 

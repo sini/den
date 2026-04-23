@@ -6,9 +6,132 @@
   ...
 }:
 let
-  inherit (den.lib) parametric canTake;
+  inherit (den.lib) canTake;
+  # Access through den.aspects so __functor comes from mergeWithAspectMeta.
+  aspect-example = den.aspects.test-functor-example;
 
-  aspect-example = parametric.atLeast {
+  flake.tests."test functor applied with empty attrs" = {
+    expr =
+      let
+        result = aspect-example { };
+      in
+      {
+        hasCtx = result ? __ctx;
+        hasScopeHandlers = result ? __scopeHandlers;
+        includeCount = builtins.length result.includes;
+        hasFoo = result ? nixos;
+      };
+    expected = {
+      hasCtx = true;
+      hasScopeHandlers = true;
+      includeCount = 8;
+      hasFoo = true;
+    };
+  };
+
+  flake.tests."test functor applied with host only" = {
+    expr =
+      let
+        result = aspect-example { host = 2; };
+      in
+      {
+        ctxHost = result.__ctx.host;
+        includeCount = builtins.length result.includes;
+      };
+    expected = {
+      ctxHost = 2;
+      includeCount = 8;
+    };
+  };
+
+  flake.tests."test functor applied with home only" = {
+    expr =
+      let
+        result = aspect-example { home = 2; };
+      in
+      {
+        ctxHome = result.__ctx.home;
+      };
+    expected = {
+      ctxHome = 2;
+    };
+  };
+
+  flake.tests."test functor applied with home and unknown" = {
+    expr =
+      let
+        result = aspect-example {
+          home = 2;
+          unknown = 1;
+        };
+      in
+      {
+        ctxHome = result.__ctx.home;
+        ctxUnknown = result.__ctx.unknown;
+      };
+    expected = {
+      ctxHome = 2;
+      ctxUnknown = 1;
+    };
+  };
+
+  flake.tests."test functor applied with user only" = {
+    expr =
+      let
+        result = aspect-example { user = 2; };
+      in
+      {
+        ctxUser = result.__ctx.user;
+      };
+    expected = {
+      ctxUser = 2;
+    };
+  };
+
+  flake.tests."test functor applied with user and host" = {
+    expr =
+      let
+        result = aspect-example {
+          user = 2;
+          host = 1;
+        };
+      in
+      {
+        ctxUser = result.__ctx.user;
+        ctxHost = result.__ctx.host;
+      };
+    expected = {
+      ctxUser = 2;
+      ctxHost = 1;
+    };
+  };
+
+  flake.tests."test functor applied with host/user/OS" = {
+    expr =
+      let
+        result = aspect-example {
+          OS = 0;
+          user = 2;
+          host = 1;
+        };
+      in
+      {
+        ctxOS = result.__ctx.OS;
+        ctxUser = result.__ctx.user;
+        ctxHost = result.__ctx.host;
+      };
+    expected = {
+      ctxOS = 0;
+      ctxUser = 2;
+      ctxHost = 1;
+    };
+  };
+
+in
+{
+  inherit flake;
+
+  den.aspects.test-functor-example = {
     nixos.foo = 99;
     includes = [
       { nixos.static = 100; }
@@ -51,9 +174,7 @@ let
       (
         { user, ... }@ctx:
         if canTake.exactly ctx ({ user }: user) then
-          {
-            nixos.user-only = user;
-          }
+          { nixos.user-only = user; }
         else
           { nixos.user-only = false; }
       )
@@ -63,144 +184,7 @@ let
           nixos.home = home;
         }
       )
-      (_any: {
-        nixos.any = 10;
-      })
+      (_any: { nixos.any = 10; })
     ];
   };
-
-  identity = {
-    meta = {
-      adapter = null;
-      excludes = [ ];
-      handleWith = null;
-      provider = [ ];
-    };
-    name = "<anon>";
-  };
-
-  flake.tests."test functor applied with empty attrs" = {
-    expr = (aspect-example { });
-    expected = identity // {
-      includes = [
-        { nixos.any = 10; }
-      ];
-    };
-  };
-
-  flake.tests."test functor applied with host only" = {
-    expr = (
-      aspect-example {
-        host = 2;
-      }
-    );
-    expected = identity // {
-      includes = [
-        { nixos.host = 2; } # host
-        { nixos.any = 10; }
-      ];
-    };
-  };
-
-  flake.tests."test functor applied with home only" = {
-    expr = (
-      aspect-example {
-        home = 2;
-      }
-    );
-    expected = identity // {
-      includes = [
-        { nixos.home = 2; } # home
-        { nixos.any = 10; }
-      ];
-    };
-  };
-
-  flake.tests."test functor applied with home and unknown" = {
-    expr = (
-      aspect-example {
-        home = 2;
-        unknown = 1;
-      }
-    );
-    expected = identity // {
-      includes = [
-        { nixos.home = 2; }
-        { nixos.any = 10; }
-      ];
-    };
-  };
-
-  flake.tests."test functor applied with user only" = {
-    expr = (
-      aspect-example {
-        user = 2;
-      }
-    );
-    expected = identity // {
-      includes = [
-        { nixos.user = 2; } # user
-        { nixos.user-only = 2; } # user-only
-        { nixos.any = 10; }
-      ];
-    };
-  };
-
-  flake.tests."test functor applied with user and host" = {
-    expr = (
-      aspect-example {
-        user = 2;
-        host = 1;
-      }
-    );
-    expected = identity // {
-      includes = [
-        { nixos.host = 1; }
-        {
-          nixos.host-user = [
-            1
-            2
-          ];
-        }
-        { nixos.user = 2; }
-        { nixos.user-only = false; }
-        { nixos.any = 10; }
-      ];
-    };
-  };
-
-  flake.tests."test functor applied with host/user/OS" = {
-    expr = (
-      aspect-example {
-        OS = 0;
-        user = 2;
-        host = 1;
-      }
-    );
-    expected = identity // {
-      includes = [
-        { nixos.host = 1; }
-        {
-          nixos.host-user = [
-            1
-            2
-          ];
-        }
-        {
-          nixos.os-user-host = [
-            0
-            2
-            1
-          ];
-        }
-        { nixos.user = 2; }
-        { nixos.user-only = false; }
-        { nixos.any = 10; }
-      ];
-    };
-  };
-
-in
-{
-  inherit flake;
 }

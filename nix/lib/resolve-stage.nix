@@ -31,33 +31,19 @@ let
       name = stageNode.name or name;
       meta =
         let
-          synth = den.lib.synthesizePolicies name;
           stageInto = stageNode.meta.into or null;
-          # Merge stage-declared into with synthesized policies.
-          into =
-            if stageInto != null && synth != null then
-              rCtx:
-              let
-                fromStage = stageInto rCtx;
-                fromPolicies = synth rCtx;
-              in
-              fromStage // (builtins.removeAttrs fromPolicies (builtins.attrNames fromStage))
-            else if stageInto != null then
-              stageInto
-            else if synth != null then
-              synth
-            else
-              _: { };
+          into = den.lib.synthesizePolicies.mergePolicyInto name stageInto;
         in
         {
           handleWith = null;
           excludes = [ ];
           provider = [ ];
-          inherit into;
+          into = if into != null then into else _: { };
         };
       provides = stageNode.provides or { };
       includes = stageNode.includes or [ ];
       __ctx = ctx;
+      __ctxStage = name;
       __scopeHandlers = scopeHandlers;
     };
 in
