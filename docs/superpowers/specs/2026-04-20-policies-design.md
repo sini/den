@@ -1,10 +1,10 @@
-# Relationship Policies and Cross-Entity Resolution
+# Policies and Cross-Entity Resolution
 
 ## Problem
 
 Three coupled problems in den's context transition system:
 
-1. **Hardcoded transition topology**: `into` functions on ctx nodes (`den.ctx.host.into.user`) couple topology to entity type definitions. Adding new entity types (kubernetes clusters, environments) requires new ctx nodes with custom wiring. (Note: `den.ctx` is being fully removed — see `2026-04-21-ctx-as-classes-design.md`. Current `into` transitions move to `den.relationships`; scoped behavior on ctx nodes moves to `den.stages`.)
+1. **Hardcoded transition topology**: `into` functions on ctx nodes (`den.ctx.host.into.user`) couple topology to entity type definitions. Adding new entity types (kubernetes clusters, environments) requires new ctx nodes with custom wiring. (Note: `den.ctx` is being fully removed — see `2026-04-21-ctx-as-classes-design.md`. Current `into` transitions move to `den.policies`; scoped behavior on ctx nodes moves to `den.stages`.)
 
 2. **`__functor` on submodule-evaluated attrsets**: ctx nodes need to be callable for `den.ctx.host { host = config; }`. The `__functor` causes `lib.isFunction` probing issues during NixOS module loading — forcing evaluation chains that reach `config.den` before it's available. (Resolved by ctx removal — no more callable ctx nodes.)
 
@@ -14,32 +14,32 @@ Three coupled problems in den's context transition system:
 
 ### Three layers
 
-**Layer 1 — Relationship policies** (module evaluation time): declare what relates to what as first-class data, separate from entity definitions.
+**Layer 1 — Policies** (module evaluation time): declare what relates to what as first-class data, separate from entity definitions.
 
-**Layer 2 — Effect-based materialization** (pipeline execution time): policies compile into per-relationship named effect handlers. The transition handler sends effects and handlers respond with fan-out targets.
+**Layer 2 — Effect-based materialization** (pipeline execution time): policies compile into per-policy named effect handlers. The transition handler sends effects and handlers respond with fan-out targets.
 
-**Layer 3 — Cross-entity routing** (orchestration time): when a relationship targets a sibling entity (same type as emitter), resolved modules are collected via `provide-to` effects and distributed to target configs in a second phase.
+**Layer 3 — Cross-entity routing** (orchestration time): when a policy targets a sibling entity (same type as emitter), resolved modules are collected via `provide-to` effects and distributed to target configs in a second phase.
 
 ### Entity types
 
-Unchanged. Typed records with schema: `den.hosts`, `den.users`, `den.homes`, etc. Entity types define *structure* (fields, options). Relationships define *topology* — separate from structure.
+Unchanged. Typed records with schema: `den.hosts`, `den.users`, `den.homes`, etc. Entity types define *structure* (fields, options). Policies define *topology* — separate from structure.
 
 ---
 
-## Layer 1: Relationship Policies
+## Layer 1: Policies
 
 ### Policy declaration
 
-A policy declares a named relationship between entity kinds:
+A policy declares a named policy between entity kinds:
 
 ```nix
-den.relationships.host-to-users = {
+den.policies.host-to-users = {
   from = "host";
   to = "user";
   resolve = { host }: map (user: { inherit host user; }) (lib.attrValues host.users);
 };
 
-den.relationships.host-wheel-users = {
+den.policies.host-wheel-users = {
   from = "host";
   to = "user";
   resolve = { host }:
@@ -51,7 +51,7 @@ den.relationships.host-wheel-users = {
 
 ### Resolve function input contract
 
-The `resolve` function receives the **accumulated pipeline context** — the same attrset that parametric aspects receive via `bind.fn`. At host level: `{ host }`. At user level: `{ host, user }`. Each relationship that fans out adds its target entity to the context for downstream relationships.
+The `resolve` function receives the **accumulated pipeline context** — the same attrset that parametric aspects receive via `bind.fn`. At host level: `{ host }`. At user level: `{ host, user }`. Each policy that fans out adds its target entity to the context for downstream policies.
 
 Additional entities not in the pipeline context (e.g., `environment` in the ACL case) are accessed via module config at registry time — the resolve function is defined in a NixOS module where `config.environments` etc. are available as closures.
 
@@ -65,7 +65,7 @@ Multiple policies can share the same `from`/`to` pair.
 
 ### Execution semantics
 
-**Depth-based ordering**: policies run at the depth determined by their `from` type in the entity graph. `environment-to-hosts` runs before `host-to-users` because the environment→host fan-out creates the host-level context that host-level policies consume. This ordering is implicit from the relationship graph, not declared.
+**Depth-based ordering**: policies run at the depth determined by their `from` type in the entity graph. `environment-to-hosts` runs before `host-to-users` because the environment→host fan-out creates the host-level context that host-level policies consume. This ordering is implicit from the policy graph, not declared.
 
 **Same-depth independence**: policies sharing the same `from` type at the same pipeline depth execute independently. Each sees the same input context. No sequential dependencies between them. Their results are unioned — all targets from all same-depth policies are resolved.
 
@@ -88,9 +88,9 @@ Multiple policies can share the same `from`/`to` pair.
 
 ### ~~Inline sugar on ctx nodes~~ (Removed)
 
-> **Update (2026-04-21):** `den.ctx` is being fully removed per the Data/Relationships/Behavior separation spec. There is no inline sugar on ctx nodes. All relationships are declared via `den.relationships`. The examples below show the old syntax for historical context only.
+> **Update (2026-04-21):** `den.ctx` is being fully removed per the Data/Policies/Behavior separation spec. There is no inline sugar on ctx nodes. All policies are declared via `den.policies`. The examples below show the old syntax for historical context only.
 >
-> Previously, ctx nodes could declare relationships inline via `into`:
+> Previously, ctx nodes could declare policies inline via `into`:
 > ```nix
 > # OLD — no longer supported after ctx removal:
 > den.ctx.host.into = {
@@ -101,11 +101,11 @@ Multiple policies can share the same `from`/`to` pair.
 >
 > These are now declared as:
 > ```nix
-> den.relationships.host-to-users = {
+> den.policies.host-to-users = {
 >   from = "host"; to = "user";
 >   resolve = { host }: map (user: { inherit host user; }) (lib.attrValues host.users);
 > };
-> den.relationships.host-to-default = {
+> den.policies.host-to-default = {
 >   from = "host"; to = "default";
 >   resolve = lib.singleton;
 > };
@@ -118,41 +118,41 @@ Policies are *available* when their module is imported (from den batteries or ex
 **Four activation levels:**
 
 ```nix
-# 1. Den core — fundamental relationships, always active.
-#    Defined in modules/relationships/host.nix etc., users don't touch these.
+# 1. Den core — fundamental policies, always active.
+#    Defined in modules/policies/host.nix etc., users don't touch these.
 #    (host→user, host→default, user→default, user→home chain)
 
-# 2. den.default.relationships — cross-cutting, user opt-in.
+# 2. den.default.policies — cross-cutting, user opt-in.
 #    Applies to all contexts.
-den.default.relationships = [
-  den.relationships.host-to-users
-  den.relationships.mutual-provider
+den.default.policies = [
+  den.policies.host-to-users
+  den.policies.mutual-provider
 ];
 
-# 3. den.schema.<kind>.relationships — scoped to entity kind, user opt-in.
+# 3. den.schema.<kind>.policies — scoped to entity kind, user opt-in.
 #    Applies when resolving any entity of that kind.
-den.schema.host.relationships = [
-  den.relationships.host-to-peers
+den.schema.host.policies = [
+  den.policies.host-to-peers
 ];
 
 # 4. Entity instance — scoped to a specific entity.
 #    Applies only when resolving this particular host/user/etc.
-den.hosts.x86_64-linux.igloo.relationships = [
-  den.relationships.host-to-peers
+den.hosts.x86_64-linux.igloo.policies = [
+  den.policies.host-to-peers
 ];
 ```
 
-> **Update (2026-04-21):** Level 3 changed from `den.ctx.<kind>.relationships` to `den.schema.<kind>.relationships` — `den.ctx` is being fully removed. Entity-scoped relationship activation lives on the entity schema (the type declaration), consistent with Haskell's typeclass model where capabilities are declared on the data type.
+> **Update (2026-04-21):** Level 3 changed from `den.ctx.<kind>.policies` to `den.schema.<kind>.policies` — `den.ctx` is being fully removed. Entity-scoped policy activation lives on the entity schema (the type declaration), consistent with Haskell's typeclass model where capabilities are declared on the data type.
 
-**Battery pattern:** a battery module defines the policy in `den.relationships.*` (available). The user enables it via `den.default.relationships` or `den.schema.<kind>.relationships` (active). Same as `den.stages.user.includes = [ den.provides.mutual-provider ]` today.
+**Battery pattern:** a battery module defines the policy in `den.policies.*` (available). The user enables it via `den.default.policies` or `den.schema.<kind>.policies` (active). Same as `den.stages.user.includes = [ den.provides.mutual-provider ]` today.
 
 **External flakes:** an external flake can provide policies in its flake module. The user imports the flake and enables its policies — no implicit activation from imports.
 
 ### Formal declarations only
 
-> **Update (2026-04-21):** With `den.ctx` fully removed, all relationships are declared formally via `den.relationships.*`. There is no inline sugar. This is simpler and avoids re-introducing the conflation of relationships and behavior that `den.ctx` had.
+> **Update (2026-04-21):** With `den.ctx` fully removed, all policies are declared formally via `den.policies.*`. There is no inline sugar. This is simpler and avoids re-introducing the conflation of policies and behavior that `den.ctx` had.
 
-**Formal** (`den.relationships.*`) for: all relationship declarations — reusable patterns, bidirectional relationships, cross-cutting concerns (ACL), custom entity types, and simple transitions alike.
+**Formal** (`den.policies.*`) for: all policy declarations — reusable patterns, bidirectional policies, cross-cutting concerns (ACL), custom entity types, and simple transitions alike.
 
 ---
 
@@ -160,7 +160,7 @@ den.hosts.x86_64-linux.igloo.relationships = [
 
 ### Handler installation
 
-At pipeline entry, all policies are compiled into per-relationship effect handlers and installed via `scope.provide`:
+At pipeline entry, all policies are compiled into per-policy effect handlers and installed via `scope.provide`:
 
 ```nix
 handlers."host-to-users" = { param, state }:
@@ -170,28 +170,28 @@ handlers."host-to-users" = { param, state }:
 
 ### Transition dispatch
 
-The transition handler sends per-relationship named effects instead of reading `into`:
+The transition handler sends per-policy named effects instead of reading `into`:
 
 ```nix
 # Before (reads into data):
 intoResult = aspect.into currentCtx;
 transitions = flattenInto intoResult [];
 
-# After (sends per-relationship effects):
+# After (sends per-policy effects):
 fx.send "host-to-users" { host = currentHost; }
 # handler responds with [{ host, user = tux }, { host, user = alice }, ...]
 ```
 
 ### Routing decision
 
-The transition handler determines routing based on the relationship's target entity type relative to the current scope:
+The transition handler determines routing based on the policy's target entity type relative to the current scope:
 
 | Target type vs current scope | Routing | Mechanism |
 |---|---|---|
 | **Child** (different type, resolves within current pipeline) | Resolve locally | Tag with `__scopeHandlers`, call `aspectToEffect` |
 | **Sibling** (same type as emitter, needs separate pipeline) | Collect for phase 2 | Emit `provide-to` effect (Layer 3) |
 
-One handler per relationship — traces show exactly which fired.
+One handler per policy — traces show exactly which fired.
 
 ### ctxApply dissolves
 
@@ -207,11 +207,11 @@ den.lib.aspects.resolve "flake" (den.ctx.flake { })
 den.lib.aspects.resolve "flake" {
   aspect = den.aspects.flake;
   context = { };
-  relationships = applicablePolicies;
+  policies = applicablePolicies;
 }
 ```
 
-No `__functor` on any submodule-evaluated attrset. Scope binding (stamping `__scopeHandlers` from context) moves into the relationship handler.
+No `__functor` on any submodule-evaluated attrset. Scope binding (stamping `__scopeHandlers` from context) moves into the policy handler.
 
 ---
 
@@ -219,7 +219,7 @@ No `__functor` on any submodule-evaluated attrset. Scope binding (stamping `__sc
 
 ### The problem
 
-When a relationship targets a sibling entity (host→peer, where peer is another host), the resolved modules must land in the *peer's* config, not the current host's. The current pipeline's `emit-class` always goes to the root classCollector for the *current* pipeline run.
+When a policy targets a sibling entity (host→peer, where peer is another host), the resolved modules must land in the *peer's* config, not the current host's. The current pipeline's `emit-class` always goes to the root classCollector for the *current* pipeline run.
 
 ### Two-phase resolution
 
@@ -268,7 +268,7 @@ For configs without cross-entity contributions, phase 2 is a no-op.
 }
 ```
 
-Multi-hop targets walk the relationship graph, fanning out at each step.
+Multi-hop targets walk the policy graph, fanning out at each step.
 
 ### Forward mechanism migration
 
@@ -287,19 +287,19 @@ The adapter/guard/mapModule machinery stays intact. Only routing changes.
 ### Kubernetes cluster
 
 ```nix
-den.relationships.cluster-to-nodes = {
+den.policies.cluster-to-nodes = {
   from = "cluster";
   to = "node";
   resolve = { cluster }: cluster.nodes;
 };
 
-den.relationships.cluster-to-services = {
+den.policies.cluster-to-services = {
   from = "cluster";
   to = "service";
   resolve = { cluster }: lib.attrValues cluster.services;
 };
 
-den.relationships.service-to-storage = {
+den.policies.service-to-storage = {
   from = "service";
   to = "node";
   resolve = { service, cluster }:
@@ -311,7 +311,7 @@ den.relationships.service-to-storage = {
 
 ### ACL resolution (end-to-end)
 
-This example shows the power of resolve functions querying external registries — not just the source entity's own fields. The environment owns user access bindings. The host doesn't declare its users; the relationship policy computes them from the environment's ACL.
+This example shows the power of resolve functions querying external registries — not just the source entity's own fields. The environment owns user access bindings. The host doesn't declare its users; the policy computes them from the environment's ACL.
 
 **Entity declarations:**
 
@@ -341,11 +341,11 @@ den.hosts.x86_64-linux.cortex = {
 };
 ```
 
-**Relationship policies:**
+**Policies:**
 
 ```nix
 # Step 1: environment fans out to its hosts
-den.relationships.environment-to-hosts = {
+den.policies.environment-to-hosts = {
   from = "environment";
   to = "host";
   resolve = { environment }:
@@ -357,7 +357,7 @@ den.relationships.environment-to-hosts = {
 # Step 2: host resolves users from the ENVIRONMENT's access registry.
 # The resolve function queries den.users (global registry) filtered by
 # the environment's ACL — not host.users.
-den.relationships.host-acl-users = {
+den.policies.host-acl-users = {
   from = "host";
   to = "user";
   resolve = { host, environment }:
@@ -419,7 +419,7 @@ den.aspects.admin-role = { host, user, ... }: {
 };
 ```
 
-The relationship policy attaches role aspects via `includes` in the enriched context:
+The policy attaches role aspects via `includes` in the enriched context:
 
 ```nix
 # In the resolve function, include role-based aspects
@@ -434,7 +434,7 @@ lib.optional hasLogin {
 };
 ```
 
-The pipeline processes these `includes` alongside the user's own aspect includes — the relationship policy controls not just *who* participates but *what roles they get*.
+The pipeline processes these `includes` alongside the user's own aspect includes — the policy controls not just *who* participates but *what roles they get*.
 
 **How enriched context becomes parametric args:** the transition handler passes the entire context attrset from `resolve` to `constantHandler`, which creates a named effect handler for every key. `scope.provide` installs them. When `bind.fn` resolves `{ user, user-acl, ... }:`, it sends `"user-acl"` as an effect — the handler resumes with the value. Any key in the resolve output is automatically available as a parametric arg to downstream aspects.
 
@@ -450,17 +450,17 @@ entry: { environment = prod }
     # json does NOT appear — no system-scoped group intersects gates
 ```
 
-The host never declared `users.sini`. The relationship policy computed both the user set AND per-user derived data (groups, enable) from the environment's ACL and the global user registry. Downstream aspects consume `user-acl` as a parametric arg — the ACL resolution is decoupled from the NixOS config it produces.
+The host never declared `users.sini`. The policy computed both the user set AND per-user derived data (groups, enable) from the environment's ACL and the global user registry. Downstream aspects consume `user-acl` as a parametric arg — the ACL resolution is decoupled from the NixOS config it produces.
 
 ### Cross-host fleet `/etc/hosts`
 
 ```nix
-# Peer relationship: each host fans out to sibling hosts.
+# Peer policy: each host fans out to sibling hosts.
 # to = "host" (same type as emitter) triggers provide-to routing.
 # The context key is "peer" — an alias for the target entity in this
-# relationship. The routing decision uses the `to` declaration ("host"),
+# policy. The routing decision uses the `to` declaration ("host"),
 # not the context key name.
-den.relationships.host-to-peers = {
+den.policies.host-to-peers = {
   from = "host";
   to = "host";
   as = "peer";  # context key name (default: same as `to`)
@@ -470,7 +470,7 @@ den.relationships.host-to-peers = {
 };
 
 # Aspect: each host publishes its IP to peers via parametric include.
-# The { peer } arg is resolved via the host-to-peers relationship.
+# The { peer } arg is resolved via the host-to-peers policy.
 # Because peer is a sibling host, the transition handler routes this
 # through provide-to — the resolved nixos module lands in the peer's config.
 den.aspects.fleet-hosts = { host, ... }: {
@@ -496,13 +496,13 @@ Two capability types at the same level:
 
 Both flow through provide-to. Structural detection distinguishes them: module-shaped values → class emission. Data values → named capability accumulation.
 
-**Relationship wiring:**
+**Policy wiring:**
 
 ```nix
-# The host-to-peers relationship resolves which hosts are peers.
+# The host-to-peers policy resolves which hosts are peers.
 # This was defined in the fleet example above.
 # web1 and web2 both see lb as a peer (and vice versa).
-den.relationships.host-to-peers = {
+den.policies.host-to-peers = {
   from = "host";
   to = "host";
   as = "peer";
@@ -559,7 +559,7 @@ den.aspects.web2.includes = [ den.aspects.example-site ];  # only example.com
 den.aspects.lb.includes = [ den.aspects.loadbalancer ];
 ```
 
-**Data flow:** the `host-to-peers` relationship fans out from each host to all siblings. When `web1` resolves, its `example-site` and `foobar-site` aspects emit `provide-to.http-backends` data. The transition handler detects sibling routing (`to = "host"` = same type) and collects the data in `state.provideTo`. In phase 2, the accumulated `http-backends` data from all sources is merged and installed as a handler on the target (`lb`). When `lb`'s `loadbalancer` aspect resolves, `bind.fn` resolves `{ http-backends }` from the installed handler.
+**Data flow:** the `host-to-peers` policy fans out from each host to all siblings. When `web1` resolves, its `example-site` and `foobar-site` aspects emit `provide-to.http-backends` data. The transition handler detects sibling routing (`to = "host"` = same type) and collects the data in `state.provideTo`. In phase 2, the accumulated `http-backends` data from all sources is merged and installed as a handler on the target (`lb`). When `lb`'s `loadbalancer` aspect resolves, `bind.fn` resolves `{ http-backends }` from the installed handler.
 
 **SemanticData accumulation mechanism:** between phase 1 and phase 2, the orchestration layer groups `provide-to` emissions by target entity and label. For each target, accumulated data for each label is installed as a `constantHandler` binding — so `http-backends` becomes a named effect that resumes with the merged list. This is the same mechanism used for context args (`host`, `user`) but with data instead of entities.
 
@@ -569,7 +569,7 @@ This separates concerns cleanly:
 - **Source** declares what it IS (an http backend) with structured data
 - **Target** declares what it NEEDS (http-backends) and produces config from it
 - Neither knows the other's internal configuration structure
-- The relationship policy determines which sources are visible to which targets
+- The policy determines which sources are visible to which targets
 
 ---
 
@@ -577,7 +577,7 @@ This separates concerns cleanly:
 
 > **Update (2026-04-21):** `den.ctx` is being fully removed (see `2026-04-21-ctx-as-classes-design.md`). Deprecation shims are provided during migration phases but will be removed.
 
-**`den.ctx.host.into.user = fn`** → Phase 2 deprecation shim forwards to `den.relationships`. Phase 3 removes the shim entirely.
+**`den.ctx.host.into.user = fn`** → Phase 2 deprecation shim forwards to `den.policies`. Phase 3 removes the shim entirely.
 
 **`den.ctx.*.nixos/includes`** (scoped behavior on ctx nodes) → Phase 2 deprecation shim forwards to `den.stages.*`. Phase 3 removes.
 
@@ -600,21 +600,21 @@ This separates concerns cleanly:
 
 ## What changes
 
-- `den.ctx` → fully removed (transitions → `den.relationships`, scoped behavior → `den.stages`)
-- `ctxApply` → dissolved; scope binding moves into relationship handler
+- `den.ctx` → fully removed (transitions → `den.policies`, scoped behavior → `den.stages`)
+- `ctxApply` → dissolved; scope binding moves into policy handler
 - `__functor` on ctxSubmodule → removed (no more callable ctx nodes)
-- Transition handler → sends per-relationship named effects
+- Transition handler → sends per-policy named effects
 - Transition handler → routing decision (child vs sibling)
-- Pipeline entry → explicit relationship handler installation
+- Pipeline entry → explicit policy handler installation
 - `forward.nix` → emits `provide-to` instead of fresh pipeline runs
 
 ## What's new
 
-- `den.relationships` option for formal policy declarations
+- `den.policies` option for formal policy declarations
 - `den.stages` for scoped behavior bindings (replaces `den.ctx.*.nixos/includes`)
-- `den.default.relationships` for cross-cutting policy activation
-- `den.schema.<kind>.relationships` for entity-kind-scoped policy activation
-- Per-relationship effect handlers
+- `den.default.policies` for cross-cutting policy activation
+- `den.schema.<kind>.policies` for entity-kind-scoped policy activation
+- Per-policy effect handlers
 - `provideToHandler` for cross-entity collection
 - `distributeProvideTo` orchestration function
 
@@ -626,13 +626,13 @@ This separates concerns cleanly:
 
 ## Observability
 
-**Trace output**: one trace per relationship handler fired, showing policy name and target count. Existing pipeline traces (compileStatic, classCollector, includeHandler) are unaffected.
+**Trace output**: one trace per policy handler fired, showing policy name and target count. Existing pipeline traces (compileStatic, classCollector, includeHandler) are unaffected.
 
-**Inspection utility**: `den.lib.relationships.inspect` — given an entity kind and context, returns all applicable policies and their resolved targets without running the full pipeline. Cheap (just calls `resolve` functions). Essential for debugging "why did host X get this module?"
+**Inspection utility**: `den.lib.policies.inspect` — given an entity kind and context, returns all applicable policies and their resolved targets without running the full pipeline. Cheap (just calls `resolve` functions). Essential for debugging "why did host X get this module?"
 
 ```nix
-# Debug: what relationships fire for igloo?
-den.lib.relationships.inspect {
+# Debug: what policies fire for igloo?
+den.lib.policies.inspect {
   kind = "host";
   context = { host = den.hosts.x86_64-linux.igloo; };
 }
@@ -641,7 +641,7 @@ den.lib.relationships.inspect {
 
 ## Implementation notes
 
-**~~Ctx nodes need a `kind` identifier.~~** (Obsolete — `den.ctx` is being removed.) Relationship policies declare `from`/`to` as strings that name entity kinds. The pipeline matches these against entity schema registrations. No ctx node labeling needed.
+**~~Ctx nodes need a `kind` identifier.~~** (Obsolete — `den.ctx` is being removed.) Policies declare `from`/`to` as strings that name entity kinds. The pipeline matches these against entity schema registrations. No ctx node labeling needed.
 
 **`provide-to` must be in `structuralKeys`.** If an aspect declares `provide-to.http-backends`, the pipeline must NOT treat `provide-to` as a class key. Add `"provide-to"` to `structuralKeys` in `aspect.nix`. `compileStatic` extracts `provide-to` keys and emits them as `"provide-to"` effects.
 
@@ -652,7 +652,7 @@ den.lib.relationships.inspect {
 ## Future work
 
 - **Policy composition operators** (union, intersection, difference) — not needed now but possible extension
-- **Target-side opt-out** — entity declares `meta.relationshipExclusions` to refuse targeting by specific policies
+- **Target-side opt-out** — entity declares `meta.policyExclusions` to refuse targeting by specific policies
 - **Memoization guidance** for expensive `resolve` functions (compute mapping once at module eval time)
 - **Bidirectional config access** — `provide-to` is one-way push; pulling target config requires fixed-point evaluation (NixOps model) which is explicitly out of scope
 
@@ -689,9 +689,9 @@ The thunk wrapping (`_: [...] ++ [param]`) prevents `deepSeq` from forcing aspec
 
 | Component | Location | Purpose |
 |---|---|---|
-| Relationship option type | `nix/lib/relationship-types.nix` (new) | Policy schema, registration |
-| Relationship module | `nix/nixModule/relationships.nix` (new) | `den.relationships` option |
-| Per-relationship handlers | `nix/lib/aspects/fx/handlers/relationship.nix` (new) | Compile policies → handlers |
+| Policy option type | `nix/lib/policy-types.nix` (new) | Policy schema, registration |
+| Policy module | `nix/nixModule/policies.nix` (new) | `den.policies` option |
+| Per-policy handlers | `nix/lib/aspects/fx/handlers/policy.nix` (new) | Compile policies → handlers |
 | `provideToHandler` | `nix/lib/aspects/fx/handlers/provide-to.nix` (new) | Cross-entity state collection |
 | `transitionHandler` changes | `nix/lib/aspects/fx/handlers/transition.nix` | Routing decision (child vs sibling) |
 | `distributeProvideTo` | `nix/lib/aspects/fx/pipeline.nix` or new | Phase 2 orchestration |
@@ -700,11 +700,11 @@ The thunk wrapping (`_: [...] ++ [param]`) prevents `deepSeq` from forcing aspec
 
 ## Migration path
 
-> **Update (2026-04-21):** This migration path is coordinated with the Data/Relationships/Behavior separation spec (`2026-04-21-ctx-as-classes-design.md`), which defines three phases: Phase 1 (entity file reorganization), Phase 2 (introduce relationships, deprecation shims for ctx), Phase 3 (full ctx removal).
+> **Update (2026-04-21):** This migration path is coordinated with the Data/Policies/Behavior separation spec (`2026-04-21-ctx-as-classes-design.md`), which defines three phases: Phase 1 (entity file reorganization), Phase 2 (introduce policies, deprecation shims for ctx), Phase 3 (full ctx removal).
 
-1. Add `den.relationships` option type and module
-2. Implement per-relationship effect handlers
-3. Move `den.ctx.*.into` declarations to `den.relationships` (with deprecation shims on `den.ctx`)
+1. Add `den.policies` option type and module
+2. Implement per-policy effect handlers
+3. Move `den.ctx.*.into` declarations to `den.policies` (with deprecation shims on `den.ctx`)
 4. Move `den.ctx.*` scoped behavior (`.nixos`, `.includes`) to `den.stages.*` (with deprecation shims)
 5. Update transition handler for effect-based dispatch + routing decision
 6. Add `provideToHandler` to `defaultHandlers`
@@ -717,7 +717,7 @@ The thunk wrapping (`_: [...] ++ [param]`) prevents `deepSeq` from forcing aspec
 ## Success criteria
 
 - All existing tests pass (zero regressions)
-- Relationship policies express current host→user→home transitions
+- Policies express current host→user→home transitions
 - Cross-entity forwarding works (fleet `/etc/hosts`, haproxy backend tests)
 - `forward.nix` migration: results distributed via provide-to
 - No `__functor` on any submodule-evaluated attrset
@@ -744,12 +744,12 @@ The pipeline needs `scope.provide` because constantHandler bindings are stateles
 
 ## TL;DR
 
-Four clean separations: **Data** (entity schemas — `den.schema.*`), **Relationships** (topology — `den.relationships`), **Stages** (scoped behavior bindings — `den.stages`), **Behavior** (Nix config classes — `den.aspects`). `den.ctx` is fully removed — it conflated relationships, stages, and behavior.
+Four clean separations: **Data** (entity schemas — `den.schema.*`), **Policies** (topology — `den.policies`), **Stages** (scoped behavior bindings — `den.stages`), **Behavior** (Nix config classes — `den.aspects`). `den.ctx` is fully removed — it conflated policies, stages, and behavior.
 
-**Relationship policies** define topology — how entities connect. Policies are first-class data in `den.relationships`, activated via `den.default.relationships` or scoped to an entity kind/instance.
+**Policies** define topology — how entities connect. Policies are first-class data in `den.policies`, activated via `den.default.policies` or scoped to an entity kind/instance.
 
-At pipeline time, policies compile into **per-relationship named effect handlers**. The transition handler sends `"host-to-users"` instead of reading `into` data. One handler per relationship = clear traces.
+At pipeline time, policies compile into **per-policy named effect handlers**. The transition handler sends `"host-to-users"` instead of reading `into` data. One handler per policy = clear traces.
 
-When a relationship targets a **sibling entity** (same type as emitter, e.g., host→peer-host), resolved modules route through a **two-phase provide-to mechanism**: phase 1 collects, phase 2 distributes to target configs. No fixed-point — source captures entity metadata, not evaluated config.
+When a policy targets a **sibling entity** (same type as emitter, e.g., host→peer-host), resolved modules route through a **two-phase provide-to mechanism**: phase 1 collects, phase 2 distributes to target configs. No fixed-point — source captures entity metadata, not evaluated config.
 
-`__functor` is removed from all submodule-evaluated attrsets. `ctxApply` is dissolved — scope binding moves into the relationship handler. See `2026-04-21-ctx-as-classes-design.md` for the full ctx removal plan and user migration guide.
+`__functor` is removed from all submodule-evaluated attrsets. `ctxApply` is dissolved — scope binding moves into the policy handler. See `2026-04-21-ctx-as-classes-design.md` for the full ctx removal plan and user migration guide.

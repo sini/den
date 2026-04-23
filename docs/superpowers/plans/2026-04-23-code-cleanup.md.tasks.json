@@ -1,0 +1,98 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-23-code-cleanup.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Extract shared predicates to types.nix",
+      "status": "pending",
+      "description": "Consolidate isParametricWrapper, isSubmoduleFn, isMeaningfulName into single exports from types.nix. Import in aspect.nix, transition.nix, include.nix.",
+      "metadata": {
+        "files": ["nix/lib/aspects/types.nix", "nix/lib/aspects/fx/aspect.nix", "nix/lib/aspects/fx/handlers/transition.nix", "nix/lib/aspects/fx/handlers/include.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["isParametricWrapper defined only in types.nix", "isSubmoduleFn exported and reused", "isMeaningfulName exported and reused", "462 tests pass"]
+      }
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Extract normalizeRoot helper",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Deduplicate root normalization logic between default.nix and has-aspect.nix into a shared normalizeRoot function. Note: has-aspect.nix currently skips module fn detection; normalizeRoot adds it.",
+      "metadata": {
+        "files": ["nix/lib/aspects/default.nix", "nix/lib/aspects/has-aspect.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["Root normalization in one place", "Both fxResolveTree and collectPathSet use it", "462 tests pass"]
+      }
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Efficiency fixes",
+      "status": "pending",
+      "description": "Convert structuralKeys to attrset lookup, use lib.partition in drain-deferred, guard empty registry, remove dead paths list.",
+      "metadata": {
+        "files": ["nix/lib/aspects/fx/aspect.nix", "nix/lib/aspects/fx/handlers/tree.nix", "nix/lib/aspects/fx/identity.nix", "nix/lib/aspects/fx/pipeline.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["structuralKeys attrset lookup", "lib.partition in drain-deferred", "empty registry guard", "dead paths list removed", "462 tests pass"]
+      }
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Decompose forward.nix",
+      "status": "pending",
+      "description": "Split 190-line forwardItem into mkDirectForward, mkAdapterForward, mkTopLevelAdapter. Fix inherit style.",
+      "metadata": {
+        "files": ["nix/lib/forward.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["forwardItem dispatches to 3 helpers", "inherit forwardEach style", "462 tests pass"]
+      }
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Decompose transition.nix",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Extract emitCrossProvider and resolveFanOut as top-level helpers from 143-line resolveTransition.",
+      "metadata": {
+        "files": ["nix/lib/aspects/fx/handlers/transition.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["emitCrossProvider top-level", "resolveFanOut top-level", "resolveTransition ~70 lines", "462 tests pass"]
+      }
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Decompose aspect.nix",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Extract mkPositionalInclude, mkNamedInclude from emitSelfProvide. Extract resolveParametric from aspectToEffect. Remove forwardWrap identity.",
+      "metadata": {
+        "files": ["nix/lib/aspects/fx/aspect.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["emitSelfProvide ~30 lines", "aspectToEffect ~40 lines", "forwardWrap removed", "462 tests pass"]
+      }
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Decompose include.nix wrapChild + types.nix providerType.merge",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Split wrapChild into wrapFunctorChild/wrapBareFn. Split providerType.merge into mergeParametrics/mergeMixed/mergeFunctions.",
+      "metadata": {
+        "files": ["nix/lib/aspects/fx/handlers/include.nix", "nix/lib/aspects/types.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["wrapChild ~15 lines dispatch", "providerType.merge ~20 lines dispatch", "462 tests pass"]
+      }
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Legacy cleanup (batteries WSL comment)",
+      "status": "pending",
+      "description": "Add clarifying comment to WSL policy explaining why it doesn't use mkDetectHost. Deprecation warnings kept intentionally.",
+      "metadata": {
+        "files": ["modules/policies/batteries.nix"],
+        "verifyCommand": "nix develop -c just test",
+        "acceptanceCriteria": ["WSL has clarifying comment", "462 tests pass"]
+      }
+    }
+  ],
+  "lastUpdated": "2026-04-23T00:00:00Z"
+}

@@ -191,22 +191,22 @@ Down from 6 baseline failures before the scope.provide / parametricType changes 
 | standalone-homes | standalone-homes | Home-manager standalone configs not receiving host context through provide chain |
 | forward | forward-alias-class, forward-flake-level | `forward.nix` starts fresh pipeline, loses scoped handlers |
 
-## What's next: relationship policies
+## What's next: policies
 
-The spec at `docs/superpowers/specs/2026-04-20-relationship-policies-design.md` proposes generalizing `into` transitions as first-class **relationship policies**.
+The spec at `docs/superpowers/specs/2026-04-20-policies-design.md` proposes generalizing `into` transitions as first-class **policies**.
 
 ### Core idea
 
-Instead of `into` being a special-case fan-out mechanism, each relationship between entities (host→user, host→peer, user→home) is a named policy with:
+Instead of `into` being a special-case fan-out mechanism, each policy between entities (host→user, host→peer, user→home) is a named policy with:
 
-- **Per-relationship named effect handlers** — Each relationship installs its own named handler (e.g., `"peer"` handler for host→peer). Aspects query the relationship by name via effects, not by convention.
+- **Per-policy named effect handlers** — Each policy installs its own named handler (e.g., `"peer"` handler for host→peer). Aspects query the policy by name via effects, not by convention.
 - **Two-phase provide-to** — Cross-entity routing (host A contributing config to host B) uses a collection phase followed by a distribution phase, replacing the need for forward.nix's fresh pipeline.
 
 ### Immediate priorities
 
 1. **Fix remaining test failures** — The ~10 failures in perUser-perHost, ctx-transformation, and standalone-homes need targeted fixes to `__scopeHandlers` propagation.
 2. **Remove `__ctx` from non-entry-point paths** — Currently `__ctx` lingers in some include handler paths. It should only exist at ctxApply entry points.
-3. **Implement relationship policies** — Replace `into` with the generalized policy mechanism, enabling cross-entity contributions without special-case forward machinery.
+3. **Implement policies** — Replace `into` with the generalized policy mechanism, enabling cross-entity contributions without special-case forward machinery.
 
 ## File map
 
@@ -248,7 +248,7 @@ modules/outputs/
 - **__scopeHandlers** — Plain attrset of handler records (built via `constantHandler`). Single source of truth for context propagation. Stamped by transitions, `fixedTo`/`expands` shims, and merged in `aspectToEffect`.
 - **has-handler** — nix-effects effect that queries whether a named handler exists in the current scope. Replaces `probe-arg`. Used by the include handler to check parametric arg availability before resolution.
 - **constantHandler** — Handler factory in `ctx.nix`. Takes a ctx attrset (`{ host, user }`) and produces handlers that resume with the corresponding value when queried.
-- **Relationship policy** (future) — Generalization of `into` transitions. Each entity relationship is a named policy with its own effect handlers and cross-entity routing. Proposed in the relationship policies spec.
+- **Policy** (future) — Generalization of `into` transitions. Each entity policy is a named policy with its own effect handlers and cross-entity routing. Proposed in the policies spec.
 - **Capability** (future) — Generalization of class keys. Any named activation point: a class, a feature flag, an entity name. Not yet implemented.
 
 ## TL;DR
@@ -257,6 +257,6 @@ This branch deletes den's legacy recursive resolver (~450 lines across 4 files) 
 
 The biggest user-visible change: `parametric.fixedTo`/`parametric.exactly` wrappers are gone from providers. Context flows through the pipeline natively via `scope.provide` and `__scopeHandlers` instead of being pinned manually. Pipeline wrappers use `__fn`/`__args` instead of `__functor`/`__functionArgs`, with a dedicated `parametricType` that survives submodule merge.
 
-\*\*431/464 tests pass\*\* (10 unique failures). Failures are concentrated in perUser-perHost, ctx-transformation, and standalone-homes tests. The next design direction is **relationship policies** — generalizing `into` transitions as first-class policies with per-relationship named effect handlers and two-phase provide-to for cross-entity routing.
+\*\*431/464 tests pass\*\* (10 unique failures). Failures are concentrated in perUser-perHost, ctx-transformation, and standalone-homes tests. The next design direction is **policies** — generalizing `into` transitions as first-class policies with per-policy named effect handlers and two-phase provide-to for cross-entity routing.
 
 Net code change: +1118 / -1161 lines across 37 files. The pipeline grew (handlers do more), but the legacy layer it replaced was larger. `parametric.nix` went from 177 to 26 lines. `ctxApply` went from 124 to 56. The adapter layer (349 lines) is gone entirely.

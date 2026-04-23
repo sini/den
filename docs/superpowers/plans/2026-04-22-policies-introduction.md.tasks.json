@@ -1,0 +1,64 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-22-policies-introduction.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Define policy type and den.policies option",
+      "status": "pending",
+      "description": "Create policyType and declare den.policies option",
+      "metadata": {
+        "files": ["nix/lib/policy-types.nix", "nix/nixModule/policies.nix", "nix/lib/default.nix", "nix/nixModule/default.nix"],
+        "verifyCommand": "nix develop -c just ci",
+        "acceptanceCriteria": ["policyType has from/to/resolve", "den.policies option declared", "tests pass"]
+      }
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Synthesize policies into pipeline entry",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "Compile den.policies into into-style functions at mkPipeline",
+      "metadata": {
+        "files": ["nix/lib/aspects/fx/pipeline.nix"],
+        "verifyCommand": "nix develop -c just ci",
+        "acceptanceCriteria": ["policies compiled into into functions", "merged with existing meta.into", "no regressions"]
+      }
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Add policy test fixture",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Test den.policies produces same pipeline result as den.ctx.*.into",
+      "metadata": {
+        "files": ["templates/ci/modules/features/policies.nix"],
+        "verifyCommand": "nix develop -c nix-unit --override-input den . --flake ./templates/ci#.tests.policies",
+        "acceptanceCriteria": ["policy fires", "stage behavior appears", "coexists with ctx.into"]
+      }
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Add den.schema.*.policies activation (CONDITIONAL)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "CONDITIONAL — may be deferred if too complex",
+      "metadata": {
+        "files": ["modules/options.nix", "nix/lib/aspects/fx/pipeline.nix"],
+        "verifyCommand": "nix develop -c just ci",
+        "acceptanceCriteria": ["schema.host.policies activates policies", "from-filtered by kind"]
+      }
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Verify and push",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "Full test suite, format check, push",
+      "metadata": {
+        "verifyCommand": "nix develop -c just ci",
+        "acceptanceCriteria": ["format clean", "all tests pass", "pushed to sini"]
+      }
+    }
+  ],
+  "lastUpdated": "2026-04-22T00:00:00Z"
+}

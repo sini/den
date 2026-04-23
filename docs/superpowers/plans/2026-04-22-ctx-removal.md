@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers-extended-cc:subagent-driven-development (if subagents available) or superpowers-extended-cc:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove `den.ctx` entirely — the final step in the four-way separation (Data/Relationships/Stages/Behavior). All `into` declarations are now handled by `den.relationships`, all scoped behavior by `den.stages`.
+**Goal:** Remove `den.ctx` entirely — the final step in the four-way separation (Data/Policies/Stages/Behavior). All `into` declarations are now handled by `den.policies`, all scoped behavior by `den.stages`.
 
-**Architecture:** The critical dependency chain is: ctxApply replacement FIRST (it's the pipeline entry point), THEN remove ctx into/provides (relationships + stages take over), THEN delete infrastructure. ctxApply is called by modules/outputs and modules/options to start the pipeline — without an alternative entry mechanism, removing anything from ctx nodes breaks OS config generation.
+**Architecture:** The critical dependency chain is: ctxApply replacement FIRST (it's the pipeline entry point), THEN remove ctx into/provides (policies + stages take over), THEN delete infrastructure. ctxApply is called by modules/outputs and modules/options to start the pipeline — without an alternative entry mechanism, removing anything from ctx nodes breaks OS config generation.
 
 **Tech Stack:** Nix, nix-unit, flake-parts
 
@@ -24,11 +24,11 @@
 
 **You CANNOT remove `into` or `provides` from ctx nodes until ctxApply is replaced.** The pipeline entry depends on ctx nodes being complete aspect-shaped attrsets with into/provides/class-keys.
 
-**IMPORTANT: Relationship resolve functions must guard context shape.** All resolve functions use `ctx:` (not destructured) and check `builtins.isAttrs ctx.host` before accessing fields. See `feedback_relationship_guards.md`.
+**IMPORTANT: Policy resolve functions must guard context shape.** All resolve functions use `ctx:` (not destructured) and check `builtins.isAttrs ctx.host` before accessing fields. See `feedback_policy_guards.md`.
 
 **Key reference files:**
 - `nix/lib/ctx-apply.nix` — ctxApply functor (to be replaced first)
-- `nix/lib/aspects/fx/pipeline.nix` — pipeline synthesis (relationships → into)
+- `nix/lib/aspects/fx/pipeline.nix` — pipeline synthesis (policies → into)
 - `nix/lib/aspects/fx/handlers/transition.nix` — transition handler (looks up ctx + stages)
 - `modules/options.nix` — schema entry auto-resolution (uses ctx for gating)
 - `modules/outputs/osConfigurations.nix` — calls `den.ctx.host { inherit host; }`
@@ -71,7 +71,7 @@ Read `nix/lib/ctx-apply.nix`. ctxApply does:
 1. Look up `den.stages.${name} or {}`
 2. Extract class keys, includes from the stage
 3. Stamp `__ctx` and `__scopeHandlers` from the provided context
-4. `meta.into` is NOT needed — pipeline synthesis handles relationships
+4. `meta.into` is NOT needed — pipeline synthesis handles policies
 5. `provides` comes from the stage (if any) — but stages shouldn't have provides. For the transition period, also look up `den.ctx.${name}.provides` as fallback.
 
 - [ ] **Step 2: Implement resolveStage**
@@ -155,7 +155,7 @@ git -c core.hooksPath=/dev/null commit -m "feat: add den.lib.resolveStage — ct
 **Acceptance Criteria:**
 - [ ] No `den.ctx.X { args }` calls remain in production code
 - [ ] All calls use `den.lib.resolveStage.resolveStage` instead
-- [ ] Entity participation gating in options.nix uses `den.stages ? ${kind}` or `den.relationships`
+- [ ] Entity participation gating in options.nix uses `den.stages ? ${kind}` or `den.policies`
 - [ ] `nix develop -c just ci` passes — 447+ tests
 
 **Verify:** `nix develop -c just ci`
@@ -174,7 +174,7 @@ den.lib.resolveStage.resolveStage "host" { inherit host; }
 
 For `modules/options.nix`, the gating check `den.ctx ? ${kind}` needs to change. Options:
 - `den.stages ? ${kind}` — gate on stage existence
-- Check if any relationship has `from = kind` — more correct but complex
+- Check if any policy has `from = kind` — more correct but complex
 - Keep `den.ctx ? ${kind}` temporarily — simplest, remove when ctx is deleted
 
 Use the simplest option that passes tests.
@@ -240,7 +240,7 @@ git -c core.hooksPath=/dev/null commit -m "refactor: move ctx provides to den.st
 
 ### Task 3: Remove ctx into declarations
 
-**Goal:** Remove all `into` declarations from ctx nodes. Relationships handle all transitions now, and ctxApply is no longer used (resolveStage doesn't read `into`).
+**Goal:** Remove all `into` declarations from ctx nodes. Policies handle all transitions now, and ctxApply is no longer used (resolveStage doesn't read `into`).
 
 **Files:**
 - Modify: `modules/context/host.nix` — remove into.user, into.default
@@ -256,7 +256,7 @@ git -c core.hooksPath=/dev/null commit -m "refactor: move ctx provides to den.st
 
 **Acceptance Criteria:**
 - [ ] No `ctx.*.into` or `den.ctx.*.into` declarations remain
-- [ ] `nix develop -c just ci` passes — relationships handle all transitions
+- [ ] `nix develop -c just ci` passes — policies handle all transitions
 
 **Verify:** `nix develop -c just ci`
 
@@ -264,14 +264,14 @@ git -c core.hooksPath=/dev/null commit -m "refactor: move ctx provides to den.st
 
 ### Task 4: Migrate CI test fixtures
 
-**Goal:** Update CI test fixtures that define custom ctx nodes with into/provides to use relationships + stages.
+**Goal:** Update CI test fixtures that define custom ctx nodes with into/provides to use policies + stages.
 
 **Files:**
 - Modify: 20+ files in `templates/ci/modules/features/`
 
 **Acceptance Criteria:**
 - [ ] No `den.ctx.*.into` or `den.ctx.*.provides` in CI tests
-- [ ] Tests use `den.relationships` for transitions and `den.stages` for provides/behavior
+- [ ] Tests use `den.policies` for transitions and `den.stages` for provides/behavior
 - [ ] Obsolete tests (testing deprecated ctx features) are deleted or rewritten
 - [ ] `nix develop -c just ci` passes
 
@@ -288,7 +288,7 @@ grep -rn 'ctx\.\(.*\)\.\(into\|provides\)' templates/ci/ --include='*.nix' | gre
 - [ ] **Step 2: Migrate in batches of ~5 files, testing after each batch**
 
 For each file:
-- `den.ctx.X.into.Y = fn` → `den.relationships.X-to-Y = { from = "X"; to = "Y"; resolve = fn; }`
+- `den.ctx.X.into.Y = fn` → `den.policies.X-to-Y = { from = "X"; to = "Y"; resolve = fn; }`
   - Remember: resolve functions MUST guard context shape (`builtins.isAttrs`, key checks)
 - `den.ctx.X.provides.Y = fn` → `den.stages.X.provides.Y = fn`
 - `den.ctx.X { args }` calls → `den.lib.resolveStage.resolveStage "X" args`

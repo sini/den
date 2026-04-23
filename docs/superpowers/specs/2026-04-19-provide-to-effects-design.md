@@ -50,10 +50,10 @@ Cross-entity contributions look like regular parametric aspects with dendritic c
 
 ### How it works: ctx transitions for cross-entity
 
-Cross-entity forwarding uses the same mechanism as existing ctx transitions — `into` and `provides`. A new context type (e.g., `peer`) defines the relationship:
+Cross-entity forwarding uses the same mechanism as existing ctx transitions — `into` and `provides`. A new context type (e.g., `peer`) defines the policy:
 
 ```nix
-# Define the peer relationship: each host fans out to sibling hosts
+# Define the peer policy: each host fans out to sibling hosts
 den.ctx.host.into.peer = { host }:
   map (h: { peer = h; })
     (filter (h: h.name != host.name) (attrValues den.hosts.${host.system}));

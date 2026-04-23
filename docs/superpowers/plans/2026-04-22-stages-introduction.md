@@ -4,7 +4,7 @@
 
 **Goal:** Introduce `den.stages` as a parallel namespace for scoped behavior, allowing `den.stages.hm-host.nixos.foo = "bar"` alongside existing `den.ctx.hm-host.nixos.foo = "bar"`. The pipeline merges both. No ctx removal yet.
 
-**Architecture:** Add a `stageType` (aspect-shaped submodule without `into`/`__functor`), a `den.stages` option, and modify the transition handler to merge stage behavior into ctx nodes at resolution time. This is additive — `den.ctx` continues to work unchanged. Stages are the first half of the four-way separation (Data/Relationships/Stages/Behavior).
+**Architecture:** Add a `stageType` (aspect-shaped submodule without `into`/`__functor`), a `den.stages` option, and modify the transition handler to merge stage behavior into ctx nodes at resolution time. This is additive — `den.ctx` continues to work unchanged. Stages are the first half of the four-way separation (Data/Policies/Stages/Behavior).
 
 **Tech Stack:** Nix, nix-unit, flake-parts
 
@@ -56,8 +56,8 @@ Key difference from ctx-types.nix: the structural detection keys do NOT include 
 # nix/lib/stage-types.nix
 #
 # Stage type definitions. Stages are named scopes for binding behavior
-# to relationship pipeline stages. Like ctx nodes but without transitions
-# (into), callable functor, or provides (which is a relationship concern).
+# to policy pipeline stages. Like ctx nodes but without transitions
+# (into), callable functor, or provides (which is a policy concern).
 { lib, den, ... }:
 let
   stageSubmodule = lib.types.submodule {
@@ -77,7 +77,7 @@ let
       let
         # Structural keys that indicate a leaf stage node vs a namespace.
         # Does NOT include "into" (stages have no transitions) or "provides"
-        # (stages don't provide to other stages — that's a relationship concern).
+        # (stages don't provide to other stages — that's a policy concern).
         stageNodeKeys = [
           "_"
           "includes"
