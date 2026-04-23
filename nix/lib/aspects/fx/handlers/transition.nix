@@ -27,18 +27,18 @@ let
     lib.concatStringsSep "," (
       lib.sort (a: b: a < b) (
         lib.concatMap (
-          k:
+          attrName:
           let
-            v = ctx.${k};
+            attrVal = ctx.${attrName};
           in
-          if builtins.isAttrs v && v ? name then
-            [ v.name ]
-          else if builtins.isString v then
-            [ v ]
-          else if builtins.isInt v || builtins.isFloat v then
-            [ (toString v) ]
+          if builtins.isAttrs attrVal && attrVal ? name then
+            [ attrVal.name ]
+          else if builtins.isString attrVal then
+            [ attrVal ]
+          else if builtins.isInt attrVal || builtins.isFloat attrVal then
+            [ (toString attrVal) ]
           else
-            [ k ]
+            [ attrName ]
         ) (builtins.attrNames ctx)
       )
     );
@@ -84,11 +84,11 @@ let
       fx.bind (fx.send "drain-deferred" scopedCtx) (
         satisfiable:
         builtins.foldl' (
-          acc: d:
+          acc: deferred:
           fx.bind acc (
             prevResults:
             let
-              deferredTagged = d.child // {
+              deferredTagged = deferred.child // {
                 __scopeHandlers = scopeHandlers;
                 __ctx = scopedCtx;
                 __ctxId = ctxId;
@@ -190,12 +190,12 @@ let
         __scopeHandlers = scopeHandlers;
         __ctxId = ctxNames;
       };
-      subResult = den.lib.aspects.fx.pipeline.fxFullResolve {
+      fanOutResult = den.lib.aspects.fx.pipeline.fxFullResolve {
         class = targetClass;
         self = tagged;
         ctx = scopedCtx;
       };
-      subImports = subResult.state.imports null;
+      subImports = fanOutResult.state.imports null;
       mergeImports = fx.effects.state.modify (st: st // { imports = x: (st.imports x) ++ subImports; });
     in
     fx.bind mergeImports (_: fx.pure innerResults);
@@ -212,7 +212,7 @@ let
     in
     if effectiveTarget == null && crossProvider == null then
       let
-        ts = {
+        tombstone = {
           name = "~<missing-transition:${key}>";
           meta = {
             excluded = true;
@@ -222,7 +222,7 @@ let
           includes = [ ];
         };
       in
-      fx.bind (fx.send "resolve-complete" ts) (_: fx.pure (results ++ [ ts ]))
+      fx.bind (fx.send "resolve-complete" tombstone) (_: fx.pure (results ++ [ tombstone ]))
     else
       let
         isFanOut = builtins.length transition.contexts > 1;

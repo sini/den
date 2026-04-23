@@ -135,7 +135,7 @@ let
         else
           self;
 
-      comp = aspectToEffect effectiveSelf;
+      rootEffect = aspectToEffect effectiveSelf;
       # Override aspect-chain to include root aspect — consumed by provider
       # functions (home-env.nix) via bind.fn.
       rootHandlers = defaultHandlers {
@@ -158,7 +158,7 @@ let
           currentCtx = _: ctx;
           inherit class;
         };
-    } comp;
+    } rootEffect;
 
   # Full pipeline: aspect compilation → handler-driven resolution → module collection.
   # Returns raw fx.handle result with { value, state }.

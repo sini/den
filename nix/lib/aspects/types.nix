@@ -29,9 +29,9 @@ let
     name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
 
   aspectType =
-    cnf:
+    typeCfg:
     let
-      sub = aspectSubmodule cnf;
+      sub = aspectSubmodule typeCfg;
     in
     sub // { merge = mergeWithAspectMeta sub; };
 
@@ -98,8 +98,8 @@ let
     loc: defs:
     { config, ... }:
     let
-      names = map (x: if builtins.isString x then x else "<anon>") config.meta.loc;
-      nameFromLoc = lib.concatStringsSep "." names;
+      locSegments = map (x: if builtins.isString x then x else "<anon>") config.meta.loc;
+      nameFromLoc = lib.concatStringsSep "." locSegments;
     in
     {
       meta.name = lib.mkForce nameFromLoc;
@@ -109,8 +109,8 @@ let
 
   # Merge branch: mixed function + attrset defs — coerce parametric fns to includes.
   mergeMixed =
-    at: loc: defs:
-    at.merge loc (
+    baseType: loc: defs:
+    baseType.merge loc (
       map (
         d:
         if lib.isFunction d.value && !isSubmoduleFn d.value then
@@ -128,13 +128,13 @@ let
   # Merge branch: all-function defs — submodule fns merge through aspectType,
   # bare parametric fns use last-wins.
   mergeFunctions =
-    at: cnf: loc: defs:
+    baseType: typeCfg: loc: defs:
     let
       subFns = builtins.filter (d: isSubmoduleFn d.value) defs;
       paramFns = builtins.filter (d: !isSubmoduleFn d.value) defs;
     in
     if subFns != [ ] then
-      at.merge loc subFns
+      baseType.merge loc subFns
     else
       let
         fn = (lib.last paramFns).value;
@@ -149,7 +149,7 @@ let
         {
           name = nameFromLoc;
           meta = {
-            provider = cnf.providerPrefix or [ ];
+            provider = typeCfg.providerPrefix or [ ];
           };
           __fn = fn;
           __args = args;
@@ -157,9 +157,9 @@ let
         };
 
   providerType =
-    cnf:
+    typeCfg:
     let
-      at = aspectType cnf;
+      baseType = aspectType typeCfg;
     in
     lib.types.mkOptionType {
       name = "provider";
@@ -183,15 +183,15 @@ let
             hasNonFns = builtins.any (d: !lib.isFunction d.value) nonParametrics;
           in
           if hasFns && hasNonFns then
-            mergeMixed at loc nonParametrics
+            mergeMixed baseType loc nonParametrics
           else if hasFns then
-            mergeFunctions at cnf loc nonParametrics
+            mergeFunctions baseType typeCfg loc nonParametrics
           else
-            at.merge loc nonParametrics;
+            baseType.merge loc nonParametrics;
     };
 
   aspectSubmodule =
-    cnf:
+    typeCfg:
     lib.types.submodule (
       { name, config, ... }:
       {
@@ -243,7 +243,7 @@ let
                 visible = false;
                 description = "Provider path tracking aspect provenance";
                 type = lib.types.listOf lib.types.str;
-                default = cnf.providerPrefix or [ ];
+                default = typeCfg.providerPrefix or [ ];
               };
             };
             defaultText = lib.literalExpression "{ }";
@@ -252,7 +252,7 @@ let
 
           includes = lib.mkOption {
             description = "Providers to ask aspects from";
-            type = lib.types.listOf (providerType cnf);
+            type = lib.types.listOf (providerType typeCfg);
             defaultText = lib.literalExpression "[ ]";
             default = [ ];
           };
@@ -264,9 +264,9 @@ let
             type = lib.types.submodule {
               freeformType = lib.types.lazyAttrsOf (
                 providerType (
-                  cnf
+                  typeCfg
                   // {
-                    providerPrefix = (cnf.providerPrefix or [ ]) ++ [ config.name ];
+                    providerPrefix = (typeCfg.providerPrefix or [ ]) ++ [ config.name ];
                   }
                 )
               );
@@ -281,16 +281,17 @@ let
   # This is how { host, ... }: { nixos = ...; } becomes a proper aspect
   # with the function as a parametric include for the fx pipeline.
   coercedProviderType =
-    cnf:
+    typeCfg:
     let
-      pt = providerType cnf;
+      pt = providerType typeCfg;
     in
     lib.types.coercedTo (lib.types.addCheck lib.types.raw (
       v: builtins.isFunction v && !isSubmoduleFn v && lib.functionArgs v != { }
     )) (fn: { includes = [ fn ]; }) pt;
 
   aspectsType =
-    cnf: lib.types.submodule { freeformType = lib.types.lazyAttrsOf (coercedProviderType cnf); };
+    typeCfg:
+    lib.types.submodule { freeformType = lib.types.lazyAttrsOf (coercedProviderType typeCfg); };
 
 in
 {

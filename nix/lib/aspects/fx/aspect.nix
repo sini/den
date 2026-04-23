@@ -36,7 +36,7 @@ let
           class = k;
           identity = nodeIdentity;
           module = aspect.${k};
-          contextDependent =
+          isContextDependent =
             (aspect.__parametricResolved or false) || (aspect.meta.contextDependent or false);
         }
       ) classKeys

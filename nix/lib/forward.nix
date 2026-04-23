@@ -171,21 +171,21 @@ let
       intoPathFn = if lib.isFunction intoPath then intoPath else _: intoPath;
       staticIntoPath = if lib.isFunction intoPath then [ ] else intoPath;
 
-      rawAsp = if fwd ? fromAspect then fwd.fromAspect item else item.resolved or item;
-      asp =
-        if fwd ? fromCtx && builtins.isAttrs rawAsp && !(builtins.isFunction rawAsp) then
+      rawAspect = if fwd ? fromAspect then fwd.fromAspect item else item.resolved or item;
+      sourceAspect =
+        if fwd ? fromCtx && builtins.isAttrs rawAspect && !(builtins.isFunction rawAspect) then
           let
             ctx = fwd.fromCtx item;
             inherit (den.lib.aspects.fx.handlers) constantHandler;
           in
-          rawAsp
+          rawAspect
           // {
             __ctx = ctx;
-            __scopeHandlers = (rawAsp.__scopeHandlers or { }) // constantHandler ctx;
+            __scopeHandlers = (rawAspect.__scopeHandlers or { }) // constantHandler ctx;
           }
         else
-          rawAsp;
-      sourceModule = mapModule (den.lib.aspects.resolve fromClass asp);
+          rawAspect;
+      sourceModule = mapModule (den.lib.aspects.resolve fromClass sourceAspect);
 
       freeformMod = {
         config._module.freeformType = lib.types.lazyAttrsOf lib.types.unspecified;

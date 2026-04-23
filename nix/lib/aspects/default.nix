@@ -70,7 +70,7 @@ in
   inherit types fx normalizeRoot;
   resolve = fxResolveTree;
   inherit (hasAspect) hasAspectIn collectPathSet mkEntityHasAspect;
-  mkAspectsType = cnf': lib.mapAttrs (_: v: v cnf') rawTypes;
+  mkAspectsType = typeCfg: lib.mapAttrs (_: v: v typeCfg) rawTypes;
   # Predicates exported directly (not through types mapAttrs which applies { } to each value).
   inherit (rawTypes) isParametricWrapper isSubmoduleFn isMeaningfulName;
 }

@@ -86,13 +86,13 @@ let
   tombstoneAll =
     aspects:
     builtins.foldl' (
-      acc: a:
+      acc: aspect:
       fx.bind acc (
         results:
         let
-          ts = identity.tombstone a { guardFailed = true; };
+          tombstone = identity.tombstone aspect { guardFailed = true; };
         in
-        fx.bind (fx.send "resolve-complete" ts) (_: fx.pure (results ++ [ ts ]))
+        fx.bind (fx.send "resolve-complete" tombstone) (_: fx.pure (results ++ [ tombstone ]))
       )
     ) (fx.pure [ ]) aspects;
 
@@ -120,25 +120,24 @@ let
   excludeChild =
     child: owner:
     let
-      ts = identity.tombstone child { excludedFrom = owner; };
+      tombstone = identity.tombstone child { excludedFrom = owner; };
     in
-    fx.bind (fx.send "resolve-complete" ts) (_: fx.pure [ ts ]);
+    fx.bind (fx.send "resolve-complete" tombstone) (_: fx.pure [ tombstone ]);
 
-  # Substitute: tombstone original, resolve replacement via aspectToEffect.
   substituteChild =
     child: decision:
     let
-      ts = identity.tombstone child {
+      tombstone = identity.tombstone child {
         excludedFrom = decision.owner;
         replacedBy = decision.replacement.name or "<anon>";
       };
     in
-    fx.bind (fx.send "resolve-complete" ts) (
+    fx.bind (fx.send "resolve-complete" tombstone) (
       _:
       fx.bind (aspectToEffect decision.replacement) (
         resolved:
         fx.pure [
-          ts
+          tombstone
           resolved
         ]
       )
@@ -168,7 +167,7 @@ let
         requiredKeys = builtins.filter (k: !childArgs.${k}) (builtins.attrNames childArgs);
         # Filter out args available in __scopeHandlers (pure check, no effects needed).
         # Remaining required args are probed via has-handler against root handlers.
-        unresolvedKeys = builtins.filter (k: !(childScopeHandlers ? ${k})) requiredKeys;
+        keysToProbe = builtins.filter (k: !(childScopeHandlers ? ${k})) requiredKeys;
         probeArgs =
           keys:
           if keys == [ ] then
@@ -182,7 +181,7 @@ let
               isAvailable: if isAvailable then probeArgs rest else fx.pure false
             );
       in
-      fx.bind (probeArgs unresolvedKeys) (
+      fx.bind (probeArgs keysToProbe) (
         allAvailable:
         if allAvailable then
           fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ])
@@ -202,7 +201,7 @@ let
             _:
             fx.bind (fx.send "defer-include" {
               inherit child requiredKeys;
-              requiredArgs = unresolvedKeys;
+              requiredArgs = keysToProbe;
             }) (_: fx.pure [ ])
           )
       )

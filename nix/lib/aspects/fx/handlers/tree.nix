@@ -58,7 +58,7 @@ let
     "check-constraint" =
       { param, state }:
       let
-        identity = if builtins.isAttrs param then param.identity else param;
+        nodeIdentity = if builtins.isAttrs param then param.identity else param;
         aspect = if builtins.isAttrs param then param.aspect or null else null;
         registry = state.constraintRegistry or { };
         filters = state.constraintFilters or [ ];
@@ -73,15 +73,14 @@ let
           // extra;
           inherit state;
         };
-        # Find first in-scope constraint for this identity (first-registered wins).
         # Also check prefix matches: excluding "monitoring" cascades to "monitoring/node-exporter".
-        entries = registry.${identity} or [ ];
+        entries = registry.${nodeIdentity} or [ ];
         prefixEntries =
           if registry == { } then
             [ ]
           else
             let
-              parts = lib.splitString "/" identity;
+              parts = lib.splitString "/" nodeIdentity;
               # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
               prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
                 builtins.length parts - 1
@@ -159,28 +158,26 @@ let
           }
         else
           let
-            identity = param.identity or "<anon>";
-            # Strip __ctxId suffix from identity for module keying.
-            # Static aspects produce the same module regardless of context,
-            # so nixos@shared-tools should dedup with nixos@shared-tools/{igloo,tux}.
+            nodeIdentity = param.identity or "<anon>";
             # Strip __ctxId suffix for static aspects so the same aspect
             # included from multiple contexts deduplicates (e.g. shared-tools
             # from both {igloo} and {tux}). Parametric resolutions produce
             # different modules per context, so their ctxId must be preserved.
             baseIdentity =
-              if param.contextDependent or false then identity else lib.head (lib.splitString "/{" identity);
+              if param.isContextDependent or false then
+                nodeIdentity
+              else
+                lib.head (lib.splitString "/{" nodeIdentity);
             loc = "${param.class}@${baseIdentity}";
-            # Named aspects get a key for NixOS module-level dedup: two
-            # resolve calls emitting the same aspect:class produce the
-            # same key, so the module system keeps only the first.
-            # Anonymous/synthetic names must not be keyed — multiple
+            # Named aspects get a dedup key so the module system keeps only
+            # the first. Synthetic names must not be keyed — multiple
             # anonymous includes with the same identity are distinct.
             isAnon =
-              identity == "<anon>"
-              || identity == "<function body>"
-              || lib.hasPrefix "[definition " identity
-              || lib.hasPrefix "<root>/" identity
-              || lib.hasInfix "/<anon>:" identity;
+              nodeIdentity == "<anon>"
+              || nodeIdentity == "<function body>"
+              || lib.hasPrefix "[definition " nodeIdentity
+              || lib.hasPrefix "<root>/" nodeIdentity
+              || lib.hasInfix "/<anon>:" nodeIdentity;
             mod =
               if isAnon then
                 lib.setDefaultModuleLocation loc param.module
@@ -231,12 +228,13 @@ let
       else
         let
           partitioned = lib.partition (d: builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs) deferred;
+          satisfiable = partitioned.right;
+          remaining = partitioned.wrong;
         in
         {
-          resume = partitioned.right;
+          resume = satisfiable;
           state = state // {
-            # Re-wrap remaining as thunk chain.
-            deferredIncludes = _: partitioned.wrong;
+            deferredIncludes = _: remaining;
           };
         };
   };
