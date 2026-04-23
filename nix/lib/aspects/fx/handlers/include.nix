@@ -30,57 +30,56 @@ let
 
   # Wrap bare function includes in an aspect envelope.
   # lib.isFunction catches raw lambdas and real functor attrsets (ctx nodes,
-  # explicit wrappers). Plain aspects (no __functor after option removal) and
-  # parametric wrappers (__fn/__args, no __functor) skip to else → pass-through.
+  # Wrap a functor attrset (has __functor) as a parametric include.
+  wrapFunctorChild =
+    child:
+    let
+      innerFn = child.__functor child;
+      innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
+    in
+    if builtins.isFunction innerFn && isSubmoduleFn innerFn then
+      normalizeModuleFn innerFn
+    else
+      child
+      // {
+        __fn =
+          if child ? __args then
+            child.__fn
+          else if builtins.isFunction innerFn then
+            innerFn
+          else
+            _: innerFn;
+        __args =
+          let
+            explicit = child.__args or { };
+          in
+          if explicit != { } then explicit else innerArgs;
+        includes = child.includes or [ ];
+      };
+
+  # Wrap a bare function as a parametric include.
+  wrapBareFn =
+    child:
+    if isSubmoduleFn child then
+      normalizeModuleFn child
+    else
+      {
+        name = child.name or "<anon>";
+        meta = child.meta or { };
+        __fn = child;
+        __args = lib.functionArgs child;
+      };
+
+  # Wrap bare function includes in an aspect envelope.
   wrapChild =
     child:
     if lib.isFunction child then
-      (
-        # Merged aspects have __functor (for callability) but should NOT
-        # be treated as functor-based providers. Detect them by the
-        # presence of declared submodule options (name + includes).
-        if builtins.isAttrs child && child ? name && child ? includes && builtins.isList child.includes then
-          child
-        else if builtins.isAttrs child then
-          let
-            innerFn = child.__functor child;
-            innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
-            isModuleFn = builtins.isFunction innerFn && isSubmoduleFn innerFn;
-          in
-          if isModuleFn then
-            normalizeModuleFn innerFn
-          else
-            child
-            // {
-              __fn =
-                if child ? __args then
-                  child.__fn
-                else if builtins.isFunction innerFn then
-                  innerFn
-                else
-                  _: innerFn;
-              __args =
-                let
-                  explicit = child.__args or { };
-                in
-                if explicit != { } then explicit else innerArgs;
-              includes = child.includes or [ ];
-            }
-        else
-          let
-            args = lib.functionArgs child;
-            isModuleFn = isSubmoduleFn child;
-          in
-          if isModuleFn then
-            normalizeModuleFn child
-          else
-            {
-              name = child.name or "<anon>";
-              meta = child.meta or { };
-              __fn = child;
-              __args = args;
-            }
-      )
+      if builtins.isAttrs child && child ? name && child ? includes && builtins.isList child.includes then
+        child
+      else if builtins.isAttrs child then
+        wrapFunctorChild child
+      else
+        wrapBareFn child
     else
       child;
 
