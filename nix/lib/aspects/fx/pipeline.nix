@@ -62,6 +62,8 @@ let
     // handlers.ctxSeenHandler
     // identity.pathSetHandler
     // identity.collectPathsHandler
+    // handlers.deferredIncludeHandler
+    // handlers.drainDeferredHandler
     // fx.effects.state.handler;
 
   defaultState = {
@@ -74,6 +76,10 @@ let
     paths = [ ];
     pathSet = { };
     includesChain = [ ];
+    # Thunk chain (like imports) so trampoline's deepSeq doesn't force
+    # deferred child aspects which may reference optional inputs (hjem).
+    # Unwrap with `state.deferredIncludes null`.
+    deferredIncludes = _: [ ];
   };
 
   # Configurable pipeline builder. Runs aspectToEffect on the root aspect

@@ -14,6 +14,20 @@ let
     }:
     den.lib.aspects.fx.handlers.includeHandler
     // den.lib.aspects.fx.handlers.constraintRegistryHandler
+    // {
+      # Fallback probe-arg for custom handler sets without constantHandler.
+      "probe-arg" =
+        { param, state }:
+        {
+          resume =
+            extraHandlers ? ${param}
+            || builtins.elem param [
+              "class"
+              "aspect-chain"
+            ];
+          inherit state;
+        };
+    }
     // den.lib.aspects.fx.handlers.chainHandler
     // den.lib.aspects.fx.identity.pathSetHandler
     // den.lib.aspects.fx.identity.collectPathsHandler
@@ -185,14 +199,18 @@ in
           ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect parent;
+        hostHandler = {
+          host =
+            { param, state }:
+            {
+              resume = "igloo";
+              inherit state;
+            };
+        };
         result = fx.handle {
-          handlers = mkTestHandlers { inherit den; } // {
-            host =
-              { param, state }:
-              {
-                resume = "igloo";
-                inherit state;
-              };
+          handlers = mkTestHandlers {
+            inherit den;
+            extraHandlers = hostHandler;
           };
           state = defaultState;
         } comp;
@@ -323,15 +341,19 @@ in
             )
           ];
         };
+        hostHandler = {
+          host =
+            { param, state }:
+            {
+              resume = "igloo";
+              inherit state;
+            };
+        };
         comp = den.lib.aspects.fx.aspect.aspectToEffect parent;
         result = fx.handle {
-          handlers = mkTestHandlers { inherit den; } // {
-            host =
-              { param, state }:
-              {
-                resume = "igloo";
-                inherit state;
-              };
+          handlers = mkTestHandlers {
+            inherit den;
+            extraHandlers = hostHandler;
           };
           state = defaultState;
         } comp;

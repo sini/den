@@ -74,8 +74,20 @@ let
           inherit state;
         };
         # Find first in-scope constraint for this identity (first-registered wins).
+        # Also check prefix matches: excluding "monitoring" cascades to "monitoring/node-exporter".
         entries = registry.${identity} or [ ];
-        scopedEntries = builtins.filter inScope entries;
+        prefixEntries =
+          let
+            parts = lib.splitString "/" identity;
+            # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
+            prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
+              builtins.length parts - 1
+            );
+            getEntries = p: registry.${p} or [ ];
+          in
+          if builtins.length parts > 1 then builtins.concatMap getEntries prefixes else [ ];
+        allEntries = entries ++ prefixEntries;
+        scopedEntries = builtins.filter inScope allEntries;
         firstEntry = if scopedEntries == [ ] then null else builtins.head scopedEntries;
       in
       if firstEntry != null then
@@ -151,7 +163,16 @@ let
           else
             let
               identity = param.identity or "<anon>";
-              loc = "${param.class}@${identity}";
+              # Strip __ctxId suffix from identity for module keying.
+              # Static aspects produce the same module regardless of context,
+              # so nixos@shared-tools should dedup with nixos@shared-tools/{igloo,tux}.
+              # Strip __ctxId suffix for static aspects so the same aspect
+              # included from multiple contexts deduplicates (e.g. shared-tools
+              # from both {igloo} and {tux}). Parametric resolutions produce
+              # different modules per context, so their ctxId must be preserved.
+              baseIdentity =
+                if param.contextDependent or false then identity else lib.head (lib.splitString "/{" identity);
+              loc = "${param.class}@${baseIdentity}";
               # Named aspects get a key for NixOS module-level dedup: two
               # resolve calls emitting the same aspect:class produce the
               # same key, so the module system keeps only the first.
@@ -182,11 +203,50 @@ let
         );
     };
 
+  # Accumulates parametric includes whose args aren't available yet.
+  # Deferred includes are drained by drain-deferred when context widens.
+  deferredIncludeHandler = {
+    "defer-include" =
+      { param, state }:
+      {
+        resume = [ ];
+        state = state // {
+          # Thunk chain to survive deepSeq (same pattern as imports).
+          deferredIncludes = x: ((state.deferredIncludes or (_: [ ])) x) ++ [ param ];
+        };
+      };
+  };
+
+  # Partitions deferred includes into satisfiable (args now in ctx) and
+  # remaining. Returns satisfiable list — caller resolves via aspectToEffect.
+  drainDeferredHandler = {
+    "drain-deferred" =
+      { param, state }:
+      let
+        ctx = param;
+        # Unwrap thunk chain.
+        deferred = (state.deferredIncludes or (_: [ ])) null;
+        satisfiable = builtins.filter (d: builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs) deferred;
+        remaining = builtins.filter (
+          d: !(builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs)
+        ) deferred;
+      in
+      {
+        resume = satisfiable;
+        state = state // {
+          # Re-wrap remaining as thunk chain.
+          deferredIncludes = _: remaining;
+        };
+      };
+  };
+
 in
 {
   inherit
     constraintRegistryHandler
     chainHandler
     classCollectorHandler
+    deferredIncludeHandler
+    drainDeferredHandler
     ;
 }

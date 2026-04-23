@@ -41,17 +41,53 @@ let
             innerFn = child.__functor child;
             # innerFn may be a function (parametric) or a value (factory functor).
             innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
+            # NixOS module functions are deferred modules, not parametric aspects.
+            # Heuristic: any function accepting ONLY module-system args (lib, config,
+            # options) is treated as a module. Functions with extra args (host, user)
+            # are parametric. Edge case: { config, ... }: is classified as module —
+            # if a parametric aspect genuinely takes only { config }, wrap it in an
+            # aspect envelope with explicit __functionArgs instead.
+            # NixOS module functions wrapped in functors (e.g. by the type system's
+            # default __functor) should be normalized, not treated as parametric.
+            isModuleFn =
+              builtins.isFunction innerFn
+              && den.lib.canTake.upTo {
+                lib = true;
+                config = true;
+                options = true;
+              } innerFn;
           in
-          child
-          // {
-            __functor = _: if builtins.isFunction innerFn then innerFn else _: innerFn;
-            __functionArgs = innerArgs;
-            includes = child.includes or [ ];
-          }
+          if isModuleFn then
+            normalizeModuleFn innerFn
+          else
+            child
+            // {
+              # Preserve original __functor for wrappers that need self (e.g. perCtx
+              # reads self.__ctx). Only replace with unwrapped innerFn when the child
+              # uses the default aspect functor.
+              __functor =
+                if child ? __functionArgs && (child.__functionArgs or { }) != { } then
+                  child.__functor
+                else
+                  _: if builtins.isFunction innerFn then innerFn else _: innerFn;
+              # Preserve explicit __functionArgs if already set (e.g. by perHost/perUser
+              # wrappers). Only override with innerArgs if child has no explicit args.
+              __functionArgs =
+                let
+                  explicit = child.__functionArgs or { };
+                in
+                if explicit != { } then explicit else innerArgs;
+              includes = child.includes or [ ];
+            }
         else
           let
             args = lib.functionArgs child;
             # NixOS module functions are deferred modules, not parametric aspects.
+            # Heuristic: any function accepting ONLY module-system args (lib, config,
+            # options) is treated as a module. Functions with extra args (host, user)
+            # are parametric. Edge case: { config, ... }: is classified as module —
+            # if a parametric aspect genuinely takes only { config }, wrap it in an
+            # aspect envelope with explicit __functionArgs instead.
             isModuleFn = den.lib.canTake.upTo {
               lib = true;
               config = true;
@@ -96,7 +132,13 @@ let
         };
         pass = condNode.meta.guard guardCtx;
       in
-      if pass then emitIncludes { } condNode.meta.aspects else tombstoneAll condNode.meta.aspects
+      if pass then
+        emitIncludes {
+          __parentCtx = condNode.__ctx or { };
+          __parentCtxId = condNode.__ctxId or null;
+        } condNode.meta.aspects
+      else
+        tombstoneAll condNode.meta.aspects
     );
 
   # Exclude: create tombstone and emit resolve-complete.
@@ -171,7 +213,24 @@ let
             if allAvailable then
               fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ])
             else
-              fx.pure [ ]
+              # Emit a resolve-complete for the deferred child so it appears in traces,
+              # then defer-include it for later resolution when context widens.
+              let
+                stub = {
+                  name = child.name or "<anon>";
+                  meta = (child.meta or { }) // {
+                    deferred = true;
+                  };
+                  includes = [ ];
+                };
+              in
+              fx.bind (fx.send "resolve-complete" stub) (
+                _:
+                fx.bind (fx.send "defer-include" {
+                  inherit child;
+                  requiredArgs = unresolvedKeys;
+                }) (_: fx.pure [ ])
+              )
           )
         )
       )
@@ -180,32 +239,41 @@ let
 
   # Derive a stable name for anonymous aspects from parent chain + index.
   nameAnon =
-    state: idx:
+    state: idx: ctxId:
     let
       chain = state.includesChain or [ ];
       parent = if chain == [ ] then "<root>" else lib.last chain;
+      suffix = if ctxId != null then "/${ctxId}" else "";
     in
-    "${parent}/<anon>:${toString idx}";
+    "${parent}/<anon>:${toString idx}${suffix}";
 
   isMeaningfulName =
     name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
 
-  # The handler. param is { child, idx, parentCtx? } from emitIncludes.
+  # The handler. param is { child, idx, __parentCtx? } from emitIncludes.
   includeHandler = {
     "emit-include" =
       { param, state }:
       let
         rawChild = param.child or param;
         idx = param.idx or null;
-        parentCtx = param.parentCtx or { };
+        parentCtx = param.__parentCtx or { };
         wrapped = wrapChild rawChild;
-        # Propagate parent's __ctx to child (child's own __ctx takes precedence).
+        parentCtxId = param.__parentCtxId or null;
+        # Propagate parent's __ctx and __ctxId to child.
         withCtx =
-          if parentCtx != { } then wrapped // { __ctx = parentCtx // (wrapped.__ctx or { }); } else wrapped;
+          if parentCtx != { } then
+            wrapped
+            // {
+              __ctx = parentCtx // (wrapped.__ctx or { });
+            }
+            // lib.optionalAttrs (parentCtxId != null && !(wrapped ? __ctxId)) { __ctxId = parentCtxId; }
+          else
+            wrapped;
         # Replace anonymous names with parent+index derived identity.
         child =
           if idx != null && !(isMeaningfulName (withCtx.name or "<anon>")) then
-            withCtx // { name = nameAnon state idx; }
+            withCtx // { name = nameAnon state idx (withCtx.__ctxId or null); }
           else
             withCtx;
         _ti = builtins.trace "includeHandler: name=${child.name or "?"} parentCtx=${toString (builtins.attrNames parentCtx)} __ctx=${

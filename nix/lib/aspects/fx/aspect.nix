@@ -18,6 +18,10 @@ let
     "__functor"
     "__functionArgs"
     "__ctx"
+    "__ctxId"
+    "__parametricResolved"
+    "__parentCtx"
+    "__parentCtxId"
     "_module"
   ];
 
@@ -31,6 +35,7 @@ let
           class = k;
           identity = nodeIdentity;
           module = aspect.${k};
+          contextDependent = aspect.__parametricResolved or false;
         }
       ) classKeys
     );
@@ -64,7 +69,11 @@ let
   # positional index and parent __ctx so the handler can derive stable
   # identities and propagate context to children.
   emitIncludes =
-    parentCtx: incs:
+    {
+      __parentCtx,
+      __parentCtxId ? null,
+    }:
+    incs:
     let
       len = builtins.length incs;
       go =
@@ -75,10 +84,13 @@ let
           go (idx + 1) (
             fx.bind acc (
               results:
-              fx.bind (fx.send "emit-include" {
-                child = builtins.elemAt incs idx;
-                inherit idx parentCtx;
-              }) (childResults: fx.pure (results ++ childResults))
+              fx.bind (fx.send "emit-include" (
+                {
+                  child = builtins.elemAt incs idx;
+                  inherit idx __parentCtx;
+                }
+                // lib.optionalAttrs (__parentCtxId != null) { inherit __parentCtxId; }
+              )) (childResults: fx.pure (results ++ childResults))
             )
           );
     in
@@ -89,9 +101,14 @@ let
   # to the handler which evaluates it with the current context.
   emitTransitions =
     aspect:
-    if aspect ? into then
+    let
+      # into can be on the aspect directly (non-ctx aspects with into option)
+      # or in meta.into (ctxApply stores it there to survive freeform deferredModule).
+      intoFn = aspect.meta.into or aspect.into or null;
+    in
+    if intoFn != null && lib.isFunction intoFn then
       fx.send "into-transition" {
-        intoFn = aspect.into;
+        inherit intoFn;
         self = aspect;
       }
     else
@@ -118,21 +135,53 @@ let
     in
     if provides ? ${name} then
       let
-        _t = builtins.trace "emitSelfProvide: ${name} parentCtx=${toString (builtins.attrNames ctx)} providerArgs=${toString (builtins.attrNames providerArgs)}";
+        _t = builtins.trace "emitSelfProvide: ${name} __parentCtx=${toString (builtins.attrNames ctx)} providerArgs=${toString (builtins.attrNames providerArgs)}";
+        # Positional-arg providers (_: { funny... }) can't be resolved via
+        # bind.fn (no named args). Call them directly with ctx — this mirrors
+        # the old ctxApply behavior where provides.${name} was called inline.
+        isPositionalFn = lib.isFunction innerFn && providerArgs == { };
+        providerMeta = {
+          provider = (aspect.meta.provider or [ ]) ++ [ name ];
+          selfProvide = true;
+        };
+        include =
+          if isPositionalFn then
+            let
+              resolved = innerFn ctx;
+              resolvedArgs = if lib.isFunction resolved then lib.functionArgs resolved else { };
+            in
+            if lib.isFunction resolved && !builtins.isAttrs resolved then
+              # Resolved to a bare function (e.g. _: osFwd where osFwd = { host }: ...).
+              # Wrap as parametric include for bind.fn resolution.
+              {
+                inherit name;
+                __parentCtx = ctx;
+                meta = providerMeta;
+                __functor = _: resolved;
+                __functionArgs = resolvedArgs;
+                includes = [ ];
+              }
+              // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; }
+            else
+              (if builtins.isAttrs resolved then resolved else { })
+              // {
+                inherit name;
+                meta = providerMeta;
+                includes = (if builtins.isAttrs resolved then resolved.includes or [ ] else [ ]);
+              }
+              // lib.optionalAttrs (aspect ? __ctxId) { __ctxId = aspect.__ctxId; }
+          else
+            {
+              inherit name;
+              __parentCtx = ctx;
+              meta = providerMeta;
+              __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
+              __functionArgs = providerArgs;
+              includes = [ ];
+            }
+            // lib.optionalAttrs (aspect ? __ctxId) { __parentCtxId = aspect.__ctxId; };
       in
-      _t (
-        fx.send "emit-include" {
-          inherit name;
-          parentCtx = ctx;
-          meta = {
-            provider = (aspect.meta.provider or [ ]) ++ [ name ];
-            selfProvide = true;
-          };
-          __functor = _: if lib.isFunction innerFn then innerFn else _: providerVal;
-          __functionArgs = providerArgs;
-          includes = [ ];
-        }
-      )
+      _t (fx.send "emit-include" include)
     else
       fx.pure [ ];
 
@@ -147,19 +196,21 @@ let
       comp;
 
   # Resolve children, assemble the result, and emit resolve-complete.
-  # Propagates __ctx to children via emitIncludes parentCtx parameter.
+  # Propagates __ctx to children via emitIncludes __parentCtx parameter.
   resolveChildren =
     aspect:
     { isMeaningful, nodeIdentity }:
     let
       ctx = aspect.__ctx or { };
+      ctxId = aspect.__ctxId or null;
       childResolution = fx.bind (emitSelfProvide aspect) (
         selfProvResults:
         fx.bind (emitTransitions aspect) (
           transitionResults:
-          fx.bind (emitIncludes ctx (aspect.includes or [ ])) (
-            children: fx.pure (selfProvResults ++ transitionResults ++ children)
-          )
+          fx.bind (emitIncludes {
+            __parentCtx = ctx;
+            __parentCtxId = ctxId;
+          } (aspect.includes or [ ])) (children: fx.pure (selfProvResults ++ transitionResults ++ children))
         )
       );
     in
@@ -245,18 +296,76 @@ let
               // lib.optionalAttrs (aspect ? provides) { inherit (aspect) provides; };
               # If resolved is still a function (curried provider), wrap it
               # as another parametric level for the next bind.fn pass.
-              next =
-                if lib.isFunction resolved && !builtins.isAttrs resolved then
-                  base
+              # Exception: submodule functions ({ config, lib, ... }: ...) are
+              # NixOS modules, not parametric — merge them through the type system.
+              isResolvedSubmoduleFn =
+                lib.isFunction resolved
+                && !builtins.isAttrs resolved
+                && den.lib.canTake.upTo {
+                  inherit lib;
+                  config = true;
+                  options = true;
+                } resolved;
+              # Required args from the original parametric function — used for
+              # exact-match context guarding on the resolved child.
+              requiredArgs = builtins.filter (n: !userArgs.${n}) (builtins.attrNames userArgs);
+              # Forward-wrap: when a parametric fn resolves to a static attrset,
+              # add a __functor that enforces exact context match. This makes
+              # { host }: expr only fire at host level (not user level where
+              # ctx also has user). Also propagates identity (name) from the
+              # original aspect so the child isn't anonymous for constraints.
+              forwardWrap =
+                child:
+                if requiredArgs != [ ] then
+                  child
                   // {
-                    __functor = _: resolved;
-                    __functionArgs = lib.functionArgs resolved;
-                    includes = [ ];
+                    __functor =
+                      _: newCtx:
+                      let
+                        ctxKeys = builtins.sort builtins.lessThan (builtins.attrNames newCtx);
+                        reqKeys = builtins.sort builtins.lessThan requiredArgs;
+                      in
+                      if ctxKeys == reqKeys then child // { __ctx = newCtx; } else { };
+                    # NOTE: no __functionArgs here — that would make aspectToEffect
+                    # treat this as parametric again, causing infinite recursion.
+                    # The __functor is only used when the child is later called
+                    # via ctxApply or transition, not during pipeline resolution.
                   }
                 else
-                  base // builtins.removeAttrs resolved [ "meta" ];
-              # Propagate __ctx so children inherit context.
-              tagged = next // lib.optionalAttrs (ctx != { }) { __ctx = ctx; };
+                  child;
+              next =
+                if lib.isFunction resolved && !builtins.isAttrs resolved then
+                  if isResolvedSubmoduleFn then
+                    # Submodule fn: merge through aspect type to get proper attrset
+                    let
+                      merged = den.lib.aspects.types.aspectType.merge (aspect.meta.loc or [ (aspect.name or "<anon>") ]) [
+                        {
+                          file = aspect.meta.file or "<parametric>";
+                          value = resolved;
+                        }
+                      ];
+                    in
+                    base // builtins.removeAttrs merged [ "meta" ]
+                  else
+                    base
+                    // {
+                      __functor = _: resolved;
+                      __functionArgs = lib.functionArgs resolved;
+                      includes = [ ];
+                    }
+                else
+                  forwardWrap (base // builtins.removeAttrs resolved [ "meta" ]);
+              # Propagate __ctx and __ctxId so children inherit context and identity.
+              # Merge parent ctx WITH resolved result's __ctx (from fixedTo/expands)
+              # so pinned values aren't overwritten by parent context.
+              resolvedCtx = if builtins.isAttrs resolved then resolved.__ctx or { } else { };
+              tagged =
+                next
+                // lib.optionalAttrs (ctx != { } || resolvedCtx != { }) { __ctx = ctx // resolvedCtx; }
+                // lib.optionalAttrs (aspect ? __ctxId) { inherit (aspect) __ctxId; }
+                // {
+                  __parametricResolved = true;
+                };
             in
             aspectToEffect tagged
           )

@@ -46,12 +46,60 @@ let
     parentCtx: targetAspect: results: newCtx:
     let
       scopedCtx = parentCtx // newCtx;
+      # __ctxId differentiates fan-out contexts with the same target aspect.
+      # Derives identity from entity names (v.name for attrsets) or string
+      # values in newCtx. Assumes all context values are either:
+      # - Entities with a .name attribute (host, user objects)
+      # - Strings (like system = "x86_64-linux")
+      # - Other attrsets (fallback: uses the key name, may collide if two
+      #   contexts share key names but differ in non-name values)
+      ctxNames = lib.concatStringsSep "," (
+        lib.sort (a: b: a < b) (
+          lib.concatMap (
+            k:
+            let
+              v = newCtx.${k};
+            in
+            if builtins.isAttrs v && v ? name then
+              [ v.name ]
+            else if builtins.isString v then
+              [ v ]
+            else if builtins.isInt v || builtins.isFloat v then
+              [ (toString v) ]
+            else
+              [ k ]
+          ) (builtins.attrNames newCtx)
+        )
+      );
+      ctxId = ctxNames;
       tagged = targetAspect // {
         __ctx = scopedCtx;
+        __ctxId = ctxId;
       };
       _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} __ctx=${toString (builtins.attrNames scopedCtx)}";
     in
-    _t (fx.bind (aspectToEffect tagged) (childResult: fx.pure (results ++ [ childResult ])));
+    _t (
+      fx.bind (aspectToEffect tagged) (
+        childResult:
+        # Drain deferred includes now satisfiable with the new context.
+        fx.bind (fx.send "drain-deferred" scopedCtx) (
+          satisfiable:
+          builtins.foldl' (
+            acc: d:
+            fx.bind acc (
+              prevResults:
+              let
+                deferredTagged = d.child // {
+                  __ctx = scopedCtx;
+                  __ctxId = ctxId;
+                };
+              in
+              fx.bind (aspectToEffect deferredTagged) (resolved: fx.pure (prevResults ++ [ resolved ]))
+            )
+          ) (fx.pure (results ++ [ childResult ])) satisfiable
+        )
+      )
+    );
 
   # Resolve a single transition: look up target aspect, check dedup, resolve each context value.
   # Also emits cross-providers: if sourceAspect.provides.${targetKey} exists,
@@ -60,16 +108,22 @@ let
     sourceAspect: currentCtx: results: transition:
     let
       key = lib.concatStringsSep "/" transition.path;
-      targetKey = lib.last transition.path;
+      targetKey = lib.concatStringsSep "." transition.path;
       targetAspect = lib.attrByPath transition.path null (den.ctx or { });
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
       # Emit cross-provider result by tagging with __ctx and resolving directly.
       emitCrossProvider =
-        scopedCtx: prevResults:
+        scopedCtx: ctxId: prevResults:
         if crossProvider != null then
           let
-            crossResult = crossProvider scopedCtx;
+            # Call crossProvider with only the args it accepts, not the full
+            # scopedCtx. Curried providers (e.g. { name }: { shout }: ...) take
+            # the source ctx first; extra keys would cause unexpected-arg errors.
+            crossProviderArgs = lib.functionArgs crossProvider;
+            crossCtx =
+              if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
+            crossResult = crossProvider crossCtx;
             # Wrap bare functions as parametric aspects for aspectToEffect.
             wrapped =
               if lib.isFunction crossResult && !builtins.isAttrs crossResult then
@@ -79,10 +133,15 @@ let
                   __functor = _: crossResult;
                   __functionArgs = lib.functionArgs crossResult;
                   __ctx = scopedCtx;
+                  __ctxId = ctxId;
                   includes = [ ];
                 }
               else
-                crossResult // { __ctx = scopedCtx; };
+                crossResult
+                // {
+                  __ctx = scopedCtx;
+                  __ctxId = ctxId;
+                };
           in
           fx.bind (aspectToEffect wrapped) (crossResolved: fx.pure (prevResults ++ [ crossResolved ]))
         else
@@ -114,13 +173,33 @@ let
               innerResults:
               let
                 scopedCtx = currentCtx // newCtx;
+                # Compute ctxId for cross-provider identity (same derivation
+                # as resolveContextValue uses for the target aspect).
+                ctxNames = lib.concatStringsSep "," (
+                  lib.sort (a: b: a < b) (
+                    lib.concatMap (
+                      k:
+                      let
+                        v = newCtx.${k};
+                      in
+                      if builtins.isAttrs v && v ? name then
+                        [ v.name ]
+                      else if builtins.isString v then
+                        [ v ]
+                      else if builtins.isInt v || builtins.isFloat v then
+                        [ (toString v) ]
+                      else
+                        [ k ]
+                    ) (builtins.attrNames newCtx)
+                  )
+                );
                 withTarget =
                   if targetAspect != null then
                     resolveContextValue currentCtx targetAspect innerResults newCtx
                   else
                     fx.pure innerResults;
               in
-              fx.bind withTarget (targetResults: emitCrossProvider scopedCtx targetResults)
+              fx.bind withTarget (targetResults: emitCrossProvider scopedCtx ctxNames targetResults)
             )
           ) (fx.pure results) transition.contexts
       );

@@ -241,7 +241,7 @@
           [ "leaf" ]
           [
             "param"
-            [ "[definition 1-entry 1]" ]
+            [ "param/<anon>:0" ]
           ]
         ];
       }

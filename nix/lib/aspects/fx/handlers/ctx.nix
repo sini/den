@@ -25,8 +25,9 @@ let
     ) ctx
     // {
       # Check own ctx AND pipeline-provided args (class, aspect-chain).
-      # These are always available from root handlers but would be missed
-      # if only checking the scoped ctx keys.
+      # These are always installed by defaultHandlers in pipeline.nix.
+      # COUPLING: if new constants are added to defaultHandlers, this list
+      # must be updated. Consider deriving from defaultHandlers keys instead.
       "probe-arg" =
         { param, state }:
         {

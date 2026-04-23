@@ -16,7 +16,16 @@ let
 
   from-host =
     { host, user }:
-      lib.genAttrs (user.classes or [ "homeManager" ]) (class: den.lib.aspects.resolve class host.aspect)
+    let
+      # Tag host.aspect with user context so parametric includes like
+      # { user }: ... can resolve during host-aspects re-resolution.
+      aspectWithCtx = host.aspect // {
+        __ctx = { inherit host user; };
+      };
+    in
+    lib.genAttrs (user.classes or [ "homeManager" ]) (
+      class: den.lib.aspects.resolve class aspectWithCtx
+    );
 in
 {
   den.provides.host-aspects = {

@@ -20,6 +20,7 @@ let
     "__functor"
     "__functionArgs"
     "__ctx"
+    "__parametricResolved"
     "_module"
   ];
 
@@ -43,7 +44,9 @@ let
       # - into: transitionHandler evaluates with currentCtx, recurses into target ctx nodes
       # - provides: emitSelfProvide handles provides.${self.name}
       # - includes: emitIncludes processes child aspects
-      into = self.into or (_: { });
+      # Store into in meta — the raw function survives aspectSubmodule's
+      # freeform (deferredModule) which would wrap it as a module.
+      meta.into = self.into or (_: { });
       provides = self.provides or { };
       includes = self.includes or [ ];
       # Carry context to the pipeline entry point.

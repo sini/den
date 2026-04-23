@@ -82,8 +82,50 @@ let
             ) defs
           )
         else if hasFns then
-          # All functions: use lastFunctionTo merge (last def wins).
-          (lastFunctionTo (providerType cnf)).merge loc defs
+          # All functions: submodule fns and functor attrsets with explicit
+          # __functionArgs merge through aspectType (preserving loc/name/identity).
+          # Bare parametric fns use lastFunctionTo.
+          let
+            subFns = builtins.filter (d: isSubmoduleFn d.value) defs;
+            # Functor attrsets with explicit __functionArgs (e.g. perCtx wrappers)
+            # need aspectType merge for name/identity preservation.
+            functorWithArgs = builtins.filter (
+              d: builtins.isAttrs d.value && d.value ? __functor && (d.value.__functionArgs or { }) != { }
+            ) defs;
+            paramFns = builtins.filter (
+              d:
+              !isSubmoduleFn d.value
+              && !(builtins.isAttrs d.value && d.value ? __functor && (d.value.__functionArgs or { }) != { })
+            ) defs;
+          in
+          if subFns != [ ] then
+            at.merge loc subFns
+          else if functorWithArgs != [ ] then
+            at.merge loc functorWithArgs
+          else
+            let
+              fn = (lib.last paramFns).value;
+            in
+            # Attrsets with default __functor (already-evaluated aspect submodules)
+            # must pass through unchanged — wrapping would destroy their includes
+            # and name. Only wrap actual bare functions (raw lambdas) that need
+            # identity for hasAspect lookups.
+            if builtins.isAttrs fn then
+              fn
+            else
+              let
+                args = lib.functionArgs fn;
+                nameFromLoc = lib.last loc;
+              in
+              {
+                name = nameFromLoc;
+                meta = {
+                  provider = cnf.providerPrefix or [ ];
+                };
+                __functor = _: fn;
+                __functionArgs = args;
+                includes = [ ];
+              }
         else
           at.merge loc defs;
     };
@@ -151,10 +193,10 @@ let
           __functor = lib.mkOption {
             internal = true;
             visible = false;
-            description = "Functor — default is lib.const (ignores context)";
+            description = "Functor — default tags aspect with __ctx for pipeline context propagation";
             type = lastFunctionTo (providerType cnf);
-            defaultText = lib.literalExpression "lib.const";
-            default = lib.const;
+            defaultText = lib.literalExpression "self: ctx: self // { __ctx = ctx; }";
+            default = self: ctx: self // { __ctx = ctx; };
           };
 
           includes = lib.mkOption {
@@ -162,6 +204,22 @@ let
             type = lib.types.listOf (providerType cnf);
             defaultText = lib.literalExpression "[ ]";
             default = [ ];
+          };
+
+          __ctx = lib.mkOption {
+            internal = true;
+            visible = false;
+            description = "Context values for parametric child resolution (set by fixedTo/expands/transitions)";
+            type = lib.types.lazyAttrsOf lib.types.unspecified;
+            default = { };
+          };
+
+          __functionArgs = lib.mkOption {
+            internal = true;
+            visible = false;
+            description = "Named args for parametric resolution — signals bind.fn what to resolve";
+            type = lib.types.lazyAttrsOf lib.types.bool;
+            default = { };
           };
 
           provides = lib.mkOption {

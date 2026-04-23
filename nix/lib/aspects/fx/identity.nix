@@ -4,7 +4,12 @@
   ...
 }:
 let
-  aspectPath = a: (a.meta.provider or [ ]) ++ [ (a.name or "<anon>") ];
+  # __ctxId (set by resolveContextValue) differentiates fan-out contexts
+  # so the same target aspect with different context values produces
+  # distinct NixOS module dedup keys.
+  aspectPath =
+    a:
+    (a.meta.provider or [ ]) ++ [ (a.name or "<anon>") ] ++ lib.optional (a ? __ctxId) "{${a.__ctxId}}";
 
   pathKey = path: lib.concatStringsSep "/" path;
 

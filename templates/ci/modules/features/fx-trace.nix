@@ -272,7 +272,10 @@
         expected = {
           hasProvider = true;
           hasHost = true;
-          importCount = 2;
+          # 3 = host (base), explicit host-provider include, self-provide result.
+          # Self-provide now resolves positional-arg providers inline, so both
+          # the explicit include and the self-provide produce modules.
+          importCount = 3;
         };
       }
     );
