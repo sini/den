@@ -50,9 +50,6 @@ let
         resume = param;
         state =
           state
-          // {
-            paths = (state.paths or [ ]) ++ (lib.optional (!isExcluded) path);
-          }
           // lib.optionalAttrs (!isExcluded) {
             pathSet =
               (state.pathSet or { })
@@ -66,7 +63,6 @@ let
       };
   };
 
-  # Handler for get-path-set effect. Returns accumulated paths as a set.
   pathSetHandler = {
     "get-path-set" =
       { param, state }:

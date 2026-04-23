@@ -11,8 +11,7 @@
   ...
 }:
 let
-  # Constraint registry. Handles register-constraint and check-constraint effects.
-  # Supports identity-based (exclude, substitute) and predicate-based (filter).
+  # Two constraint types: identity-based (exclude, substitute) and predicate-based (filter).
   constraintRegistryHandler = {
     "register-constraint" =
       { param, state }:
@@ -58,7 +57,7 @@ let
     "check-constraint" =
       { param, state }:
       let
-        identity = if builtins.isAttrs param then param.identity else param;
+        nodeIdentity = if builtins.isAttrs param then param.identity else param;
         aspect = if builtins.isAttrs param then param.aspect or null else null;
         registry = state.constraintRegistry or { };
         filters = state.constraintFilters or [ ];
@@ -73,19 +72,21 @@ let
           // extra;
           inherit state;
         };
-        # Find first in-scope constraint for this identity (first-registered wins).
         # Also check prefix matches: excluding "monitoring" cascades to "monitoring/node-exporter".
-        entries = registry.${identity} or [ ];
+        entries = registry.${nodeIdentity} or [ ];
         prefixEntries =
-          let
-            parts = lib.splitString "/" identity;
-            # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
-            prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
-              builtins.length parts - 1
-            );
-            getEntries = p: registry.${p} or [ ];
-          in
-          if builtins.length parts > 1 then builtins.concatMap getEntries prefixes else [ ];
+          if registry == { } then
+            [ ]
+          else
+            let
+              parts = lib.splitString "/" nodeIdentity;
+              # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
+              prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
+                builtins.length parts - 1
+              );
+              getEntries = p: registry.${p} or [ ];
+            in
+            if builtins.length parts > 1 then builtins.concatMap getEntries prefixes else [ ];
         allEntries = entries ++ prefixEntries;
         scopedEntries = builtins.filter inScope allEntries;
         firstEntry = if scopedEntries == [ ] then null else builtins.head scopedEntries;
@@ -113,7 +114,6 @@ let
           mkDecision "keep" { };
   };
 
-  # Maintains includes-path stack. chain-push appends identity, chain-pop removes last.
   chainHandler = {
     "chain-push" =
       { param, state }:
@@ -140,7 +140,6 @@ let
       };
   };
 
-  # Accumulates class modules from emit-class effects.
   # Only collects modules for the specified target class.
   classCollectorHandler =
     {
@@ -149,62 +148,54 @@ let
     {
       "emit-class" =
         { param, state }:
-        let
-          _t = builtins.trace "classCollector: class=${param.class} target=${targetClass} identity=${param.identity or "?"} match=${
-            toString (param.class == targetClass)
-          }";
-        in
-        _t (
-          if param.class != targetClass then
-            {
-              resume = null;
-              inherit state;
-            }
-          else
-            let
-              identity = param.identity or "<anon>";
-              # Strip __ctxId suffix from identity for module keying.
-              # Static aspects produce the same module regardless of context,
-              # so nixos@shared-tools should dedup with nixos@shared-tools/{igloo,tux}.
-              # Strip __ctxId suffix for static aspects so the same aspect
-              # included from multiple contexts deduplicates (e.g. shared-tools
-              # from both {igloo} and {tux}). Parametric resolutions produce
-              # different modules per context, so their ctxId must be preserved.
-              baseIdentity =
-                if param.contextDependent or false then identity else lib.head (lib.splitString "/{" identity);
-              loc = "${param.class}@${baseIdentity}";
-              # Named aspects get a key for NixOS module-level dedup: two
-              # resolve calls emitting the same aspect:class produce the
-              # same key, so the module system keeps only the first.
-              # Anonymous/synthetic names must not be keyed — multiple
-              # anonymous includes with the same identity are distinct.
-              isAnon =
-                identity == "<anon>"
-                || identity == "<function body>"
-                || lib.hasPrefix "[definition " identity
-                || lib.hasPrefix "<root>/" identity
-                || lib.hasInfix "/<anon>:" identity;
-              mod =
-                if isAnon then
-                  lib.setDefaultModuleLocation loc param.module
-                else
-                  {
-                    key = loc;
-                    _file = loc;
-                    imports = [ param.module ];
-                  };
-            in
-            {
-              resume = null;
-              state = state // {
-                imports = x: (state.imports x) ++ [ mod ];
-              };
-            }
-        );
+        if param.class != targetClass then
+          {
+            resume = null;
+            inherit state;
+          }
+        else
+          let
+            nodeIdentity = param.identity or "<anon>";
+            # Strip __ctxId suffix for static aspects so the same aspect
+            # included from multiple contexts deduplicates (e.g. shared-tools
+            # from both {igloo} and {tux}). Parametric resolutions produce
+            # different modules per context, so their ctxId must be preserved.
+            baseIdentity =
+              if param.isContextDependent or false then
+                nodeIdentity
+              else
+                lib.head (lib.splitString "/{" nodeIdentity);
+            loc = "${param.class}@${baseIdentity}";
+            # Named aspects get a dedup key so the module system keeps only
+            # the first. Synthetic names must not be keyed — multiple
+            # anonymous includes with the same identity are distinct.
+            # These synthetic names are produced by normalizeRoot, nameAnon,
+            # and the module system's [definition ...] format. Keep in sync.
+            isAnon =
+              nodeIdentity == "<anon>"
+              || nodeIdentity == "<function body>"
+              || lib.hasPrefix "[definition " nodeIdentity
+              || lib.hasPrefix "<root>/" nodeIdentity
+              || lib.hasInfix "/<anon>:" nodeIdentity;
+            mod =
+              if isAnon then
+                lib.setDefaultModuleLocation loc param.module
+              else
+                {
+                  key = loc;
+                  _file = loc;
+                  imports = [ param.module ];
+                };
+          in
+          {
+            resume = null;
+            state = state // {
+              imports = x: (state.imports x) ++ [ mod ];
+            };
+          };
     };
 
-  # Accumulates parametric includes whose args aren't available yet.
-  # Deferred includes are drained by drain-deferred when context widens.
+  # Drained by drain-deferred when context widens.
   deferredIncludeHandler = {
     "defer-include" =
       { param, state }:
@@ -217,8 +208,6 @@ let
       };
   };
 
-  # Partitions deferred includes into satisfiable (args now in ctx) and
-  # remaining. Returns satisfiable list — caller resolves via aspectToEffect.
   drainDeferredHandler = {
     "drain-deferred" =
       { param, state }:
@@ -226,18 +215,24 @@ let
         ctx = param;
         # Unwrap thunk chain.
         deferred = (state.deferredIncludes or (_: [ ])) null;
-        satisfiable = builtins.filter (d: builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs) deferred;
-        remaining = builtins.filter (
-          d: !(builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs)
-        ) deferred;
       in
-      {
-        resume = satisfiable;
-        state = state // {
-          # Re-wrap remaining as thunk chain.
-          deferredIncludes = _: remaining;
+      if deferred == [ ] then
+        {
+          resume = [ ];
+          inherit state;
+        }
+      else
+        let
+          partitioned = lib.partition (d: builtins.all (k: builtins.hasAttr k ctx) d.requiredArgs) deferred;
+          satisfiable = partitioned.right;
+          remaining = partitioned.wrong;
+        in
+        {
+          resume = satisfiable;
+          state = state // {
+            deferredIncludes = _: remaining;
+          };
         };
-      };
   };
 
 in

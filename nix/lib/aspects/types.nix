@@ -25,10 +25,13 @@ let
 
   isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
 
+  isMeaningfulName =
+    name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
+
   aspectType =
-    cnf:
+    typeCfg:
     let
-      sub = aspectSubmodule cnf;
+      sub = aspectSubmodule typeCfg;
     in
     sub // { merge = mergeWithAspectMeta sub; };
 
@@ -83,9 +86,8 @@ let
         ]
       );
     in
-    # Add __functor so merged aspects are callable — replaces the old
-    # ctx __functor that was removed with den.ctx. Preserve explicit
-    # functors (e.g. den.provides.forward).
+    # __functor makes merged aspects callable (aspect { host = ...; }).
+    # Explicit functors (e.g. den.provides.forward) take priority.
     merged
     // {
       __functor = if originalFunctor != null then originalFunctor else resolveAspectWith;
@@ -95,8 +97,8 @@ let
     loc: defs:
     { config, ... }:
     let
-      names = map (x: if builtins.isString x then x else "<anon>") config.meta.loc;
-      nameFromLoc = lib.concatStringsSep "." names;
+      locSegments = map (x: if builtins.isString x then x else "<anon>") config.meta.loc;
+      nameFromLoc = lib.concatStringsSep "." locSegments;
     in
     {
       meta.name = lib.mkForce nameFromLoc;
@@ -104,15 +106,70 @@ let
       meta.loc = lib.mkForce loc;
     };
 
-  providerType =
-    cnf:
+  # Merge branch: mixed function + attrset defs — coerce parametric fns to includes.
+  mergeMixed =
+    baseType: loc: defs:
+    baseType.merge loc (
+      map (
+        d:
+        if lib.isFunction d.value && !isSubmoduleFn d.value then
+          d
+          // {
+            value = {
+              includes = [ d.value ];
+            };
+          }
+        else
+          d
+      ) defs
+    );
+
+  # Merge branch: all-function defs — submodule fns merge through aspectType,
+  # bare parametric fns use last-wins.
+  mergeFunctions =
+    baseType: typeCfg: loc: defs:
     let
-      at = aspectType cnf;
+      subFns = builtins.filter (d: isSubmoduleFn d.value) defs;
+      paramFns = builtins.filter (d: !isSubmoduleFn d.value) defs;
+    in
+    if subFns != [ ] then
+      baseType.merge loc subFns
+    else
+      let
+        fn = (lib.last paramFns).value;
+      in
+      if builtins.isAttrs fn then
+        fn
+      else
+        let
+          args = lib.functionArgs fn;
+          nameFromLoc = lib.last loc;
+        in
+        {
+          name = nameFromLoc;
+          meta = {
+            provider = typeCfg.providerPrefix or [ ];
+          };
+          __fn = fn;
+          __args = args;
+          __functor = self: self.__fn;
+        };
+
+  providerType =
+    typeCfg:
+    let
+      baseType = aspectType typeCfg;
     in
     lib.types.mkOptionType {
       name = "provider";
       description = "aspect or function returning aspect";
       check = v: builtins.isAttrs v || lib.isFunction v;
+      # Merge dispatch:
+      #   parametric wrappers (__fn/__args) → last-wins, preserve wrapper
+      #   mixed fns + attrsets → coerce parametric fns to { includes = [fn]; }
+      #   all fns, has submodule fns → merge through aspectType
+      #   all fns, bare parametric only → last-wins, wrap as { __fn, __args }
+      #   all attrsets → merge through aspectType
       merge =
         loc: defs:
         let
@@ -129,65 +186,17 @@ let
             nonParametrics = builtins.filter (d: !isParametricWrapper d.value) defs;
             hasFns = builtins.any (d: lib.isFunction d.value) nonParametrics;
             hasNonFns = builtins.any (d: !lib.isFunction d.value) nonParametrics;
-            isMixed = hasFns && hasNonFns;
           in
-          if isMixed then
-            # Mixed function + attrset defs: coerce parametric functions to
-            # { includes = [fn]; } so they merge as aspects.
-            at.merge loc (
-              map (
-                d:
-                if lib.isFunction d.value && !isSubmoduleFn d.value then
-                  d
-                  // {
-                    value = {
-                      includes = [ d.value ];
-                    };
-                  }
-                else
-                  d
-              ) nonParametrics
-            )
+          if hasFns && hasNonFns then
+            mergeMixed baseType loc nonParametrics
           else if hasFns then
-            # All functions: submodule fns merge through aspectType
-            # (preserving loc/name/identity). Bare parametric fns use lastFunctionTo.
-            let
-              subFns = builtins.filter (d: isSubmoduleFn d.value) nonParametrics;
-              paramFns = builtins.filter (d: !isSubmoduleFn d.value) nonParametrics;
-            in
-            if subFns != [ ] then
-              at.merge loc subFns
-            else
-              let
-                fn = (lib.last paramFns).value;
-              in
-              # Already-evaluated aspect attrsets pass through unchanged —
-              # wrapping would destroy their includes and name. Only wrap
-              # bare functions (raw lambdas) as parametric wrappers.
-              if builtins.isAttrs fn then
-                fn
-              else
-                let
-                  args = lib.functionArgs fn;
-                  nameFromLoc = lib.last loc;
-                in
-                {
-                  name = nameFromLoc;
-                  meta = {
-                    provider = cnf.providerPrefix or [ ];
-                  };
-                  __fn = fn;
-                  __args = args;
-                  # Positional-arg providers (e.g. den.provides.user-shell)
-                  # must remain callable so users can do (provider "arg").
-                  __functor = self: self.__fn;
-                }
+            mergeFunctions baseType typeCfg loc nonParametrics
           else
-            at.merge loc nonParametrics;
+            baseType.merge loc nonParametrics;
     };
 
   aspectSubmodule =
-    cnf:
+    typeCfg:
     lib.types.submodule (
       { name, config, ... }:
       {
@@ -239,7 +248,7 @@ let
                 visible = false;
                 description = "Provider path tracking aspect provenance";
                 type = lib.types.listOf lib.types.str;
-                default = cnf.providerPrefix or [ ];
+                default = typeCfg.providerPrefix or [ ];
               };
             };
             defaultText = lib.literalExpression "{ }";
@@ -248,7 +257,7 @@ let
 
           includes = lib.mkOption {
             description = "Providers to ask aspects from";
-            type = lib.types.listOf (providerType cnf);
+            type = lib.types.listOf (providerType typeCfg);
             defaultText = lib.literalExpression "[ ]";
             default = [ ];
           };
@@ -260,9 +269,9 @@ let
             type = lib.types.submodule {
               freeformType = lib.types.lazyAttrsOf (
                 providerType (
-                  cnf
+                  typeCfg
                   // {
-                    providerPrefix = (cnf.providerPrefix or [ ]) ++ [ config.name ];
+                    providerPrefix = (typeCfg.providerPrefix or [ ]) ++ [ config.name ];
                   }
                 )
               );
@@ -277,16 +286,17 @@ let
   # This is how { host, ... }: { nixos = ...; } becomes a proper aspect
   # with the function as a parametric include for the fx pipeline.
   coercedProviderType =
-    cnf:
+    typeCfg:
     let
-      pt = providerType cnf;
+      pt = providerType typeCfg;
     in
     lib.types.coercedTo (lib.types.addCheck lib.types.raw (
       v: builtins.isFunction v && !isSubmoduleFn v && lib.functionArgs v != { }
     )) (fn: { includes = [ fn ]; }) pt;
 
   aspectsType =
-    cnf: lib.types.submodule { freeformType = lib.types.lazyAttrsOf (coercedProviderType cnf); };
+    typeCfg:
+    lib.types.submodule { freeformType = lib.types.lazyAttrsOf (coercedProviderType typeCfg); };
 
 in
 {
@@ -296,5 +306,7 @@ in
     providerType
     parametricType
     isParametricWrapper
+    isSubmoduleFn
+    isMeaningfulName
     ;
 }

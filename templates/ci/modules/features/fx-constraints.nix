@@ -230,8 +230,8 @@
         } comp;
       in
       {
-        # root + keep = 2 paths, drop is tombstoned and excluded from paths
-        expr = builtins.length result.state.paths;
+        # root + keep = 2 paths in pathSet, drop is tombstoned and excluded
+        expr = builtins.length (builtins.attrNames result.state.pathSet);
         expected = 2;
       }
     );

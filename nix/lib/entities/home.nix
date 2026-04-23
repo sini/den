@@ -73,7 +73,11 @@ let
             description = "Aspect that configures this home.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default = den.aspects.${config.name} or { };
+            default =
+              if den.aspects ? ${config.name} then
+                den.aspects.${config.name}
+              else
+                lib.warn "den.aspects.${config.name} not defined — entity gets empty aspect" { };
           };
           description = strOpt "home description" "home.${config.name}@${config.system}";
           pkgs = lib.mkOption {

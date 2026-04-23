@@ -1,8 +1,3 @@
-# modules/relationships/batteries.nix
-#
-# Battery relationships — home-environment (hm, hjem, maid) and WSL
-# transitions.
-#
 # All resolve functions guard on expected context keys so they are safe
 # to call from any pipeline context.
 { lib, ... }:
@@ -96,6 +91,8 @@ in
     };
 
     # --- WSL ---
+    # WSL activation is host-config-driven (wsl.enable), not user-class-driven,
+    # so it doesn't use mkDetectHost which requires matching user classes.
     host-to-wsl-host = {
       from = "host";
       to = "wsl-host";
@@ -109,7 +106,7 @@ in
           };
     };
 
-    # --- home-to-default (from home-manager.nix homeCtx) ---
+    # --- home-to-default ---
     home-to-default = {
       from = "home";
       to = "default";

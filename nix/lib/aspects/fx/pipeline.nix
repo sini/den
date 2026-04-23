@@ -44,7 +44,6 @@ let
     in
     a // b // sharedComposed;
 
-  # Default handler set for the unified pipeline.
   defaultHandlers =
     { class, ctx }:
     handlers.constantHandler (
@@ -73,7 +72,6 @@ let
     imports = _: [ ];
     constraintRegistry = { };
     constraintFilters = [ ];
-    paths = [ ];
     pathSet = { };
     includesChain = [ ];
     # Thunk chain (like imports) so trampoline's deepSeq doesn't force
@@ -82,8 +80,6 @@ let
     deferredIncludes = _: [ ];
   };
 
-  # Configurable pipeline builder. Runs aspectToEffect on the root aspect
-  # with the full handler set.
   mkPipeline =
     {
       extraHandlers ? { },
@@ -100,31 +96,8 @@ let
       # name — e.g. when resolving the host stage (name="host"), only
       # relationships with from="host" fire. This prevents flake/battery
       # relationships from polluting host pipelines and vice versa.
-      relationships = den.relationships or { };
       selfName = self.name or "";
-      matchingRels = lib.filter (rel: rel.from == selfName) (builtins.attrValues relationships);
-      relationshipInto =
-        if matchingRels == [ ] then
-          null
-        else
-          rCtx:
-          let
-            raw = builtins.foldl' (
-              acc: rel:
-              let
-                targets = rel.resolve rCtx;
-                targetList = if builtins.isList targets then targets else [ targets ];
-              in
-              if targetList == [ ] then
-                acc
-              else
-                acc
-                // {
-                  ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList;
-                }
-            ) { } matchingRels;
-          in
-          raw;
+      relationshipInto = den.lib.synthesizeRelationships selfName;
 
       # Merge relationship transitions with the aspect's existing into.
       # Relationships are additive — they contribute new target keys alongside
@@ -159,7 +132,7 @@ let
         else
           self;
 
-      comp = aspectToEffect effectiveSelf;
+      rootEffect = aspectToEffect effectiveSelf;
       # Override aspect-chain to include root aspect — consumed by provider
       # functions (home-env.nix) via bind.fn.
       rootHandlers = defaultHandlers {
@@ -182,9 +155,8 @@ let
           currentCtx = _: ctx;
           inherit class;
         };
-    } comp;
+    } rootEffect;
 
-  # Full pipeline: aspect compilation → handler-driven resolution → module collection.
   # Returns raw fx.handle result with { value, state }.
   fxFullResolve =
     {

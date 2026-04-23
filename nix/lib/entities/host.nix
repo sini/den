@@ -41,7 +41,11 @@ let
             description = "Aspect that configures this host.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default = den.aspects.${config.name} or { };
+            default =
+              if den.aspects ? ${config.name} then
+                den.aspects.${config.name}
+              else
+                lib.warn "den.aspects.${config.name} not defined — entity gets empty aspect" { };
           };
           description = strOpt "host description" "${config.class}.${config.hostName}@${config.system}";
           users = lib.mkOption {
@@ -139,7 +143,11 @@ let
             description = "Aspect that configures this user.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default = den.aspects.${config.name} or { };
+            default =
+              if den.aspects ? ${config.name} then
+                den.aspects.${config.name}
+              else
+                lib.warn "den.aspects.${config.name} not defined — entity gets empty aspect" { };
           };
           host = lib.mkOption {
             default = host;
