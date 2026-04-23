@@ -18,29 +18,10 @@ let
   collectPathSet =
     { tree, class }:
     let
-      isRawFn = builtins.isFunction tree;
-      isFunctor =
-        !isRawFn && builtins.isAttrs tree && tree ? __functor && builtins.isFunction (tree.__functor tree);
-      functorArgs = if isFunctor then builtins.functionArgs (tree.__functor tree) else { };
-      needsWrap = isRawFn || (isFunctor && functorArgs != { });
-      normalized =
-        if needsWrap then
-          let
-            innerFn = if isFunctor then tree.__functor tree else tree;
-            innerArgs = if isFunctor then functorArgs else builtins.functionArgs innerFn;
-          in
-          {
-            __fn = innerFn;
-            __args = innerArgs;
-            name = tree.name or "<function body>";
-            meta = tree.meta or { };
-            includes = tree.includes or [ ];
-          }
-        else
-          tree;
+      normalized = den.lib.aspects.normalizeRoot tree;
       result = den.lib.aspects.fx.pipeline.fxFullResolve {
         inherit class;
-        ctx = normalized.__ctx or { };
+        ctx = normalized.__ctx or tree.__ctx or { };
         self = normalized;
       };
     in
