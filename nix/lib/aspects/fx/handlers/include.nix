@@ -259,5 +259,5 @@ let
 
 in
 {
-  inherit includeHandler wrapChild;
+  inherit includeHandler;
 }

@@ -77,7 +77,6 @@ in
   inherit
     aspectPath
     pathKey
-    toPathSet
     tombstone
     collectPathsHandler
     pathSetHandler

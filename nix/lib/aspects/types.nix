@@ -16,13 +16,6 @@ let
   # bind.fn effects. NixOS module functions (taking lib/config/options) are
   # NOT coerced — they're handled by wrapChild's normalizeModuleFn.
 
-  parametricType = lib.types.mkOptionType {
-    name = "parametric";
-    description = "parametric aspect wrapper awaiting bind.fn resolution";
-    check = v: builtins.isAttrs v && v ? __fn && v ? __args;
-    merge = _: defs: (lib.last defs).value;
-  };
-
   isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
 
   isMeaningfulName =
@@ -304,7 +297,6 @@ in
     aspectsType
     aspectType
     providerType
-    parametricType
     isParametricWrapper
     isSubmoduleFn
     isMeaningfulName
