@@ -2,7 +2,7 @@
 {
 
   # Read flake-parts classes from hosts and their includes
-  den.relationships.flake-parts-to-host = {
+  den.policies.flake-parts-to-host = {
     from = "flake-parts";
     to = "host";
     resolve =

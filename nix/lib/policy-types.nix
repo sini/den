@@ -1,10 +1,8 @@
-# nix/lib/relationship-types.nix
-#
-# Relationship type definitions. A relationship declares how one entity
-# kind transitions to another — pure topology, no behavior.
+# A policy declares a directed edge between entity kinds with a
+# resolve function that performs fan-out/discrimination.
 { lib, ... }:
 let
-  relationshipType = lib.types.submodule {
+  policyType = lib.types.submodule {
     options = {
       from = lib.mkOption {
         type = lib.types.str;
@@ -26,5 +24,5 @@ let
   };
 in
 {
-  inherit relationshipType;
+  inherit policyType;
 }

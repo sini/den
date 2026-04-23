@@ -35,7 +35,7 @@ let
         provider = [ ];
         into =
           let
-            synth = den.lib.synthesizeRelationships name;
+            synth = den.lib.synthesizePolicies name;
           in
           if synth != null then synth else _: { };
       };

@@ -49,7 +49,7 @@
             funny.names = [ "hello-${who}" ];
           };
 
-        den.relationships.test-greet-to-other = {
+        den.policies.test-greet-to-other = {
           from = "greet";
           to = "other";
           resolve = ctx: if !(ctx ? who) then [ ] else lib.singleton ctx;
@@ -82,7 +82,7 @@
           {
             funny.names = [ who ];
           };
-        den.relationships.test-greet-to-yell = {
+        den.policies.test-greet-to-yell = {
           from = "greet";
           to = "yell";
           resolve = ctx: if !(ctx ? who) then [ ] else [ { shout = lib.toUpper ctx.who; } ];
@@ -115,17 +115,17 @@
           {
             funny.names = [ who ];
           };
-        den.relationships.test-greet-to-yell-fn = {
+        den.policies.test-greet-to-yell-fn = {
           from = "greet";
           to = "yell";
           resolve = ctx: if !(ctx ? who) then [ ] else [ { shout = lib.toUpper ctx.who; } ];
         };
-        den.relationships.test-greet-to-size = {
+        den.policies.test-greet-to-size = {
           from = "greet";
           to = "size";
           resolve = ctx: if !(ctx ? who) then [ ] else [ { length = lib.stringLength ctx.who; } ];
         };
-        den.relationships.test-greet-to-num = {
+        den.policies.test-greet-to-num = {
           from = "greet";
           to = "num";
           resolve = ctx: if !(ctx ? who) then [ ] else [ { number = lib.stringLength ctx.who; } ];

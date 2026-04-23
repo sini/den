@@ -1,9 +1,7 @@
-# modules/relationships/core.nix
-#
-# Core entity relationships — fundamental transitions between entity kinds.
+# Core entity policies — fundamental traversal between entity kinds.
 { lib, ... }:
 {
-  den.relationships = {
+  den.policies = {
     host-to-users = {
       from = "host";
       to = "user";

@@ -1,10 +1,4 @@
-# modules/relationships/flake.nix
-#
-# Flake output relationships — transitions from flake-level entity kinds.
-#
-# All resolve functions guard on expected context keys so they are safe to
-# call from any pipeline context (the pipeline applies all relationships to
-# every root aspect).
+# Flake output policies — traversal from flake-level entity kinds.
 {
   den,
   lib,
@@ -24,7 +18,7 @@ let
   # attrs, so we must avoid firing when host/home are also present.
   isFlakeSystemCtx = ctx: ctx ? system && !(ctx ? host) && !(ctx ? home);
 
-  systemOutputRels = map (output: {
+  systemOutputPolicies = map (output: {
     name = "flake-system-to-flake-${output}";
     value = {
       from = "flake-system";
@@ -42,11 +36,10 @@ let
   }) systemOutputs;
 in
 {
-  den.relationships = lib.listToAttrs systemOutputRels // {
+  den.policies = lib.listToAttrs systemOutputPolicies // {
     flake-to-flake-system = {
       from = "flake";
       to = "flake-system";
-      # Only fire from a pure flake context (no entity keys present).
       resolve =
         ctx:
         if !(ctx ? host) && !(ctx ? system) && !(ctx ? home) then

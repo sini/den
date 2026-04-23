@@ -1,10 +1,8 @@
 { denTest, ... }:
 {
-  flake.tests.relationships = {
+  flake.tests.policies = {
 
-    # A declared relationship fires: its target stage behavior appears in the
-    # resolved NixOS config of the host.
-    test-relationship-fires = denTest (
+    test-policy-fires = denTest (
       { den, igloo, ... }:
       {
         den.hosts.x86_64-linux.igloo.users.tux = { };
@@ -14,7 +12,7 @@
           nixos.users.users.tux.description = "from-rel-target-stage";
         };
 
-        den.relationships.host-to-test-rel = {
+        den.policies.host-to-test-rel = {
           from = "host";
           to = "test-rel-target";
           resolve = _: [ { } ];
@@ -25,10 +23,9 @@
       }
     );
 
-    # Relationships coexist with existing ctx transitions: both the
-    # relationship target stage and a ctx.into transition contribute to
-    # the resolved NixOS config without clobbering each other.
-    test-relationship-coexists-with-ctx-into = denTest (
+    # Both a policy target stage and an into transition contribute
+    # to the resolved NixOS config without clobbering each other.
+    test-policy-coexists-with-into = denTest (
       { den, igloo, ... }:
       {
         den.hosts.x86_64-linux.igloo.users.tux = { };
@@ -43,7 +40,7 @@
           nixos.users.users.tux.description = "from-default-stage";
         };
 
-        den.relationships.host-to-test-rel-coexist = {
+        den.policies.host-to-test-rel-coexist = {
           from = "host";
           to = "test-rel-coexist";
           resolve = _: [ { } ];

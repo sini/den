@@ -43,7 +43,7 @@
     );
 
     # Behavior set on den.stages.user appears in the resolved NixOS config
-    # for each user (user stage is reached from host via relationships).
+    # for each user (user stage is reached from host via policies).
     test-stage-user-nixos = denTest (
       { den, igloo, ... }:
       {

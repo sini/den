@@ -8,7 +8,7 @@
     inputs = inputs;
   };
 
-  den.relationships.flake-parts-to-flake-parts-system-tests = {
+  den.policies.flake-parts-to-flake-parts-system-tests = {
     from = "flake-parts";
     to = "flake-parts-system";
     resolve = _: [

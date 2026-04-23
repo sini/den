@@ -24,7 +24,7 @@ let
   };
 
   # Schema entries auto-inject config.resolved when den.stages.${kind} exists
-  # or den.relationships reference the kind.
+  # or den.policies reference the kind.
   # Context args are derived from the entity's _module.args, filtered to
   # known stage kinds so framework args don't leak through.
   knownKinds = builtins.attrNames (den.stages or { });

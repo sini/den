@@ -1,6 +1,6 @@
 # Sends: ctx-seen, resolve-complete, aspectToEffect
 # State reads: currentCtx
-# External: den.stages (target registry), den.relationships (nested transitions)
+# External: den.stages (target registry), den.policies (nested transitions)
 {
   lib,
   den,
@@ -92,23 +92,20 @@ let
   # Resolve a single transition: look up target aspect, check dedup, resolve each context value.
   # Also emits cross-providers: if sourceAspect.provides.${targetKey} exists,
   # that provider is resolved in the scoped context (e.g. flake-system.provides.flake-packages).
-  # Build a target aspect from stages + relationships.
-  # Stages provide the target's identity (name, provides, includes, class keys).
-  # Relationships provide nested transitions (meta.into).
+  # Stages provide the target's identity. Policies provide nested transitions.
   buildTarget =
     transition:
     let
       stageAspect = lib.attrByPath transition.path null (den.stages or { });
 
-      # Synthesize relationships onto target for nested transitions.
       targetName = if stageAspect != null then stageAspect.name or "" else "";
-      relationshipInto = den.lib.synthesizeRelationships targetName;
+      policyInto = den.lib.synthesizePolicies targetName;
     in
-    if stageAspect != null && relationshipInto != null then
+    if stageAspect != null && policyInto != null then
       stageAspect
       // {
         meta = (stageAspect.meta or { }) // {
-          into = relationshipInto;
+          into = policyInto;
         };
       }
     else if stageAspect != null then
@@ -264,7 +261,7 @@ let
         # explicit context (e.g. resolveStage "user" {host, user}) have
         # their context available for evaluating the into function.
         # Without this, the separate HM pipeline starts with empty ctx
-        # and relationship guards like (ctx ? user) fail.
+        # and policy guards like (ctx ? user) fail.
         aspectCtx = sourceAspect.__ctx or { };
         currentCtx = rootCtx // aspectCtx;
         intoResult = param.intoFn currentCtx;

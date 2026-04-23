@@ -51,7 +51,7 @@ in
                   my.val = [ v ];
                 };
             };
-            den.relationships.a-to-b = {
+            den.policies.a-to-b = {
               from = "a";
               to = "b";
               resolve = ctx: if ctx ? v then [ { v = "${ctx.v}!"; } ] else [ ];

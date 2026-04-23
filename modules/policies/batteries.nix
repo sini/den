@@ -40,7 +40,7 @@ let
 
 in
 {
-  den.relationships = {
+  den.policies = {
     # --- home-manager ---
     host-to-hm-host = {
       from = "host";
