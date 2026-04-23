@@ -105,7 +105,10 @@ in
               };
 
             den.aspects.foobar.includes = [
-              (den.lib.resolveStage "foo" { name = "good"; })
+              # resolveStage results carry __scopeHandlers which are
+              # destroyed by providerType merge. Wrap in a function
+              # so it's called at resolution time, not definition time.
+              ({ class, ... }: den.lib.resolveStage "foo" { name = "good"; })
             ];
           };
 
