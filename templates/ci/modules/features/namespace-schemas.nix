@@ -20,7 +20,7 @@
       }
     );
 
-    # Namespace ctx dispatches includes through its own pipeline.
+    # Namespace aspect with parametric include dispatches via pipeline.
     test-namespace-ctx-dispatches = denTest (
       {
         den,
@@ -39,9 +39,9 @@
             }
           )
         ];
-        aux.ctx.entry.provides.entry = { word }: den.lib.parametric.fixedTo { inherit word; } aux.my-aspect;
+        aux.entry.provides.entry = { word }: den.lib.parametric.fixedTo { inherit word; } aux.my-aspect;
 
-        expr = funnyNames (aux.ctx.entry { word = "greet"; });
+        expr = funnyNames (aux.entry { word = "greet"; });
         expected = [ "greet" ];
       }
     );
@@ -95,8 +95,8 @@
       }
     );
 
-    # Nested ctx works within a namespace.
-    test-namespace-nested-ctx = denTest (
+    # Nested namespace aspect with parametric fixedTo.
+    test-namespace-nested-aspect = denTest (
       {
         den,
         aux,
@@ -114,10 +114,9 @@
             }
           )
         ];
-        aux.ctx.ns.leaf.provides.leaf =
-          { word }: den.lib.parametric.fixedTo { inherit word; } aux.my-aspect;
+        aux.leaf.provides.leaf = { word }: den.lib.parametric.fixedTo { inherit word; } aux.my-aspect;
 
-        expr = funnyNames (aux.ctx.ns.leaf { word = "nested"; });
+        expr = funnyNames (aux.leaf { word = "nested"; });
         expected = [ "nested" ];
       }
     );

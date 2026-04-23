@@ -42,8 +42,8 @@
     ];
   };
 
-  # A ctx entry shared to consumers — provides a self-provider function.
-  provider.ctx.simple.provides.simple = _: { funny.names = [ "from-provider-ctx" ]; };
+  # A provider entry shared to consumers — provides a self-provider function.
+  provider.simple.provides.simple = _: { funny.names = [ "from-provider-ctx" ]; };
 
   # A schema entry that can be shared to consumers.
   provider.schema.entity = {
