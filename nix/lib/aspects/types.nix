@@ -164,6 +164,12 @@ let
       name = "provider";
       description = "aspect or function returning aspect";
       check = v: builtins.isAttrs v || lib.isFunction v;
+      # Merge dispatch:
+      #   parametric wrappers (__fn/__args) → last-wins, preserve wrapper
+      #   mixed fns + attrsets → coerce parametric fns to { includes = [fn]; }
+      #   all fns, has submodule fns → merge through aspectType
+      #   all fns, bare parametric only → last-wins, wrap as { __fn, __args }
+      #   all attrsets → merge through aspectType
       merge =
         loc: defs:
         let

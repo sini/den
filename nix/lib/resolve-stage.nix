@@ -6,6 +6,8 @@
 let
   inherit (den.lib.aspects.fx.handlers) constantHandler;
 
+  # Stage nodes lack pipeline-internal keys (__fn, __args, __scopeHandlers, etc.)
+  # that aspect.nix's structuralKeysSet includes, so this list is shorter.
   structuralKeys = [
     "name"
     "description"

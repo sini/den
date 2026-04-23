@@ -169,6 +169,8 @@ let
             # Named aspects get a dedup key so the module system keeps only
             # the first. Synthetic names must not be keyed — multiple
             # anonymous includes with the same identity are distinct.
+            # These synthetic names are produced by normalizeRoot, nameAnon,
+            # and the module system's [definition ...] format. Keep in sync.
             isAnon =
               nodeIdentity == "<anon>"
               || nodeIdentity == "<function body>"
