@@ -42,18 +42,12 @@ let
     );
 
   # Resolve a single context value by tagging the target aspect with __ctx
-  # and resolving it directly. No scope.run — context flows as data.
+  # and resolving it. For fan-out transitions, each context value's target
+  # gets its own inner resolution with independent dedup state.
   resolveContextValue =
     parentCtx: targetAspect: results: newCtx:
     let
       scopedCtx = parentCtx // newCtx;
-      # __ctxId differentiates fan-out contexts with the same target aspect.
-      # Derives identity from entity names (v.name for attrsets) or string
-      # values in newCtx. Assumes all context values are either:
-      # - Entities with a .name attribute (host, user objects)
-      # - Strings (like system = "x86_64-linux")
-      # - Other attrsets (fallback: uses the key name, may collide if two
-      #   contexts share key names but differ in non-name values)
       ctxNames = lib.concatStringsSep "," (
         lib.sort (a: b: a < b) (
           lib.concatMap (
@@ -223,55 +217,91 @@ let
       in
       fx.bind (fx.send "resolve-complete" ts) (_: fx.pure (results ++ [ ts ]))
     else
-      fx.bind (fx.send "ctx-seen" key) (
-        { isFirst }:
-        if !isFirst then
-          fx.pure results
-        else
-          builtins.foldl' (
-            acc: newCtx:
-            fx.bind acc (
-              innerResults:
-              let
-                scopedCtx = currentCtx // newCtx;
-                # Compute ctxId for cross-provider identity (same derivation
-                # as resolveContextValue uses for the target aspect).
-                ctxNames = lib.concatStringsSep "," (
-                  lib.sort (a: b: a < b) (
-                    lib.concatMap (
-                      k:
-                      let
-                        v = newCtx.${k};
-                      in
-                      if builtins.isAttrs v && v ? name then
-                        [ v.name ]
-                      else if builtins.isString v then
-                        [ v ]
-                      else if builtins.isInt v || builtins.isFloat v then
-                        [ (toString v) ]
-                      else
-                        [ k ]
-                    ) (builtins.attrNames newCtx)
-                  )
-                );
-                # Build handler-closure for this transition context.
-                scopeHandlers = constantHandler scopedCtx;
-                # Update state.currentCtx so nested transitions' intoFn
-                # receives accumulated context.
-                updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
-                withTarget =
-                  if effectiveTarget != null then
-                    resolveContextValue currentCtx effectiveTarget innerResults newCtx
+      let
+        # For fan-out transitions (multiple contexts), use per-context
+        # dedup keys so each context gets its own resolution. For
+        # single-context transitions, use the plain target key.
+        isFanOut = builtins.length transition.contexts > 1;
+      in
+      builtins.foldl' (
+        acc: newCtx:
+        fx.bind acc (
+          innerResults:
+          let
+            scopedCtx = currentCtx // newCtx;
+            # Compute ctxId for cross-provider identity (same derivation
+            # as resolveContextValue uses for the target aspect).
+            ctxNames = lib.concatStringsSep "," (
+              lib.sort (a: b: a < b) (
+                lib.concatMap (
+                  k:
+                  let
+                    v = newCtx.${k};
+                  in
+                  if builtins.isAttrs v && v ? name then
+                    [ v.name ]
+                  else if builtins.isString v then
+                    [ v ]
+                  else if builtins.isInt v || builtins.isFloat v then
+                    [ (toString v) ]
                   else
-                    fx.pure innerResults;
-              in
+                    [ k ]
+                ) (builtins.attrNames newCtx)
+              )
+            );
+            # For fan-out, include ctxId in dedup key so each
+            # context resolves independently.
+            ctxKey = if isFanOut then "${key}/{${ctxNames}}" else key;
+            # Build handler-closure for this transition context.
+            scopeHandlers = constantHandler scopedCtx;
+            # Update state.currentCtx so nested transitions' intoFn
+            # receives accumulated context.
+            updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
+            # For fan-out transitions, resolve the target in a SEPARATE
+            # pipeline (fresh dedup state) so inner transitions within each
+            # context don't block across contexts. The separate pipeline's
+            # imports are merged into the current pipeline's state.
+            withTarget =
+              if effectiveTarget != null then
+                if isFanOut && targetClass == "flake" then
+                  let
+                    tagged = effectiveTarget // {
+                      __scopeHandlers = scopeHandlers;
+                      __ctxId = ctxNames;
+                    };
+                    targetClass' = targetClass;
+                    subResult = den.lib.aspects.fx.pipeline.fxFullResolve {
+                      class = targetClass';
+                      self = tagged;
+                      ctx = scopedCtx;
+                    };
+                    subImports = subResult.state.imports null;
+                    mergeImports = fx.effects.state.modify (
+                      st:
+                      st
+                      // {
+                        imports = x: (st.imports x) ++ subImports;
+                      }
+                    );
+                  in
+                  fx.bind mergeImports (_: fx.pure innerResults)
+                else
+                  resolveContextValue currentCtx effectiveTarget innerResults newCtx
+              else
+                fx.pure innerResults;
+          in
+          fx.bind (fx.send "ctx-seen" ctxKey) (
+            { isFirst }:
+            if !isFirst then
+              fx.pure innerResults
+            else
               fx.bind updateCtx (
                 _:
                 fx.bind withTarget (targetResults: emitCrossProvider scopedCtx scopeHandlers ctxNames targetResults)
               )
-            )
-          ) (fx.pure results) transition.contexts
-      );
+          )
+        )
+      ) (fx.pure results) transition.contexts;
 
   transitionHandler = {
     "into-transition" =
