@@ -14,8 +14,8 @@ let
 
   '';
 
-  os-class =
-    { class, aspect-chain }:
+  mkOsFwd =
+    ctx: aspect:
     den.provides.forward {
       each = [
         "nixos"
@@ -24,10 +24,18 @@ let
       fromClass = _: "os";
       intoClass = lib.id;
       intoPath = _: [ ];
-      fromAspect = _: lib.head aspect-chain;
+      fromAspect = _: aspect;
+      fromCtx = _: ctx;
     };
+
+  # Host-level os-class: forwards os content from the host's aspect.
+  host-os-fwd = { host, ... }: mkOsFwd { inherit host; } host.aspect;
+
+  # User-level os-class: forwards os content from each user's aspect.
+  user-os-fwd = { user, host, ... }: mkOsFwd { inherit host user; } user.aspect;
 
 in
 {
-  den.stages.default.includes = [ os-class ];
+  den.stages.host.includes = [ host-os-fwd ];
+  den.stages.user.includes = [ user-os-fwd ];
 }
