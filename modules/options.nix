@@ -46,9 +46,22 @@ let
                 description = "The resolved aspect for this ${kind}.";
                 readOnly = true;
                 type = lib.types.raw;
-                default = den.lib.resolveStage kind (
-                  lib.filterAttrs (n: _: builtins.elem n knownKinds) config._module.args // { ${kind} = config; }
-                );
+                default =
+                  let
+                    # Entity args (host, user, home) are always passed as context
+                    # even if no corresponding stage exists — aspects may need them
+                    # for parametric resolution (e.g. { host, ... }: ...).
+                    entityKinds = [
+                      "host"
+                      "user"
+                      "home"
+                    ];
+                    isContextArg = n: builtins.elem n knownKinds || builtins.elem n entityKinds;
+                    ctx = lib.filterAttrs (n: _: isContextArg n) config._module.args // {
+                      ${kind} = config;
+                    };
+                  in
+                  den.lib.resolveStage kind ctx;
               };
             };
         in
