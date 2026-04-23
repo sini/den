@@ -61,16 +61,14 @@
         parametricDev = {
           name = "dev";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { user }:
             {
               includes = [ staticBase ];
             };
-          __functionArgs = {
+          __args = {
             user = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect parametricDev;
         result = fx.handle {
@@ -167,16 +165,14 @@
         mid = {
           name = "mid";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { user }:
             {
               includes = [ leaf ];
             };
-          __functionArgs = {
+          __args = {
             user = false;
           };
-          includes = [ ];
         };
         root = {
           name = "root";

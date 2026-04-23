@@ -129,8 +129,7 @@ in
         aspect = {
           name = "paramAspect";
           meta = { };
-          __functor =
-            self:
+          __fn =
             { host }:
             {
               nixosModules = {
@@ -138,10 +137,9 @@ in
               };
               includes = [ ];
             };
-          __functionArgs = {
+          __args = {
             host = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect aspect;
         result = den.lib.fx.handle {

@@ -4,9 +4,15 @@
 # Returns an aspect-shaped attrset preserving into/provides for
 # the fx pipeline's transitionHandler and emitSelfProvide to handle.
 #
-# The __ctx field carries the initial context value to the pipeline
-# entry point (fxResolveTree extracts it for defaultHandlers).
+# __ctx carries the initial context value to the pipeline entry point
+# (fxResolveTree extracts it for defaultHandlers).
+# __scopeHandlers carries handler data so aspectToEffect can derive
+# scope.provide at point of use for parametric arg resolution.
 { lib, den, ... }:
+let
+  fx = den.lib.fx;
+  inherit (den.lib.aspects.fx.handlers) constantHandler;
+in
 _ctxNs:
 let
   # Structural keys that ctxApply always forwards.
@@ -18,8 +24,6 @@ let
     "provides"
     "into"
     "__functor"
-    "__functionArgs"
-    "__ctx"
     "__parametricResolved"
     "_module"
   ];
@@ -49,8 +53,10 @@ let
       meta.into = self.into or (_: { });
       provides = self.provides or { };
       includes = self.includes or [ ];
-      # Carry context to the pipeline entry point.
+      # Carry context to the pipeline entry point (seeds state.currentCtx
+      # for into functions). __scopeHandlers handles parametric arg resolution.
       __ctx = ctx;
+      __scopeHandlers = constantHandler ctx;
     };
 in
 ctxApply

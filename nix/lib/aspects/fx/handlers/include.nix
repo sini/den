@@ -28,27 +28,17 @@ let
       ];
 
   # Wrap bare function includes in an aspect envelope.
+  # lib.isFunction catches raw lambdas and real functor attrsets (ctx nodes,
+  # explicit wrappers). Plain aspects (no __functor after option removal) and
+  # parametric wrappers (__fn/__args, no __functor) skip to else → pass-through.
   wrapChild =
     child:
     if lib.isFunction child then
       (
-        # For attrset-with-functor children, extract the actual inner function
-        # to get the real args for bind.fn resolution. This bypasses stale
-        # __functionArgs on the attrset and gives aspectToEffect the correct
-        # isParametric decision.
         if builtins.isAttrs child then
           let
             innerFn = child.__functor child;
-            # innerFn may be a function (parametric) or a value (factory functor).
             innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
-            # NixOS module functions are deferred modules, not parametric aspects.
-            # Heuristic: any function accepting ONLY module-system args (lib, config,
-            # options) is treated as a module. Functions with extra args (host, user)
-            # are parametric. Edge case: { config, ... }: is classified as module —
-            # if a parametric aspect genuinely takes only { config }, wrap it in an
-            # aspect envelope with explicit __functionArgs instead.
-            # NixOS module functions wrapped in functors (e.g. by the type system's
-            # default __functor) should be normalized, not treated as parametric.
             isModuleFn =
               builtins.isFunction innerFn
               && den.lib.canTake.upTo {
@@ -62,19 +52,16 @@ let
           else
             child
             // {
-              # Preserve original __functor for wrappers that need self (e.g. perCtx
-              # reads self.__ctx). Only replace with unwrapped innerFn when the child
-              # uses the default aspect functor.
-              __functor =
-                if child ? __functionArgs && (child.__functionArgs or { }) != { } then
-                  child.__functor
+              __fn =
+                if child ? __args then
+                  child.__fn
+                else if builtins.isFunction innerFn then
+                  innerFn
                 else
-                  _: if builtins.isFunction innerFn then innerFn else _: innerFn;
-              # Preserve explicit __functionArgs if already set (e.g. by perHost/perUser
-              # wrappers). Only override with innerArgs if child has no explicit args.
-              __functionArgs =
+                  _: innerFn;
+              __args =
                 let
-                  explicit = child.__functionArgs or { };
+                  explicit = child.__args or { };
                 in
                 if explicit != { } then explicit else innerArgs;
               includes = child.includes or [ ];
@@ -82,12 +69,6 @@ let
         else
           let
             args = lib.functionArgs child;
-            # NixOS module functions are deferred modules, not parametric aspects.
-            # Heuristic: any function accepting ONLY module-system args (lib, config,
-            # options) is treated as a module. Functions with extra args (host, user)
-            # are parametric. Edge case: { config, ... }: is classified as module —
-            # if a parametric aspect genuinely takes only { config }, wrap it in an
-            # aspect envelope with explicit __functionArgs instead.
             isModuleFn = den.lib.canTake.upTo {
               lib = true;
               config = true;
@@ -100,9 +81,8 @@ let
             {
               name = child.name or "<anon>";
               meta = child.meta or { };
-              __functor = _: child;
-              __functionArgs = args;
-              includes = [ ];
+              __fn = child;
+              __args = args;
             }
       )
     else
@@ -134,7 +114,7 @@ let
       in
       if pass then
         emitIncludes {
-          __parentCtx = condNode.__ctx or { };
+          __parentScopeHandlers = condNode.__scopeHandlers or null;
           __parentCtxId = condNode.__ctxId or null;
         } condNode.meta.aspects
       else
@@ -172,24 +152,25 @@ let
   handlers = den.lib.aspects.fx.handlers;
 
   # Keep: resolve via aspectToEffect (which emits resolve-complete internally).
-  # Context is provided either by __ctx on the child (data-driven, from
-  # transitions or parent propagation) or by the root constantHandler.
+  # Context is provided by handler-closures (__scopeHandlers) or root constantHandler.
   #
-  # For parametric children, probe each required arg via probe-arg effect.
-  # Args already in child.__ctx are known-available and skip probing.
-  # Unresolvable includes are skipped (resolved at deeper context level).
+  # For parametric children, check if each required arg has a handler:
+  # 1. Check __scopeHandlers (handler-closure's handlers) — pure Nix check
+  # 2. For remaining args, use has-handler effect to query root handlers
+  # Unresolvable includes are deferred (resolved at deeper context level).
   keepChild =
     child:
     let
-      childArgs = child.__functionArgs or { };
-      childCtx = child.__ctx or { };
-      isParametric = childArgs != { } && child ? __functor;
+      childArgs = child.__args or { };
+      childScopeHandlers = child.__scopeHandlers or { };
+      isParametric = childArgs != { };
     in
     if isParametric then
       let
-        # Only probe args not already provided by __ctx.
-        unresolvedKeys = builtins.filter (k: !(builtins.hasAttr k childCtx)) (builtins.attrNames childArgs);
-        _t = builtins.trace "keepChild: ${child.name or "?"} args=${toString (builtins.attrNames childArgs)} __ctx=${toString (builtins.attrNames childCtx)} hasZ=${toString (childCtx ? z)} unresolved=${toString unresolvedKeys}";
+        # Filter out args available in __scopeHandlers (pure check, no effects needed).
+        # Remaining args are probed via has-handler against root handlers.
+        unresolvedKeys = builtins.filter (k: !(childScopeHandlers ? ${k})) (builtins.attrNames childArgs);
+        _t = builtins.trace "keepChild: ${child.name or "?"} args=${toString (builtins.attrNames childArgs)} scopeKeys=${toString (builtins.attrNames childScopeHandlers)} unresolved=${toString unresolvedKeys}";
         probeArgs =
           keys:
           if keys == [ ] then
@@ -199,7 +180,7 @@ let
               key = builtins.head keys;
               rest = builtins.tail keys;
             in
-            fx.bind (fx.send "probe-arg" key) (
+            fx.bind (fx.send "has-handler" key) (
               isAvailable: if isAvailable then probeArgs rest else fx.pure false
             );
       in
@@ -250,35 +231,32 @@ let
   isMeaningfulName =
     name: name != "<anon>" && name != "<function body>" && !(lib.hasPrefix "[definition " name);
 
-  # The handler. param is { child, idx, __parentCtx? } from emitIncludes.
+  # The handler. param is { child, idx, __parentScopeHandlers? } from emitIncludes.
   includeHandler = {
     "emit-include" =
       { param, state }:
       let
         rawChild = param.child or param;
         idx = param.idx or null;
-        parentCtx = param.__parentCtx or { };
         wrapped = wrapChild rawChild;
         parentCtxId = param.__parentCtxId or null;
-        # Propagate parent's __ctx and __ctxId to child.
-        withCtx =
-          if parentCtx != { } then
-            wrapped
-            // {
-              __ctx = parentCtx // (wrapped.__ctx or { });
-            }
-            // lib.optionalAttrs (parentCtxId != null && !(wrapped ? __ctxId)) { __ctxId = parentCtxId; }
-          else
-            wrapped;
+        parentScopeHandlers = param.__parentScopeHandlers or null;
+        # Propagate parent's __scopeHandlers and __ctxId to child.
+        withScope =
+          wrapped
+          // lib.optionalAttrs (parentScopeHandlers != null && !(wrapped ? __scopeHandlers)) {
+            __scopeHandlers = parentScopeHandlers;
+          }
+          // lib.optionalAttrs (parentCtxId != null && !(wrapped ? __ctxId)) { __ctxId = parentCtxId; };
         # Replace anonymous names with parent+index derived identity.
         child =
-          if idx != null && !(isMeaningfulName (withCtx.name or "<anon>")) then
-            withCtx // { name = nameAnon state idx (withCtx.__ctxId or null); }
+          if idx != null && !(isMeaningfulName (withScope.name or "<anon>")) then
+            withScope // { name = nameAnon state idx (withScope.__ctxId or null); }
           else
-            withCtx;
-        _ti = builtins.trace "includeHandler: name=${child.name or "?"} parentCtx=${toString (builtins.attrNames parentCtx)} __ctx=${
-          toString (builtins.attrNames (child.__ctx or { }))
-        } isParametric=${toString ((child.__functionArgs or { }) != { } && child ? __functor)}";
+            withScope;
+        _ti = builtins.trace "includeHandler: name=${child.name or "?"} scope=${
+          toString (child ? __scopeHandlers)
+        } isParametric=${toString ((child.__args or { }) != { })}";
         childIdentity = identity.pathKey (identity.aspectPath child);
         isConditional = builtins.isAttrs child && child ? meta && child.meta ? guard;
       in

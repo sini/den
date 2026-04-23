@@ -1,6 +1,6 @@
 { lib, den, ... }:
 let
-  inherit (den.lib) lastFunctionTo canTake;
+  inherit (den.lib) canTake;
 
   isSubmoduleFn = canTake.upTo {
     lib = true;
@@ -9,12 +9,21 @@ let
   };
 
   # Aspects are submodules with freeform class keys (nixos, homeManager, etc.)
-  # plus structural options (name, meta, includes, provides, __functor).
+  # plus structural options (name, meta, includes, provides).
   #
   # Functions with named args (like { host, ... }: { nixos = ...; }) are
   # coerced to { includes = [fn]; } so the fx pipeline resolves them via
   # bind.fn effects. NixOS module functions (taking lib/config/options) are
   # NOT coerced — they're handled by wrapChild's normalizeModuleFn.
+
+  parametricType = lib.types.mkOptionType {
+    name = "parametric";
+    description = "parametric aspect wrapper awaiting bind.fn resolution";
+    check = v: builtins.isAttrs v && v ? __fn && v ? __args;
+    merge = _: defs: (lib.last defs).value;
+  };
+
+  isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
 
   aspectType =
     cnf:
@@ -60,74 +69,67 @@ let
       merge =
         loc: defs:
         let
-          hasFns = builtins.any (d: lib.isFunction d.value) defs;
-          hasNonFns = builtins.any (d: !lib.isFunction d.value) defs;
-          isMixed = hasFns && hasNonFns;
+          parametrics = builtins.filter (d: isParametricWrapper d.value) defs;
         in
-        if isMixed then
-          # Mixed function + attrset defs: coerce parametric functions to
-          # { includes = [fn]; } so they merge as aspects.
-          at.merge loc (
-            map (
-              d:
-              if lib.isFunction d.value && !isSubmoduleFn d.value then
-                d
-                // {
-                  value = {
-                    includes = [ d.value ];
-                  };
-                }
-              else
-                d
-            ) defs
-          )
-        else if hasFns then
-          # All functions: submodule fns and functor attrsets with explicit
-          # __functionArgs merge through aspectType (preserving loc/name/identity).
-          # Bare parametric fns use lastFunctionTo.
+        if parametrics != [ ] then
+          (lib.last parametrics).value
+        else
           let
-            subFns = builtins.filter (d: isSubmoduleFn d.value) defs;
-            # Functor attrsets with explicit __functionArgs (e.g. perCtx wrappers)
-            # need aspectType merge for name/identity preservation.
-            functorWithArgs = builtins.filter (
-              d: builtins.isAttrs d.value && d.value ? __functor && (d.value.__functionArgs or { }) != { }
-            ) defs;
-            paramFns = builtins.filter (
-              d:
-              !isSubmoduleFn d.value
-              && !(builtins.isAttrs d.value && d.value ? __functor && (d.value.__functionArgs or { }) != { })
-            ) defs;
+            nonParametrics = builtins.filter (d: !isParametricWrapper d.value) defs;
+            hasFns = builtins.any (d: lib.isFunction d.value) nonParametrics;
+            hasNonFns = builtins.any (d: !lib.isFunction d.value) nonParametrics;
+            isMixed = hasFns && hasNonFns;
           in
-          if subFns != [ ] then
-            at.merge loc subFns
-          else if functorWithArgs != [ ] then
-            at.merge loc functorWithArgs
-          else
+          if isMixed then
+            # Mixed function + attrset defs: coerce parametric functions to
+            # { includes = [fn]; } so they merge as aspects.
+            at.merge loc (
+              map (
+                d:
+                if lib.isFunction d.value && !isSubmoduleFn d.value then
+                  d
+                  // {
+                    value = {
+                      includes = [ d.value ];
+                    };
+                  }
+                else
+                  d
+              ) nonParametrics
+            )
+          else if hasFns then
+            # All functions: submodule fns merge through aspectType
+            # (preserving loc/name/identity). Bare parametric fns use lastFunctionTo.
             let
-              fn = (lib.last paramFns).value;
+              subFns = builtins.filter (d: isSubmoduleFn d.value) nonParametrics;
+              paramFns = builtins.filter (d: !isSubmoduleFn d.value) nonParametrics;
             in
-            # Attrsets with default __functor (already-evaluated aspect submodules)
-            # must pass through unchanged — wrapping would destroy their includes
-            # and name. Only wrap actual bare functions (raw lambdas) that need
-            # identity for hasAspect lookups.
-            if builtins.isAttrs fn then
-              fn
+            if subFns != [ ] then
+              at.merge loc subFns
             else
               let
-                args = lib.functionArgs fn;
-                nameFromLoc = lib.last loc;
+                fn = (lib.last paramFns).value;
               in
-              {
-                name = nameFromLoc;
-                meta = {
-                  provider = cnf.providerPrefix or [ ];
-                };
-                __functor = _: fn;
-                __functionArgs = args;
-                includes = [ ];
-              }
-        else
-          at.merge loc defs;
+              # Already-evaluated aspect attrsets pass through unchanged —
+              # wrapping would destroy their includes and name. Only wrap
+              # bare functions (raw lambdas) as parametric wrappers.
+              if builtins.isAttrs fn then
+                fn
+              else
+                let
+                  args = lib.functionArgs fn;
+                  nameFromLoc = lib.last loc;
+                in
+                {
+                  name = nameFromLoc;
+                  meta = {
+                    provider = cnf.providerPrefix or [ ];
+                  };
+                  __fn = fn;
+                  __args = args;
+                }
+          else
+            at.merge loc nonParametrics;
     };
 
   aspectSubmodule =
@@ -190,36 +192,11 @@ let
             default = { };
           };
 
-          __functor = lib.mkOption {
-            internal = true;
-            visible = false;
-            description = "Functor — default tags aspect with __ctx for pipeline context propagation";
-            type = lastFunctionTo (providerType cnf);
-            defaultText = lib.literalExpression "self: ctx: self // { __ctx = ctx; }";
-            default = self: ctx: self // { __ctx = ctx; };
-          };
-
           includes = lib.mkOption {
             description = "Providers to ask aspects from";
             type = lib.types.listOf (providerType cnf);
             defaultText = lib.literalExpression "[ ]";
             default = [ ];
-          };
-
-          __ctx = lib.mkOption {
-            internal = true;
-            visible = false;
-            description = "Context values for parametric child resolution (set by fixedTo/expands/transitions)";
-            type = lib.types.lazyAttrsOf lib.types.unspecified;
-            default = { };
-          };
-
-          __functionArgs = lib.mkOption {
-            internal = true;
-            visible = false;
-            description = "Named args for parametric resolution — signals bind.fn what to resolve";
-            type = lib.types.lazyAttrsOf lib.types.bool;
-            default = { };
           };
 
           provides = lib.mkOption {
@@ -259,5 +236,11 @@ let
 
 in
 {
-  inherit aspectsType aspectType providerType;
+  inherit
+    aspectsType
+    aspectType
+    providerType
+    parametricType
+    isParametricWrapper
+    ;
 }

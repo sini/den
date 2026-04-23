@@ -13,18 +13,15 @@ let
     class: resolved:
     let
       isBareFn = lib.isFunction resolved && !builtins.isAttrs resolved;
-      isFunctor = !isBareFn && builtins.isAttrs resolved && resolved ? __functor;
+      # Only explicitly parametric functor attrsets need wrapping.
+      isFunctor =
+        !isBareFn
+        && builtins.isAttrs resolved
+        && resolved ? __functor
+        && builtins.isFunction (resolved.__functor resolved);
       functorArgs = if isFunctor then builtins.functionArgs (resolved.__functor resolved) else { };
       needsWrap = isFunctor && functorArgs != { };
       bareFnArgs = if isBareFn then lib.functionArgs resolved else { };
-      # NixOS module functions are deferred modules, not parametric aspects.
-      # Heuristic: any function accepting ONLY module-system args (lib, config,
-      # options) is treated as a module. Functions with extra args (host, user)
-      # are parametric. Edge case: { config, ... }: is classified as module —
-      # if a parametric aspect genuinely takes only { config }, wrap it in an
-      # aspect envelope with explicit __functionArgs instead.
-      # NixOS module functions ({ config, lib, ... }: ...) should be normalized
-      # through the type system, not wrapped as parametric aspects.
       isModuleFn =
         isBareFn
         && den.lib.canTake.upTo {
@@ -42,28 +39,27 @@ let
                 value = resolved;
               }
             ]
-        # Bare functions (e.g. { class, ... }: { ... }) → wrap as parametric aspect.
         else if isBareFn then
           {
-            __functor = _: resolved;
-            __functionArgs = bareFnArgs;
+            __fn = resolved;
+            __args = bareFnArgs;
             name = "<bare-fn>";
             meta = { };
-            includes = [ ];
           }
         else if needsWrap then
           {
-            __functor = _: resolved.__functor resolved;
-            __functionArgs = functorArgs;
+            __fn = resolved.__functor resolved;
+            __args = functorArgs;
             name = resolved.name or "<function body>";
             meta = resolved.meta or { };
             includes = resolved.includes or [ ];
           }
+          // lib.optionalAttrs (resolved ? __scopeHandlers) { inherit (resolved) __scopeHandlers; }
         else
           resolved;
-      # Extract __ctx from ctxApply-tagged aspects. These carry context values
-      # (host, user, etc.) that the pipeline's constantHandler needs to provide
-      # to nested parametric includes.
+      # Extract __ctx from ctxApply-tagged aspects. Seeds state.currentCtx
+      # so into functions receive the initial context values. Parametric arg
+      # resolution uses __scopeHandlers instead.
       ctx = resolved.__ctx or { };
     in
     fx.pipeline.fxResolve {

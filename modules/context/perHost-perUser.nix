@@ -1,39 +1,44 @@
+# Deprecated context-level guards.
+# Under handler-based resolution, bind.fn resolves each arg independently.
+# Optional args with no handler are skipped (nix-effects c7931d7), so
+# the function body can detect context level by checking which keys
+# were resolved.
 { lib, ... }:
 let
-  # Wrap an aspect so it only resolves when __ctx keys match exactly.
-  # perHost fires at host level ({ host }) but NOT user level ({ host, user }).
-  #
-  # Structure: { includes = [ guardedChild ] }
-  # - Outer wrapper is a plain aspect — trace shows it with the aspect name
-  # - Inner guardedChild is a functor with __functionArgs for the minimum
-  #   required arg, so keepChild defers until some context is available
-  # - guardedChild's __functor reads self.__ctx for exact-match check:
-  #   returns the inner aspect on match, {} on mismatch
-  # - The inner aspect appears as a traceable child (deferred or resolved)
+  # Known context keys. Keys not in the required set are declared as
+  # optional — if their handlers exist (deeper level), the function
+  # detects the extras and returns {} (no-op).
+  allContextKeys = [
+    "host"
+    "user"
+    "home"
+  ];
+
   perCtx =
     requiredKeys: aspect:
     let
-      isParametric = lib.isFunction aspect && !builtins.isAttrs aspect;
       reqKeysSorted = builtins.sort builtins.lessThan requiredKeys;
-      minKey = builtins.head reqKeysSorted;
+      extraKeys = builtins.filter (k: !(builtins.elem k reqKeysSorted)) allContextKeys;
+      # Required keys as required (false), extra keys as optional (true)
+      funcArgs = lib.genAttrs reqKeysSorted (_: false) // lib.genAttrs extraKeys (_: true);
     in
-    {
-      includes = [
-        {
-          __functor =
-            self: _:
-            let
-              ctx = self.__ctx or { };
-              ctxKeys = builtins.sort builtins.lessThan (builtins.attrNames ctx);
-            in
-            if ctxKeys == reqKeysSorted then if isParametric then aspect ctx else aspect else { };
-          __functionArgs = {
-            ${minKey} = false;
-          };
-          includes = [ ];
-        }
-      ];
-    };
+    lib.warn
+      "den.lib.perCtx [${lib.concatStringsSep "," reqKeysSorted}] is deprecated — handler-based resolution makes context guards unnecessary"
+      {
+        __fn =
+          resolvedArgs:
+          let
+            # If any extra key was resolved (handler exists), we're at a deeper level
+            hasExtras = builtins.any (k: resolvedArgs ? ${k}) extraKeys;
+          in
+          if hasExtras then
+            { }
+          else if lib.isFunction aspect && !builtins.isAttrs aspect then
+            aspect (lib.intersectAttrs (lib.genAttrs reqKeysSorted (_: null)) resolvedArgs)
+          else
+            aspect;
+        __args = funcArgs;
+      };
 
   perHost = perCtx [ "host" ];
   perUser = perCtx [

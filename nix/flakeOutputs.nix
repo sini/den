@@ -121,7 +121,7 @@ let
     {
       options.flake = flakeTop {
         inherit lib;
-        inherit (config) den;
+        den = config.den or { };
       };
     };
 

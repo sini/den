@@ -19,7 +19,8 @@ let
     { tree, class }:
     let
       isRawFn = builtins.isFunction tree;
-      isFunctor = builtins.isAttrs tree && tree ? __functor;
+      isFunctor =
+        !isRawFn && builtins.isAttrs tree && tree ? __functor && builtins.isFunction (tree.__functor tree);
       functorArgs = if isFunctor then builtins.functionArgs (tree.__functor tree) else { };
       needsWrap = isRawFn || (isFunctor && functorArgs != { });
       normalized =
@@ -29,17 +30,17 @@ let
             innerArgs = if isFunctor then functorArgs else builtins.functionArgs innerFn;
           in
           {
-            __functor = _: innerFn;
-            __functionArgs = innerArgs;
+            __fn = innerFn;
+            __args = innerArgs;
             name = tree.name or "<function body>";
             meta = tree.meta or { };
             includes = tree.includes or [ ];
           }
         else
           tree;
-      ctx = tree.__ctx or { };
       result = den.lib.aspects.fx.pipeline.fxFullResolve {
-        inherit class ctx;
+        inherit class;
+        ctx = normalized.__ctx or { };
         self = normalized;
       };
     in

@@ -15,8 +15,7 @@
         aspect = {
           name = "web";
           meta = { };
-          __functor =
-            _:
+          __fn =
             { host, user }:
             {
               nixos = {
@@ -24,11 +23,10 @@
                 userName = user;
               };
             };
-          __functionArgs = {
+          __args = {
             host = false;
             user = false;
           };
-          includes = [ ];
         };
         comp = den.lib.aspects.fx.aspect.aspectToEffect aspect;
         result = fx.handle {

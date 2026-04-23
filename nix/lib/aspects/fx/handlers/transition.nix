@@ -1,15 +1,14 @@
-# into-transition handler — processes context transitions via __ctx tagging.
+# into-transition handler — processes context transitions via handler-closures.
 # Handles: into-transition
 # Sends: ctx-seen (dedup), resolve-complete (missing transition tombstone),
-#        then aspectToEffect with __ctx-tagged target aspects.
-# Cross-providers: if source.provides.${targetKey} exists, it's tagged and resolved alongside.
+#        then aspectToEffect with __scopeHandlers-tagged target aspects.
+# Cross-providers: if source.provides.${targetKey} exists, tagged and resolved alongside.
 # State reads: currentCtx
 # External dependency: den.ctx (context aspect registry, looked up by transition path)
 #
-# Context propagation: instead of scope.run (which isolates state), transitions
-# tag target aspects with __ctx. aspectToEffect reads __ctx and scopes only the
-# bind.fn call, letting all other effects (emit-class, constraints, chain, paths)
-# reach root handlers with shared state.
+# Context propagation: transitions tag target aspects with __scopeHandlers.
+# aspectToEffect derives scope.provide at point of use to resolve parametric args.
+# __ctxId is preserved for fan-out identity/dedup.
 {
   lib,
   den,
@@ -18,6 +17,7 @@
 let
   fx = den.lib.fx;
   inherit (den.lib.aspects.fx.aspect) aspectToEffect;
+  inherit (den.lib.aspects.fx.handlers) constantHandler;
 
   # Flatten a nested into attrset into a flat list of { path, contexts }.
   flattenInto =
@@ -72,11 +72,12 @@ let
         )
       );
       ctxId = ctxNames;
+      scopeHandlers = constantHandler scopedCtx;
       tagged = targetAspect // {
-        __ctx = scopedCtx;
+        __scopeHandlers = scopeHandlers;
         __ctxId = ctxId;
       };
-      _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} __ctx=${toString (builtins.attrNames scopedCtx)}";
+      _t = builtins.trace "resolveContextValue: target=${targetAspect.name or "?"} scope=${toString (builtins.attrNames scopedCtx)}";
     in
     _t (
       fx.bind (aspectToEffect tagged) (
@@ -90,6 +91,7 @@ let
               prevResults:
               let
                 deferredTagged = d.child // {
+                  __scopeHandlers = scopeHandlers;
                   __ctx = scopedCtx;
                   __ctxId = ctxId;
                 };
@@ -112,36 +114,51 @@ let
       targetAspect = lib.attrByPath transition.path null (den.ctx or { });
       sourceProvides = sourceAspect.provides or { };
       crossProvider = sourceProvides.${targetKey} or null;
-      # Emit cross-provider result by tagging with __ctx and resolving directly.
+      # Emit cross-provider result by tagging with __scopeHandlers and resolving.
+      isParametricWrapper = v: builtins.isAttrs v && v ? __fn && v ? __args;
       emitCrossProvider =
-        scopedCtx: ctxId: prevResults:
+        scopedCtx: scopeHandlers: ctxId: prevResults:
         if crossProvider != null then
           let
-            # Call crossProvider with only the args it accepts, not the full
-            # scopedCtx. Curried providers (e.g. { name }: { shout }: ...) take
-            # the source ctx first; extra keys would cause unexpected-arg errors.
-            crossProviderArgs = lib.functionArgs crossProvider;
-            crossCtx =
-              if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
-            crossResult = crossProvider crossCtx;
-            # Wrap bare functions as parametric aspects for aspectToEffect.
+            # Parametric wrappers with named args are resolved by aspectToEffect
+            # directly — just tag with scope and pass through.
+            # Positional-arg wrappers (__args == {}) must be called with ctx
+            # first to get the actual provider function (e.g. _: osFwd becomes osFwd).
             wrapped =
-              if lib.isFunction crossResult && !builtins.isAttrs crossResult then
-                {
-                  name = "${sourceAspect.name or "?"}.provides.${targetKey}";
-                  meta = { };
-                  __functor = _: crossResult;
-                  __functionArgs = lib.functionArgs crossResult;
+              if isParametricWrapper crossProvider && crossProvider.__args != { } then
+                crossProvider
+                // {
+                  __scopeHandlers = scopeHandlers;
                   __ctx = scopedCtx;
                   __ctxId = ctxId;
-                  includes = [ ];
                 }
               else
-                crossResult
-                // {
-                  __ctx = scopedCtx;
-                  __ctxId = ctxId;
-                };
+                let
+                  # For parametric wrappers with empty args, call __fn with ctx.
+                  # For bare functions, call directly.
+                  rawFn = if isParametricWrapper crossProvider then crossProvider.__fn else crossProvider;
+                  crossProviderArgs = lib.functionArgs rawFn;
+                  crossCtx =
+                    if crossProviderArgs != { } then builtins.intersectAttrs crossProviderArgs scopedCtx else scopedCtx;
+                  crossResult = rawFn crossCtx;
+                in
+                if lib.isFunction crossResult && !builtins.isAttrs crossResult then
+                  {
+                    name = "${sourceAspect.name or "?"}.provides.${targetKey}";
+                    meta = crossProvider.meta or { };
+                    __fn = crossResult;
+                    __args = lib.functionArgs crossResult;
+                    __scopeHandlers = scopeHandlers;
+                    __ctx = scopedCtx;
+                    __ctxId = ctxId;
+                  }
+                else
+                  crossResult
+                  // {
+                    __scopeHandlers = scopeHandlers;
+                    __ctx = scopedCtx;
+                    __ctxId = ctxId;
+                  };
           in
           fx.bind (aspectToEffect wrapped) (crossResolved: fx.pure (prevResults ++ [ crossResolved ]))
         else
@@ -193,13 +210,21 @@ let
                     ) (builtins.attrNames newCtx)
                   )
                 );
+                # Build handler-closure for this transition context.
+                scopeHandlers = constantHandler scopedCtx;
+                # Update state.currentCtx so nested transitions' intoFn
+                # receives accumulated context.
+                updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
                 withTarget =
                   if targetAspect != null then
                     resolveContextValue currentCtx targetAspect innerResults newCtx
                   else
                     fx.pure innerResults;
               in
-              fx.bind withTarget (targetResults: emitCrossProvider scopedCtx ctxNames targetResults)
+              fx.bind updateCtx (
+                _:
+                fx.bind withTarget (targetResults: emitCrossProvider scopedCtx scopeHandlers ctxNames targetResults)
+              )
             )
           ) (fx.pure results) transition.contexts
       );
@@ -211,10 +236,9 @@ let
         sourceAspect = param.self;
         # currentCtx is wrapped in a thunk (_: ctx) to survive deepSeq.
         rootCtx = (state.currentCtx or (_: { })) null;
-        # Merge __ctx from the source aspect (transition-provided context)
-        # with root ctx. This is how nested transitions get their parent's
-        # context: flake → flake-system (with { system }) → flake-packages.
-        currentCtx = rootCtx // (sourceAspect.__ctx or { });
+        # rootCtx feeds the into function. Nested transitions get parent
+        # context from __scopeHandlers, not from data merging.
+        currentCtx = rootCtx;
         intoResult = param.intoFn currentCtx;
         transitions = flattenInto intoResult [ ];
       in

@@ -9,10 +9,9 @@
 let
   # Build handler set from context.
   # Each key in ctx becomes a handler that resumes with the value.
-  # Also installs probe-arg: checks if an arg name is in this handler's ctx.
-  # Used by keepChild to skip parametric includes whose args aren't resolvable.
-  # Note: with deep handlers, inner scope's probe-arg shadows outer. This is
-  # correct because inner scopes always have >= outer context (host ⊂ host+user).
+  # has-handler (from nix-effects) replaces probe-arg — it queries
+  # the handler scope directly, including scoped handlers from
+  # scope.stateful/scope.provide.
   constantHandler =
     ctx:
     builtins.mapAttrs (
@@ -22,24 +21,7 @@ let
         resume = value;
         inherit state;
       }
-    ) ctx
-    // {
-      # Check own ctx AND pipeline-provided args (class, aspect-chain).
-      # These are always installed by defaultHandlers in pipeline.nix.
-      # COUPLING: if new constants are added to defaultHandlers, this list
-      # must be updated. Consider deriving from defaultHandlers keys instead.
-      "probe-arg" =
-        { param, state }:
-        {
-          resume =
-            ctx ? ${param}
-            || builtins.elem param [
-              "class"
-              "aspect-chain"
-            ];
-          inherit state;
-        };
-    };
+    ) ctx;
 
   # Dedup handler. Tracks seen keys in state.seen.
   ctxSeenHandler = {

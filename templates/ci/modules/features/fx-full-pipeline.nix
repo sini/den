@@ -143,16 +143,14 @@
             {
               name = "web";
               meta = { };
-              __functor =
-                _:
+              __fn =
                 { host }:
                 {
                   nixos.hostName = host;
                 };
-              __functionArgs = {
+              __args = {
                 host = false;
               };
-              includes = [ ];
             }
           ];
         };
