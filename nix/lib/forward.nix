@@ -66,6 +66,10 @@ let
           in
           {
             ${intoClass} = value;
+            # Forward results are context-dependent — sourceModule
+            # differs per entity. Without this, classCollectorHandler
+            # strips ctxId and deduplicates per-host outputs.
+            __parametricResolved = true;
           };
 
       freeformMod = {
@@ -115,6 +119,7 @@ let
       adaptArgv = if adaptArgs == null then { } else lib.functionArgs adaptArgs;
 
       adapter = {
+        __parametricResolved = true;
         includes = [
           (forward [
             "den"
@@ -171,6 +176,7 @@ let
 
       canDirectImport = adapterModule == null;
 
+      topLevelAdapter.__parametricResolved = true;
       topLevelAdapter.${intoClass} = {
         __functionArgs = guardArgs;
         __functor =
