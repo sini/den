@@ -20,26 +20,6 @@ let
     "__functor"
   ];
 
-  # Synthesize relationships into an into-style function for a given stage name.
-  synthesizeRelationships =
-    stageName:
-    let
-      relationships = den.relationships or { };
-      matchingRels = lib.filter (rel: rel.from == stageName) (builtins.attrValues relationships);
-    in
-    if matchingRels == [ ] then
-      _: { }
-    else
-      rCtx:
-      builtins.foldl' (
-        acc: rel:
-        let
-          targets = rel.resolve rCtx;
-          targetList = if builtins.isList targets then targets else [ targets ];
-        in
-        if targetList == [ ] then acc else acc // { ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList; }
-      ) { } matchingRels;
-
   resolveStage =
     name: ctx:
     let
@@ -54,7 +34,11 @@ let
         handleWith = null;
         excludes = [ ];
         provider = [ ];
-        into = synthesizeRelationships name;
+        into =
+          let
+            synth = den.lib.synthesizeRelationships name;
+          in
+          if synth != null then synth else _: { };
       };
       provides = stageNode.provides or { };
       includes = stageNode.includes or [ ];

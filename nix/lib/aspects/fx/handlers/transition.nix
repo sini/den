@@ -20,6 +20,28 @@ let
   inherit (den.lib.aspects.fx.aspect) aspectToEffect;
   inherit (den.lib.aspects.fx.handlers) constantHandler;
 
+  # Derive a stable identity string from a context attrset.
+  mkCtxId =
+    ctx:
+    lib.concatStringsSep "," (
+      lib.sort (a: b: a < b) (
+        lib.concatMap (
+          k:
+          let
+            v = ctx.${k};
+          in
+          if builtins.isAttrs v && v ? name then
+            [ v.name ]
+          else if builtins.isString v then
+            [ v ]
+          else if builtins.isInt v || builtins.isFloat v then
+            [ (toString v) ]
+          else
+            [ k ]
+        ) (builtins.attrNames ctx)
+      )
+    );
+
   # Flatten a nested into attrset into a flat list of { path, contexts }.
   flattenInto =
     attrset: prefix:
@@ -48,25 +70,7 @@ let
     parentCtx: targetAspect: results: newCtx:
     let
       scopedCtx = parentCtx // newCtx;
-      ctxNames = lib.concatStringsSep "," (
-        lib.sort (a: b: a < b) (
-          lib.concatMap (
-            k:
-            let
-              v = newCtx.${k};
-            in
-            if builtins.isAttrs v && v ? name then
-              [ v.name ]
-            else if builtins.isString v then
-              [ v ]
-            else if builtins.isInt v || builtins.isFloat v then
-              [ (toString v) ]
-            else
-              [ k ]
-          ) (builtins.attrNames newCtx)
-        )
-      );
-      ctxId = ctxNames;
+      ctxId = mkCtxId newCtx;
       scopeHandlers = constantHandler scopedCtx;
       tagged = targetAspect // {
         __scopeHandlers = scopeHandlers;
@@ -108,21 +112,7 @@ let
 
       # Synthesize relationships onto target for nested transitions.
       targetName = if stageAspect != null then stageAspect.name or "" else "";
-      relationships = den.relationships or { };
-      matchingRels = lib.filter (rel: rel.from == targetName) (builtins.attrValues relationships);
-      relationshipInto =
-        if matchingRels == [ ] then
-          null
-        else
-          rCtx:
-          builtins.foldl' (
-            acc: rel:
-            let
-              targets = rel.resolve rCtx;
-              targetList = if builtins.isList targets then targets else [ targets ];
-            in
-            if targetList == [ ] then acc else acc // { ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList; }
-          ) { } matchingRels;
+      relationshipInto = den.lib.synthesizeRelationships targetName;
     in
     if stageAspect != null && relationshipInto != null then
       stageAspect
@@ -226,26 +216,7 @@ let
           innerResults:
           let
             scopedCtx = currentCtx // newCtx;
-            # Compute ctxId for cross-provider identity (same derivation
-            # as resolveContextValue uses for the target aspect).
-            ctxNames = lib.concatStringsSep "," (
-              lib.sort (a: b: a < b) (
-                lib.concatMap (
-                  k:
-                  let
-                    v = newCtx.${k};
-                  in
-                  if builtins.isAttrs v && v ? name then
-                    [ v.name ]
-                  else if builtins.isString v then
-                    [ v ]
-                  else if builtins.isInt v || builtins.isFloat v then
-                    [ (toString v) ]
-                  else
-                    [ k ]
-                ) (builtins.attrNames newCtx)
-              )
-            );
+            ctxNames = mkCtxId newCtx;
             # For fan-out, include ctxId in dedup key so each
             # context resolves independently.
             ctxKey = if isFanOut then "${key}/{${ctxNames}}" else key;

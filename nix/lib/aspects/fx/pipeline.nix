@@ -100,31 +100,8 @@ let
       # name — e.g. when resolving the host stage (name="host"), only
       # relationships with from="host" fire. This prevents flake/battery
       # relationships from polluting host pipelines and vice versa.
-      relationships = den.relationships or { };
       selfName = self.name or "";
-      matchingRels = lib.filter (rel: rel.from == selfName) (builtins.attrValues relationships);
-      relationshipInto =
-        if matchingRels == [ ] then
-          null
-        else
-          rCtx:
-          let
-            raw = builtins.foldl' (
-              acc: rel:
-              let
-                targets = rel.resolve rCtx;
-                targetList = if builtins.isList targets then targets else [ targets ];
-              in
-              if targetList == [ ] then
-                acc
-              else
-                acc
-                // {
-                  ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList;
-                }
-            ) { } matchingRels;
-          in
-          raw;
+      relationshipInto = den.lib.synthesizeRelationships selfName;
 
       # Merge relationship transitions with the aspect's existing into.
       # Relationships are additive — they contribute new target keys alongside
