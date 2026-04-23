@@ -64,6 +64,7 @@ let
     // handlers.deferredIncludeHandler
     // handlers.drainDeferredHandler
     // resolvePolicyHandler
+    // resolveTargetHandler
     // fx.effects.state.handler;
 
   resolvePolicyHandler = {
@@ -71,6 +72,32 @@ let
       { param, state }:
       {
         resume = den.lib.synthesizePolicies.mergePolicyInto param.stageName param.existingInto;
+        inherit state;
+      };
+  };
+
+  resolveTargetHandler = {
+    "resolve-target" =
+      { param, state }:
+      let
+        stageAspect = lib.attrByPath param.path null (den.stages or { });
+        targetName = if stageAspect != null then stageAspect.name or "" else "";
+        existingInto = if stageAspect != null then stageAspect.meta.into or null else null;
+        mergedInto = den.lib.synthesizePolicies.mergePolicyInto targetName existingInto;
+      in
+      {
+        resume =
+          if stageAspect != null && mergedInto != null then
+            stageAspect
+            // {
+              meta = (stageAspect.meta or { }) // {
+                into = mergedInto;
+              };
+            }
+          else if stageAspect != null then
+            stageAspect
+          else
+            null;
         inherit state;
       };
   };
