@@ -1,13 +1,17 @@
 { den, inputs, ... }:
 {
   imports = [ inputs.devshell.flakeModule ];
-  den.ctx.flake-parts.into.flake-parts-system = _: [
-    {
-      fromClass = _: "devshell";
-      intoPath = _: [
-        "devshells"
-        "default"
-      ];
-    }
-  ];
+  den.relationships.flake-parts-to-flake-parts-system-devshell = {
+    from = "flake-parts";
+    to = "flake-parts-system";
+    resolve = _: [
+      {
+        fromClass = _: "devshell";
+        intoPath = _: [
+          "devshells"
+          "default"
+        ];
+      }
+    ];
+  };
 }

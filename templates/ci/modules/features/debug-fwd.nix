@@ -16,7 +16,7 @@
 
         den.aspects.igloo.variables.TEST = "test-var";
 
-        den.ctx.host.includes = [
+        den.stages.host.includes = [
           (
             { host, ... }:
             den._.forward {
@@ -52,7 +52,7 @@
         imports = [
           { den.aspects.foo.includes = lib.attrValues den.aspects.foo._; }
           {
-            den.ctx.host.includes = [
+            den.stages.host.includes = [
               (
                 { host, ... }:
                 den._.forward {

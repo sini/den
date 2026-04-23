@@ -6,10 +6,6 @@
   ...
 }:
 let
-  ctx.flake.into.flake-system = _: map (system: { inherit system; }) den.systems;
-
-  systemOutput = output: { system }: lib.singleton { inherit system output; };
-
   has-flake-output =
     output: ((options.flake.type.getSubOptions or (_: options.flake)) { }) ? ${output};
 
@@ -30,24 +26,19 @@ let
       fromAspect = _: lib.head aspect-chain;
     };
 
-  ctxSystemOuts =
-    let
-      outputs = [
-        "packages"
-        "apps"
-        "checks"
-        "devShells"
-        "legacyPackages"
-      ];
+  outputs = [
+    "packages"
+    "apps"
+    "checks"
+    "devShells"
+    "legacyPackages"
+  ];
 
-      ctxs = map (output: {
-        flake-system.into."flake-${output}" = systemOutput output;
-        flake-system.provides."flake-${output}" = _: systemOutputFwd;
-      }) outputs;
-    in
-    ctxs;
+  stageSystemOuts = map (output: {
+    flake-system.provides."flake-${output}" = _: systemOutputFwd;
+  }) outputs;
 
 in
 {
-  den.ctx = lib.mkMerge (ctxSystemOuts ++ [ ctx ]);
+  den.stages = lib.mkMerge stageSystemOuts;
 }

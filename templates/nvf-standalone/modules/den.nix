@@ -10,7 +10,7 @@
     inputs.den.flakeOutputs.packages
   ];
 
-  den.ctx.flake-packages.includes = [ den.aspects.flake ];
+  den.stages.flake-packages.includes = [ den.aspects.flake ];
 
   den.aspects.flake.packages =
     { pkgs, ... }:

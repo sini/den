@@ -41,10 +41,11 @@ let
         user.userName
       ];
       fromAspect = _: user.aspect;
+      fromCtx = _: { inherit host user; };
       adaptArgs = args: args // { osConfig = args.config; };
     };
 
 in
 {
-  den.ctx.user.includes = [ fwd ];
+  den.stages.user.includes = [ fwd ];
 }

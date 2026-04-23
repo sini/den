@@ -18,7 +18,7 @@
             "very"
             "funny"
           ];
-          fromAspect = item: den.ctx.foo item;
+          fromAspect = item: den.lib.resolveStage "foo" item;
         };
 
         mod = den.lib.aspects.resolve "flake" fwd;
@@ -35,7 +35,7 @@
       in
       {
 
-        den.ctx.foo.provides.foo = { name }: den.aspects.${name};
+        den.stages.foo.provides.foo = { name }: den.aspects.${name};
 
         den.aspects.moo = {
           goofy.names = [ "hello" ];
@@ -64,7 +64,7 @@
         imports = [ inputs.den.flakeOutputs.packages ];
         den.hosts.x86_64-linux.igloo = { };
 
-        den.ctx.flake-packages.includes = [ den.aspects.igloo ];
+        den.stages.flake-packages.includes = [ den.aspects.igloo ];
 
         den.aspects.igloo = {
           packages =
@@ -99,7 +99,7 @@
             };
         };
 
-        den.ctx.flake-apps.includes = [ den.aspects.foo ];
+        den.stages.flake-apps.includes = [ den.aspects.foo ];
 
         expr = lib.getName config.flake.apps.x86_64-linux.hello;
         expected = "hello";
@@ -125,7 +125,7 @@
             };
         };
 
-        den.ctx.flake-checks.includes = [ den.aspects.foo ];
+        den.stages.flake-checks.includes = [ den.aspects.foo ];
 
         expr = lib.getName config.flake.checks.x86_64-linux.hello;
         expected = "hello";
@@ -153,7 +153,7 @@
             };
         };
 
-        den.ctx.flake-devShells.includes = [ den.aspects.foo ];
+        den.stages.flake-devShells.includes = [ den.aspects.foo ];
 
         expr = config.flake.devShells.x86_64-linux ? default;
         expected = true;
@@ -187,8 +187,16 @@
             };
         };
 
-        den.ctx.flake-system.into.host =
-          { system }: map (host: { inherit host; }) (lib.attrValues den.hosts.${system});
+        den.relationships.flake-system-to-host = {
+          from = "flake-system";
+          to = "host";
+          resolve =
+            ctx:
+            if ctx ? system then
+              map (host: { inherit host; }) (lib.attrValues den.hosts.${ctx.system})
+            else
+              [ ];
+        };
 
         expr = {
           package = lib.getName config.flake.packages.x86_64-linux.hello;

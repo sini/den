@@ -95,7 +95,71 @@ let
       ctx,
     }:
     let
-      comp = aspectToEffect self;
+      # Synthesize den.relationships into an into-style function.
+      # Only include relationships whose `from` matches this root aspect's
+      # name — e.g. when resolving the host stage (name="host"), only
+      # relationships with from="host" fire. This prevents flake/battery
+      # relationships from polluting host pipelines and vice versa.
+      relationships = den.relationships or { };
+      selfName = self.name or "";
+      matchingRels = lib.filter (rel: rel.from == selfName) (builtins.attrValues relationships);
+      relationshipInto =
+        if matchingRels == [ ] then
+          null
+        else
+          rCtx:
+          let
+            raw = builtins.foldl' (
+              acc: rel:
+              let
+                targets = rel.resolve rCtx;
+                targetList = if builtins.isList targets then targets else [ targets ];
+              in
+              if targetList == [ ] then
+                acc
+              else
+                acc
+                // {
+                  ${rel.to} = (acc.${rel.to} or [ ]) ++ targetList;
+                }
+            ) { } matchingRels;
+          in
+          raw;
+
+      # Merge relationship transitions with the aspect's existing into.
+      # Relationships are additive — they contribute new target keys alongside
+      # whatever the existing into already declares. Overlapping target keys
+      # are deduplicated downstream by ctx-seen.
+      existingInto = self.meta.into or self.into or null;
+      mergedInto =
+        if existingInto != null && relationshipInto != null then
+          # Both exist: merge results at call time.
+          rCtx:
+          let
+            existing = existingInto rCtx;
+            fromRels = relationshipInto rCtx;
+          in
+          existing // (builtins.removeAttrs fromRels (builtins.attrNames existing))
+        else if existingInto != null then
+          existingInto
+        else if relationshipInto != null then
+          relationshipInto
+        else
+          null;
+
+      # Inject merged into onto self
+      effectiveSelf =
+        if mergedInto != null && mergedInto != existingInto then
+          self
+          // {
+            meta = (self.meta or { }) // {
+              into = mergedInto;
+            };
+          }
+        else
+          self;
+
+      comp = aspectToEffect effectiveSelf;
       # Override aspect-chain to include root aspect — consumed by provider
       # functions (home-env.nix) via bind.fn.
       rootHandlers = defaultHandlers {
@@ -116,6 +180,7 @@ let
         // extraState
         // {
           currentCtx = _: ctx;
+          inherit class;
         };
     } comp;
 

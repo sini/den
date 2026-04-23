@@ -5,14 +5,13 @@
     test-self-named-provider = denTest (
       { den, funnyNames, ... }:
       {
-        den.ctx.greet.description = "{who} context";
-        den.ctx.greet.provides.greet =
+        den.stages.greet.provides.greet =
           { who }:
           {
             funny.names = [ "hello-${who}" ];
           };
 
-        expr = funnyNames (den.ctx.greet { who = "nix"; });
+        expr = funnyNames (den.lib.resolveStage "greet" { who = "nix"; });
         expected = [ "hello-nix" ];
       }
     );
@@ -20,15 +19,15 @@
     test-self-named-plus-owned = denTest (
       { den, funnyNames, ... }:
       {
-        den.ctx.greet.description = "{who} context";
-        den.ctx.greet.provides.greet =
+        den.stages.greet.provides.greet =
           { who }:
           {
             funny.names = [ "hello-${who}" ];
           };
-        den.ctx.greet.funny.names = [ "owned" ];
+        den.stages.greet.funny.names = [ "owned" ];
+        den.stages.greet.includes = [ ];
 
-        expr = funnyNames (den.ctx.greet { who = "nix"; });
+        expr = funnyNames (den.lib.resolveStage "greet" { who = "nix"; });
         expected = [
           "hello-nix"
           "owned"
@@ -44,21 +43,25 @@
         ...
       }:
       {
-        den.ctx.greet.provides.greet =
+        den.stages.greet.provides.greet =
           { who }:
           {
             funny.names = [ "hello-${who}" ];
           };
 
-        den.ctx.greet.into.other = lib.singleton;
-        den.ctx.greet.provides.other =
+        den.relationships.test-greet-to-other = {
+          from = "greet";
+          to = "other";
+          resolve = ctx: if !(ctx ? who) then [ ] else lib.singleton ctx;
+        };
+        den.stages.greet.provides.other =
           _:
           { who }:
           {
             funny.names = [ "other-${who}" ];
           };
 
-        expr = funnyNames (den.ctx.greet { who = "nix"; });
+        expr = funnyNames (den.lib.resolveStage "greet" { who = "nix"; });
         expected = [
           "hello-nix"
           "other-nix"
@@ -74,21 +77,24 @@
         ...
       }:
       {
-        den.ctx.greet.description = "{who} context";
-        den.ctx.greet.provides.greet =
+        den.stages.greet.provides.greet =
           { who }:
           {
             funny.names = [ who ];
           };
-        den.ctx.greet.into.yell = { who }: [ { shout = lib.toUpper who; } ];
+        den.relationships.test-greet-to-yell = {
+          from = "greet";
+          to = "yell";
+          resolve = ctx: if !(ctx ? who) then [ ] else [ { shout = lib.toUpper ctx.who; } ];
+        };
 
-        den.ctx.yell.provides.yell =
+        den.stages.yell.provides.yell =
           { shout }:
           {
             funny.names = [ shout ];
           };
 
-        expr = funnyNames (den.ctx.greet { who = "world"; });
+        expr = funnyNames (den.lib.resolveStage "greet" { who = "world"; });
         expected = [
           "WORLD"
           "world"
@@ -104,40 +110,47 @@
         ...
       }:
       {
-        den.ctx.greet.description = "{who} context";
-        den.ctx.greet.provides.greet =
+        den.stages.greet.provides.greet =
           { who }:
           {
             funny.names = [ who ];
           };
-        den.ctx.greet.into =
-          { who }:
-          {
-            yell = [ { shout = lib.toUpper who; } ];
-            size = [ { length = lib.stringLength who; } ];
-            num = [ { number = lib.stringLength who; } ];
-          };
+        den.relationships.test-greet-to-yell-fn = {
+          from = "greet";
+          to = "yell";
+          resolve = ctx: if !(ctx ? who) then [ ] else [ { shout = lib.toUpper ctx.who; } ];
+        };
+        den.relationships.test-greet-to-size = {
+          from = "greet";
+          to = "size";
+          resolve = ctx: if !(ctx ? who) then [ ] else [ { length = lib.stringLength ctx.who; } ];
+        };
+        den.relationships.test-greet-to-num = {
+          from = "greet";
+          to = "num";
+          resolve = ctx: if !(ctx ? who) then [ ] else [ { number = lib.stringLength ctx.who; } ];
+        };
 
-        den.ctx.yell.provides.yell =
+        den.stages.yell.provides.yell =
           { shout }:
           {
             funny.names = [ shout ];
           };
 
-        den.ctx.size.provides.size =
+        den.stages.size.provides.size =
           { length }:
           {
             funny.names = [ (lib.toString length) ];
           };
 
-        den.ctx.greet.provides.num =
+        den.stages.greet.provides.num =
           _:
           { number }:
           {
             funny.names = [ ("num:" + lib.toString number) ];
           };
 
-        expr = funnyNames (den.ctx.greet { who = "world"; });
+        expr = funnyNames (den.lib.resolveStage "greet" { who = "world"; });
         expected = [
           "5"
           "WORLD"

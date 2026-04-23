@@ -20,7 +20,7 @@
     {
 
       den.hosts.x86_64-linux.igloo.users.tux = { };
-      den.ctx.user.includes = [ den.provides.mutual-provider ];
+      den.stages.user.includes = [ den.provides.mutual-provider ];
 
       den.aspects.igloo.funny.names = [ "host-owned" ];
       den.aspects.igloo.includes = [
@@ -105,8 +105,8 @@
         ))
       ];
 
-      den.ctx.hm-host.funny.names = [ "hm-host detected" ];
-      den.ctx.hm-host.includes = [
+      den.stages.hm-host.funny.names = [ "hm-host detected" ];
+      den.stages.hm-host.includes = [
         (
           { host, ... }@ctx:
           {
@@ -115,7 +115,7 @@
         )
       ];
 
-      den.ctx.hm-user.includes = [
+      den.stages.hm-user.includes = [
         (
           { host, user, ... }@ctx:
           {
@@ -150,25 +150,24 @@
       ];
 
       expr = funnyNames (
-        den.ctx.host {
+        den.lib.resolveStage "host" {
           host = den.hosts.x86_64-linux.igloo;
         }
       );
 
+      # Post-ctx semantics: default resolves once via host→default.
+      # Includes fire once with available context. Deferred includes
+      # (requiring user) fire when context widens via drain-deferred.
+      # No include fires twice — no per-source re-resolution.
       expected = [
-        "default-anyctx {aspect-chain,class}"
-        "default-anyctx {host,user}"
-        "default-anyctx {host}"
-
         "default-host+user-lax {host,user}"
-        "default-host-lax {host,user}"
         "default-host-lax {host}"
 
         "default-owned"
 
         "default-static"
 
-        "default-user-lax {host,user}"
+        "default-user-lax {user}"
 
         "hm-host detected"
         "hm-host host-lax {host}"
@@ -178,13 +177,13 @@
         "host+user-lax {host,user}"
 
         "host-exact"
-        "host-lax {host,user}"
+        "host-lax {host}"
 
         "host-owned"
         "host-static"
 
         "user-exact"
-        "user-lax {host,user}"
+        "user-lax {user}"
         "user-owned"
         "user-static"
       ];

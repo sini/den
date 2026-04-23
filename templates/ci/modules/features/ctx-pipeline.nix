@@ -7,34 +7,44 @@ let
       let
         name = "c${toString i}";
         next = "c${toString (i + 1)}";
-        base = {
-          _.${name} =
+        baseStage = {
+          den.stages.${name}.provides.${name} =
             { x }:
             {
               funny.names = [ "${name}-${x}" ];
             };
         };
-        withInto = if i + 1 < n then { into.${next} = { x }: [ { x = "${x}+${toString i}"; } ]; } else { };
+        withRelationship =
+          if i + 1 < n then
+            {
+              den.relationships."${name}-to-${next}" = {
+                from = name;
+                to = next;
+                resolve = ctx: if ctx ? x then [ { x = "${ctx.x}+${toString i}"; } ] else [ ];
+              };
+            }
+          else
+            { };
       in
       { den, ... }:
-      {
-        den.ctx.${name} = base // withInto;
-      }
+      lib.recursiveUpdate baseStage withRelationship
     ) n;
 
   mkFanOut =
     n:
     { den, ... }:
     {
-      den.ctx.root = {
-        _.root =
-          { x }:
-          {
-            funny.names = [ "root-${x}" ];
-          };
-        into.leaf = { x }: lib.genList (i: { x = "${x}-${toString i}"; }) n;
+      den.stages.root.provides.root =
+        { x }:
+        {
+          funny.names = [ "root-${x}" ];
+        };
+      den.relationships.root-to-leaf = {
+        from = "root";
+        to = "leaf";
+        resolve = ctx: if ctx ? x then lib.genList (i: { x = "${ctx.x}-${toString i}"; }) n else [ ];
       };
-      den.ctx.leaf.provides.leaf =
+      den.stages.leaf.provides.leaf =
         { x }:
         {
           funny.names = [ "leaf-${x}" ];
@@ -44,24 +54,38 @@ let
   mkCrossProviders =
     n:
     let
+      targetNames = lib.genList (i: "t${toString i}") n;
       srcMod =
         { den, ... }:
         {
-          den.ctx.src = {
-            _.src =
+          den.stages.src.provides = {
+            src =
               { v }:
               {
                 funny.names = [ "src-${v}" ];
               };
-            into = lib.genAttrs (lib.genList (i: "t${toString i}") n) (_: { v }: [ { v = "${v}!"; } ]);
-            provides = lib.genAttrs (lib.genList (i: "t${toString i}") n) (
-              name: _:
-              { v }:
-              {
-                funny.names = [ "cross-${name}-${v}" ];
-              }
-            );
-          };
+          }
+          // lib.listToAttrs (
+            map (tgt: {
+              name = tgt;
+              value =
+                _:
+                { v }:
+                {
+                  funny.names = [ "cross-${tgt}-${v}" ];
+                };
+            }) targetNames
+          );
+          den.relationships = lib.listToAttrs (
+            map (tgt: {
+              name = "src-to-${tgt}";
+              value = {
+                from = "src";
+                to = tgt;
+                resolve = ctx: if ctx ? v then [ { v = "${ctx.v}!"; } ] else [ ];
+              };
+            }) targetNames
+          );
         };
       targetMods = lib.genList (
         i:
@@ -70,7 +94,7 @@ let
         in
         { den, ... }:
         {
-          den.ctx.${name}.provides.${name} =
+          den.stages.${name}.provides.${name} =
             { v }:
             {
               funny.names = [ "${name}-${v}" ];
@@ -88,7 +112,7 @@ in
       { den, funnyNames, ... }:
       {
         imports = mkCtxChain 30;
-        expr = builtins.length (funnyNames (den.ctx.c0 { x = "v"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "c0" { x = "v"; }));
         expected = 30;
       }
     );
@@ -97,7 +121,7 @@ in
       { den, funnyNames, ... }:
       {
         imports = [ (mkFanOut 50) ];
-        expr = builtins.length (funnyNames (den.ctx.root { x = "v"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "root" { x = "v"; }));
         expected = 51;
       }
     );
@@ -106,7 +130,7 @@ in
       { den, funnyNames, ... }:
       {
         imports = mkCrossProviders 20;
-        expr = builtins.length (funnyNames (den.ctx.src { v = "z"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "src" { v = "z"; }));
         expected = 41;
       }
     );

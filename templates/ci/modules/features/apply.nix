@@ -3,8 +3,7 @@
   flake.tests.ctx.test-apply = denTest (
     { den, funnyNames, ... }:
     {
-      den.ctx.foobar.description = "{foo,bar} context";
-      den.ctx.foobar.provides.foobar =
+      den.stages.foobar.provides.foobar =
         { foo, bar }:
         {
           funny.names = [
@@ -13,10 +12,11 @@
           ];
         };
 
-      den.ctx.foobar.funny.names = [ "owned" ];
+      den.stages.foobar.funny.names = [ "owned" ];
+      den.stages.foobar.includes = [ ];
 
       expr = funnyNames (
-        den.ctx.foobar {
+        den.lib.resolveStage "foobar" {
           foo = "moo";
           bar = "baa";
         }

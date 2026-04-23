@@ -2,9 +2,9 @@
 {
   flake.tests.namespace-provider = {
 
-    # ctx defined in a provider flake is callable in the consumer
+    # Provider aspect is callable in the consumer
     # and produces the correct names — no doubling.
-    test-shared-namespace-ctx = denTest (
+    test-shared-namespace-provider = denTest (
       {
         inputs,
         provider,
@@ -13,8 +13,8 @@
       }:
       {
         imports = [ (inputs.den.namespace "provider" [ inputs.provider ]) ];
-        expr = funnyNames (provider.ctx.simple { }); # call as function
-        expected = [ "from-provider-ctx" ];
+        expr = funnyNames (provider.simple { }); # call as function
+        expected = [ "from-provider" ];
       }
     );
 

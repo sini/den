@@ -1,20 +1,16 @@
 { den, lib, ... }:
 let
-  inherit (den.lib) ctxApply;
   inherit (den.lib.aspects) mkAspectsType;
+  inherit (den.lib.stageTypes) stageTreeType;
 
   namespaceType = lib.types.submodule (
     nsArgs@{ name, ... }:
-    let
-      nsCtxApply = ctxApply nsArgs.config.ctx;
-      inherit (den.lib.ctxTypes nsCtxApply) ctxTreeType;
-    in
     {
-      options.ctx = lib.mkOption {
-        description = "namespace context pipeline";
+      options.stages = lib.mkOption {
+        description = "namespace stage scopes";
         defaultText = lib.literalExpression "{ }";
         default = { };
-        type = lib.types.lazyAttrsOf ctxTreeType;
+        type = lib.types.lazyAttrsOf stageTreeType;
       };
       options.schema = lib.mkOption {
         description = "namespace schema — freeform deferred modules per entity kind";

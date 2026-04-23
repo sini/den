@@ -32,17 +32,64 @@ let
     in
     sub // { merge = mergeWithAspectMeta sub; };
 
+  # Resolve parametric includes in an aspect with the given args.
+  # Used by __functor so aspects are callable: (aspect { host = ...; }).
+  # Directly resolvable includes (__fn/__args wrappers) are called;
+  # the result is tagged with __ctx and __scopeHandlers so the pipeline
+  # can resolve remaining parametric children.
+  resolveAspectWith =
+    self: args:
+    let
+      inherit (den.lib.aspects.fx.handlers) constantHandler;
+      resolveInc =
+        inc:
+        if builtins.isAttrs inc && inc ? __fn && inc ? __args then
+          let
+            fn = inc.__fn;
+            fnArgs = inc.__args;
+            required = builtins.attrNames (lib.filterAttrs (_: v: !v) fnArgs);
+            canResolve = builtins.all (k: args ? ${k}) required;
+          in
+          if canResolve then fn args else inc
+        else
+          inc;
+      resolvedIncludes = map resolveInc (self.includes or [ ]);
+    in
+    builtins.removeAttrs self [ "_module" ]
+    // {
+      includes = resolvedIncludes;
+      __ctx = args;
+      __scopeHandlers = constantHandler args;
+    };
+
   mergeWithAspectMeta =
     sub: loc: defs:
-    sub.merge loc (
-      defs
-      ++ [
-        {
-          file = (lib.last defs).file;
-          value = aspectMeta loc defs;
-        }
-      ]
-    );
+    let
+      # Rescue explicit __functor from defs before the submodule merge
+      # destroys it (freeform keys become deferred modules).
+      # Providers like den.provides.forward define their own __functor.
+      explicitFunctors = builtins.filter (
+        d: builtins.isAttrs (d.value or null) && (d.value or { }) ? __functor
+      ) defs;
+      originalFunctor =
+        if explicitFunctors != [ ] then (lib.last explicitFunctors).value.__functor else null;
+      merged = sub.merge loc (
+        defs
+        ++ [
+          {
+            file = (lib.last defs).file;
+            value = aspectMeta loc defs;
+          }
+        ]
+      );
+    in
+    # Add __functor so merged aspects are callable — replaces the old
+    # ctx __functor that was removed with den.ctx. Preserve explicit
+    # functors (e.g. den.provides.forward).
+    merged
+    // {
+      __functor = if originalFunctor != null then originalFunctor else resolveAspectWith;
+    };
 
   aspectMeta =
     loc: defs:
@@ -72,7 +119,11 @@ let
           parametrics = builtins.filter (d: isParametricWrapper d.value) defs;
         in
         if parametrics != [ ] then
-          (lib.last parametrics).value
+          let
+            wrapper = (lib.last parametrics).value;
+            nameFromLoc = lib.last loc;
+          in
+          wrapper // lib.optionalAttrs (!(wrapper ? name) || wrapper.name == "<anon>") { name = nameFromLoc; }
         else
           let
             nonParametrics = builtins.filter (d: !isParametricWrapper d.value) defs;
@@ -127,6 +178,9 @@ let
                   };
                   __fn = fn;
                   __args = args;
+                  # Positional-arg providers (e.g. den.provides.user-shell)
+                  # must remain callable so users can do (provider "arg").
+                  __functor = self: self.__fn;
                 }
           else
             at.merge loc nonParametrics;

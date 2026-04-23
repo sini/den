@@ -35,7 +35,8 @@ let
           class = k;
           identity = nodeIdentity;
           module = aspect.${k};
-          contextDependent = aspect.__parametricResolved or false;
+          contextDependent =
+            (aspect.__parametricResolved or false) || (aspect.meta.contextDependent or false);
         }
       ) classKeys
     );
@@ -129,14 +130,26 @@ let
       # Entry-point ctx for positional-arg providers only.
       ctx = aspect.__ctx or { };
       # Extract real function args for bind.fn resolution.
+      # Detect __fn/__args wrappers (from take.exactly, perCtx, etc.) and
+      # preserve them as-is so aspectToEffect can handle them correctly
+      # (including meta.exactMatch injection, scope.provide, etc.).
+      isParametricWrapper = builtins.isAttrs providerVal && providerVal ? __fn && providerVal ? __args;
       innerFn =
-        if builtins.isAttrs providerVal && providerVal ? __fn then
+        if isParametricWrapper then
+          providerVal.__fn
+        else if builtins.isAttrs providerVal && providerVal ? __fn then
           providerVal.__fn
         else if builtins.isAttrs providerVal && lib.isFunction providerVal then
           providerVal.__functor providerVal
         else
           providerVal;
-      providerArgs = if lib.isFunction innerFn then lib.functionArgs innerFn else { };
+      providerArgs =
+        if isParametricWrapper then
+          providerVal.__args
+        else if lib.isFunction innerFn then
+          lib.functionArgs innerFn
+        else
+          { };
     in
     if provides ? ${name} then
       let
@@ -177,7 +190,17 @@ let
           else
             {
               inherit name;
-              meta = providerMeta;
+              meta =
+                providerMeta
+                // (
+                  if isParametricWrapper then
+                    builtins.removeAttrs (providerVal.meta or { }) [
+                      "provider"
+                      "selfProvide"
+                    ]
+                  else
+                    { }
+                );
               __fn = if lib.isFunction innerFn then innerFn else _: providerVal;
               __args = providerArgs;
             }
@@ -267,11 +290,22 @@ let
     in
     if isParametric then
       let
-        fn = aspect.__fn;
+        rawFn = aspect.__fn;
+        # For exactMatch wrappers (take.exactly), inject __scopeKeys so the
+        # wrapper can detect extra context beyond its declared args.
+        fn =
+          if (aspect.meta.exactMatch or false) && scopeHandlers != null then
+            args: rawFn (args // { __scopeKeys = builtins.attrNames scopeHandlers; })
+          else
+            rawFn;
         _t = builtins.trace "aspectToEffect: name=${aspect.name or "?"} parametric args=${toString (builtins.attrNames userArgs)} scope=${
           if scopeFn != null then "yes" else "no"
         }";
-        resolveFn = if scopeFn != null then scopeFn (fx.bind.fn { } fn) else fx.bind.fn { } fn;
+        # Use bind.fn with __args as extra attrs so optional/required args
+        # are resolved via effects. For named-arg functions this merges with
+        # lib.functionArgs; for positional-arg wrappers (__fn = resolvedArgs: ...)
+        # it provides the full arg spec since lib.functionArgs returns {}.
+        resolveFn = if scopeFn != null then scopeFn (fx.bind.fn userArgs fn) else fx.bind.fn userArgs fn;
       in
       _t (
         fx.bind resolveFn (

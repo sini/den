@@ -24,20 +24,6 @@ let
        den.schema.host.wsl.enable = true;
   '';
 
-  ctx.host.into.wsl-host =
-    { host }: lib.optional (host.class == "nixos" && host.wsl.enable) { inherit host; };
-
-  ctx.wsl-host.provides.wsl-host =
-    { host }:
-    {
-      inherit description;
-      ${host.class} = {
-        imports = [ host.wsl.module ];
-        wsl.enable = true;
-      };
-      includes = [ (fwd host) ];
-    };
-
   fwd =
     host:
     { class, aspect-chain }:
@@ -62,6 +48,15 @@ let
 
 in
 {
-  den.ctx = ctx;
+  den.stages.wsl-host.provides.wsl-host =
+    { host }:
+    {
+      inherit description;
+      ${host.class} = {
+        imports = [ host.wsl.module ];
+        wsl.enable = true;
+      };
+      includes = [ (fwd host) ];
+    };
   den.schema.host.imports = [ hostConf ];
 }

@@ -41,7 +41,7 @@
           users.tux.hasBar = true;
         };
 
-        den.ctx.user.includes = [ den.provides.mutual-provider ];
+        den.stages.user.includes = [ den.provides.mutual-provider ];
 
         den.aspects.igloo.provides.to-users.includes = [ conditionalAspect ];
 
@@ -70,7 +70,7 @@
         };
 
         den.default.homeManager.home.stateVersion = "25.11";
-        den.ctx.user.includes = [ den.provides.mutual-provider ];
+        den.stages.user.includes = [ den.provides.mutual-provider ];
         den.aspects.igloo.provides.to-users.includes = [ git-for-linux-only ];
 
         expr = [

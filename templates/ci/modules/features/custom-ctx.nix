@@ -10,21 +10,24 @@
         ...
       }:
       {
-        den.ctx.greeting.description = "{hello} context";
-        den.ctx.greeting.provides.greeting =
+        den.stages.greeting.provides.greeting =
           { hello }:
           {
             funny.names = [ hello ];
           };
-        den.ctx.greeting.into.shout = { hello }: [ { shout = lib.toUpper hello; } ];
+        den.relationships.test-greeting-to-shout = {
+          from = "greeting";
+          to = "shout";
+          resolve = ctx: if !(ctx ? hello) then [ ] else [ { shout = lib.toUpper ctx.hello; } ];
+        };
 
-        den.ctx.shout.provides.shout =
+        den.stages.shout.provides.shout =
           { shout }:
           {
             funny.names = [ shout ];
           };
 
-        expr = funnyNames (den.ctx.greeting { hello = "world"; });
+        expr = funnyNames (den.lib.resolveStage "greeting" { hello = "world"; });
         expected = [
           "WORLD"
           "world"
@@ -35,13 +38,12 @@
     test-ctx-includes-static-and-parametric = denTest (
       { den, funnyNames, ... }:
       {
-        den.ctx.foo.description = "{foo} context";
-        den.ctx.foo.provides.foo =
+        den.stages.foo.provides.foo =
           { foo }:
           {
             funny.names = [ foo ];
           };
-        den.ctx.foo.includes = [
+        den.stages.foo.includes = [
           { funny.names = [ "static-include" ]; }
           (
             { foo, ... }:
@@ -51,7 +53,7 @@
           )
         ];
 
-        expr = funnyNames (den.ctx.foo { foo = "hello"; });
+        expr = funnyNames (den.lib.resolveStage "foo" { foo = "hello"; });
         expected = [
           "hello"
           "param-hello"
@@ -63,15 +65,15 @@
     test-ctx-owned = denTest (
       { den, funnyNames, ... }:
       {
-        den.ctx.bar.description = "{x} context";
-        den.ctx.bar.provides.bar =
+        den.stages.bar.provides.bar =
           { x }:
           {
             funny.names = [ x ];
           };
-        den.ctx.bar.funny.names = [ "owned" ];
+        den.stages.bar.funny.names = [ "owned" ];
+        den.stages.bar.includes = [ ];
 
-        expr = funnyNames (den.ctx.bar { x = "val"; });
+        expr = funnyNames (den.lib.resolveStage "bar" { x = "val"; });
         expected = [
           "owned"
           "val"

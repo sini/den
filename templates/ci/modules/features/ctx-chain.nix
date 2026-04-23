@@ -7,26 +7,27 @@ let
       let
         name = "ctx-${toString i}";
         next = "ctx-${toString (i + 1)}";
-        base = {
-          description = name;
-          _.${name} =
+        baseStage = {
+          den.stages.${name}.provides.${name} =
             { x }:
             {
               funny.names = [ "${name}-${x}" ];
             };
         };
-        withInto =
+        withRelationship =
           if i + 1 < n then
             {
-              into.${next} = { x }: [ { x = "${x}+${toString i}"; } ];
+              den.relationships."${name}-to-${next}" = {
+                from = name;
+                to = next;
+                resolve = ctx: if ctx ? x then [ { x = "${ctx.x}+${toString i}"; } ] else [ ];
+              };
             }
           else
             { };
       in
       { den, ... }:
-      {
-        den.ctx.${name} = base // withInto;
-      }
+      lib.recursiveUpdate baseStage withRelationship
     ) n;
 in
 {
@@ -36,7 +37,7 @@ in
       { den, funnyNames, ... }:
       {
         imports = mkCtxModules 5;
-        expr = builtins.length (funnyNames (den.ctx.ctx-0 { x = "v"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "ctx-0" { x = "v"; }));
         expected = 5;
       }
     );
@@ -45,7 +46,7 @@ in
       { den, funnyNames, ... }:
       {
         imports = mkCtxModules 10;
-        expr = builtins.length (funnyNames (den.ctx.ctx-0 { x = "v"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "ctx-0" { x = "v"; }));
         expected = 10;
       }
     );
@@ -54,7 +55,7 @@ in
       { den, funnyNames, ... }:
       {
         imports = mkCtxModules 20;
-        expr = builtins.length (funnyNames (den.ctx.ctx-0 { x = "v"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "ctx-0" { x = "v"; }));
         expected = 20;
       }
     );
@@ -66,16 +67,17 @@ in
           (
             { den, ... }:
             {
-              den.ctx.root = {
-                description = "root";
-                _.root =
-                  { x }:
-                  {
-                    funny.names = [ "root-${x}" ];
-                  };
-                into.leaf = { x }: lib.genList (i: { x = "${x}-${toString i}"; }) 20;
+              den.stages.root.provides.root =
+                { x }:
+                {
+                  funny.names = [ "root-${x}" ];
+                };
+              den.relationships.root-to-leaf = {
+                from = "root";
+                to = "leaf";
+                resolve = ctx: if ctx ? x then lib.genList (i: { x = "${ctx.x}-${toString i}"; }) 20 else [ ];
               };
-              den.ctx.leaf.provides.leaf =
+              den.stages.leaf.provides.leaf =
                 { x }:
                 {
                   funny.names = [ "leaf-${x}" ];
@@ -83,7 +85,7 @@ in
             }
           )
         ];
-        expr = builtins.length (funnyNames (den.ctx.root { x = "v"; }));
+        expr = builtins.length (funnyNames (den.lib.resolveStage "root" { x = "v"; }));
         expected = 21;
       }
     );

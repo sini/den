@@ -43,22 +43,9 @@ let
       config.microvm.sharedNixStore = lib.mkDefault true;
     };
 
-  # transition a NixOS host into a MicroVM host (only if it has guest microvms)
-  ctx.host.into.microvm-host = { host }: lib.optional (host.microvm.guests != [ ]) { inherit host; };
-
-  # aspect configuring a MicroVM host. imports the microvm host.nix module.
-  ctx.microvm-host.provides.microvm-host =
-    { host }:
-    {
-      ${host.class}.imports = [ host.microvm.hostModule ];
-    };
-
-  # transition from microvm host into each microvm guest
-  ctx.microvm-host.into.microvm-guest = { host }: map (vm: { inherit host vm; }) host.microvm.guests;
-
   # aspect configuring a guest vm at the host level (Declarative in MicroVM parlance)
   # See: https://microvm-nix.github.io/microvm.nix/declarative.html
-  ctx.microvm-host.provides.microvm-guest =
+  microvmGuestProvide =
     { host }:
     { host, vm }:
     {
@@ -87,7 +74,7 @@ let
               "config"
             ];
             # calling host-pipeline ensure all Den features supported on guest
-            fromAspect = _: den.ctx.host { host = vm; };
+            fromAspect = _: den.lib.resolveStage "host" { host = vm; };
           };
 
           # forwards guest microvm class into host: microvm.vms.<vm-name>
@@ -113,6 +100,38 @@ let
 
 in
 {
-  den.ctx = ctx;
+  den.relationships = {
+    host-to-microvm-host = {
+      from = "host";
+      to = "microvm-host";
+      resolve =
+        ctx:
+        if !(ctx ? host) || !(builtins.isAttrs ctx.host) then
+          [ ]
+        else
+          lib.optional (ctx.host.microvm.guests != [ ]) { inherit (ctx) host; };
+    };
+    microvm-host-to-microvm-guest = {
+      from = "microvm-host";
+      to = "microvm-guest";
+      resolve =
+        ctx:
+        if !(ctx ? host) || !(builtins.isAttrs ctx.host) then
+          [ ]
+        else
+          map (vm: {
+            inherit (ctx) host;
+            inherit vm;
+          }) ctx.host.microvm.guests;
+    };
+  };
+  den.stages = {
+    microvm-host.provides.microvm-host =
+      { host }:
+      {
+        ${host.class}.imports = [ host.microvm.hostModule ];
+      };
+    microvm-host.provides.microvm-guest = microvmGuestProvide;
+  };
   den.schema.host.imports = [ extendHostSchema ];
 }

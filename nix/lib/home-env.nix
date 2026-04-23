@@ -62,8 +62,8 @@ let
     { class, ... }:
     {
       includes = [
-        (den.ctx."${ctxName}-user" { inherit host user; })
-        (den.ctx.user { inherit host user; })
+        (den.lib.resolveStage "${ctxName}-user" { inherit host user; })
+        (den.lib.resolveStage "user" { inherit host user; })
       ];
     };
 
@@ -95,17 +95,12 @@ let
       forwardPathFn,
     }:
     {
-      ctx = {
-        host.into."${ctxName}-host" = detectHost { inherit className supportedOses optionPath; };
-
-        "${ctxName}-host" = {
-          provides."${ctxName}-host" =
-            { host }:
-            {
-              ${host.class}.imports = [ host.${optionPath}.module ];
-            };
-          into."${ctxName}-user" = intoClassUsers className;
-        };
+      stages = {
+        "${ctxName}-host".provides."${ctxName}-host" =
+          { host }:
+          {
+            ${host.class}.imports = [ host.${optionPath}.module ];
+          };
 
         "${ctxName}-user".provides."${ctxName}-user" = forwardToHost {
           inherit className ctxName forwardPathFn;

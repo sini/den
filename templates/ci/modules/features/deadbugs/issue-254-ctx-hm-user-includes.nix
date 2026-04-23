@@ -15,7 +15,7 @@
         den.default.homeManager.home.stateVersion = "25.11";
         den.hosts.x86_64-linux.igloo.users.tux = { };
 
-        den.ctx.hm-user = {
+        den.stages.hm-user = {
           includes = [
             {
               homeManager = {
@@ -26,7 +26,7 @@
         };
 
         den.aspects.tux.homeManager = {
-          # Dont enable this, it should be set via den.ctx.hm-user
+          # Dont enable this, it should be set via den.stages.hm-user
           # programs.nix-index.enable = true;
         };
 
@@ -47,7 +47,7 @@
         den.default.homeManager.home.stateVersion = "25.11";
         den.hosts.x86_64-linux.igloo.users.tux = { };
 
-        den.ctx.user = {
+        den.stages.user = {
           includes = [
             {
               homeManager = {
@@ -74,7 +74,7 @@
         den.default.homeManager.home.stateVersion = "25.11";
         den.hosts.x86_64-linux.igloo.users.tux = { };
 
-        den.ctx.hm-host = {
+        den.stages.hm-host = {
           includes = [
             {
               nixos = {
@@ -115,7 +115,7 @@
           };
         };
 
-        den.ctx.hjem-user = {
+        den.stages.hjem-user = {
           includes = [
             {
               hjem.foo = "bar";

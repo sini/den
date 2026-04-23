@@ -2,5 +2,9 @@
 
   # A class for flake-parts' perSystem.packages
   # NOTE: this is different from Den's flake-packages class.
-  den.ctx.flake-parts.into.flake-parts-system = _: [ { fromClass = _: "packages"; } ];
+  den.relationships.flake-parts-to-flake-parts-system-packages = {
+    from = "flake-parts";
+    to = "flake-parts-system";
+    resolve = _: [ { fromClass = _: "packages"; } ];
+  };
 }

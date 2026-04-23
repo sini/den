@@ -41,6 +41,10 @@ let
         isExcluded = param.meta.excluded or false;
         path = aspectPath param;
         key = pathKey path;
+        # Also store base path (without ctxId) so hasAspect can match
+        # without needing to know the specific context instance.
+        basePath = (param.meta.provider or [ ]) ++ [ (param.name or "<anon>") ];
+        baseKey = pathKey basePath;
       in
       {
         resume = param;
@@ -50,9 +54,14 @@ let
             paths = (state.paths or [ ]) ++ (lib.optional (!isExcluded) path);
           }
           // lib.optionalAttrs (!isExcluded) {
-            pathSet = (state.pathSet or { }) // {
-              ${key} = true;
-            };
+            pathSet =
+              (state.pathSet or { })
+              // {
+                ${key} = true;
+              }
+              // lib.optionalAttrs (baseKey != key) {
+                ${baseKey} = true;
+              };
           };
       };
   };

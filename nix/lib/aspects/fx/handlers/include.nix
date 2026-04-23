@@ -35,7 +35,12 @@ let
     child:
     if lib.isFunction child then
       (
-        if builtins.isAttrs child then
+        # Merged aspects have __functor (for callability) but should NOT
+        # be treated as functor-based providers. Detect them by the
+        # presence of declared submodule options (name + includes).
+        if builtins.isAttrs child && child ? name && child ? includes && builtins.isList child.includes then
+          child
+        else if builtins.isAttrs child then
           let
             innerFn = child.__functor child;
             innerArgs = if builtins.isFunction innerFn then builtins.functionArgs innerFn else { };
@@ -167,9 +172,13 @@ let
     in
     if isParametric then
       let
+        # Only required args (value == false in __args) must have handlers.
+        # Optional args (value == true) are resolved if available but don't
+        # block — they're context-level guards (perHost/perUser/take.exactly).
+        requiredKeys = builtins.filter (k: !childArgs.${k}) (builtins.attrNames childArgs);
         # Filter out args available in __scopeHandlers (pure check, no effects needed).
-        # Remaining args are probed via has-handler against root handlers.
-        unresolvedKeys = builtins.filter (k: !(childScopeHandlers ? ${k})) (builtins.attrNames childArgs);
+        # Remaining required args are probed via has-handler against root handlers.
+        unresolvedKeys = builtins.filter (k: !(childScopeHandlers ? ${k})) requiredKeys;
         _t = builtins.trace "keepChild: ${child.name or "?"} args=${toString (builtins.attrNames childArgs)} scopeKeys=${toString (builtins.attrNames childScopeHandlers)} unresolved=${toString unresolvedKeys}";
         probeArgs =
           keys:
@@ -208,7 +217,7 @@ let
               fx.bind (fx.send "resolve-complete" stub) (
                 _:
                 fx.bind (fx.send "defer-include" {
-                  inherit child;
+                  inherit child requiredKeys;
                   requiredArgs = unresolvedKeys;
                 }) (_: fx.pure [ ])
               )

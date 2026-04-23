@@ -20,8 +20,6 @@ let
   den-lib = builtins.mapAttrs (_: load) {
     aspects = ./aspects;
     canTake = ./can-take.nix;
-    ctxApply = ./ctx-apply.nix;
-    ctxTypes = ./ctx-types.nix;
     __findFile = ./den-brackets.nix;
     forward = ./forward.nix;
     home-env = ./home-env.nix;
@@ -31,6 +29,9 @@ let
     parametric = ./parametric.nix;
     take = ./take.nix;
     lastFunctionTo = ./last-function-to.nix;
+    relationshipTypes = ./relationship-types.nix;
+    resolveStage = ./resolve-stage.nix;
+    stageTypes = ./stage-types.nix;
     strict = ./strict.nix;
     fx = ./fx.nix;
   };

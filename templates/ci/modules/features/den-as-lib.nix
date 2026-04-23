@@ -31,10 +31,10 @@ in
         inherit expr expected;
       };
 
-    test-module-has-empty-ctx =
+    test-module-has-empty-stages =
       let
         ev = lib.evalModules { modules = [ denModule ]; };
-        expr = lib.attrNames ev.config.den.ctx;
+        expr = lib.attrNames ev.config.den.stages;
         expected = [ ];
       in
       {
@@ -81,27 +81,34 @@ in
         module =
           { den, lib, ... }:
           {
-            den.ctx.foo.provides.foo =
+            den.stages.foo.provides.foo =
               { name }:
               {
                 my.names = [ "foo ${name}" ];
               };
-            den.ctx.foo.into.bar = { name }: lib.singleton { shout = lib.toUpper name; };
-            den.ctx.foo.provides.bar =
+            den.relationships.foo-to-bar = {
+              from = "foo";
+              to = "bar";
+              resolve = ctx: if ctx ? name then lib.singleton { shout = lib.toUpper ctx.name; } else [ ];
+            };
+            den.stages.foo.provides.bar =
               { name }:
               { shout }:
               {
                 my.names = [ "foo ${name} shouted ${shout}" ];
               };
 
-            den.ctx.bar.provides.bar =
+            den.stages.bar.provides.bar =
               { shout }:
               {
                 my.names = [ "bar ${shout}" ];
               };
 
             den.aspects.foobar.includes = [
-              (den.ctx.foo { name = "good"; })
+              # resolveStage results carry __scopeHandlers which are
+              # destroyed by providerType merge. Wrap in a function
+              # so it's called at resolution time, not definition time.
+              ({ class, ... }: den.lib.resolveStage "foo" { name = "good"; })
             ];
           };
 

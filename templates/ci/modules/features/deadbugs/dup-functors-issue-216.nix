@@ -17,7 +17,7 @@ let
           bogusModule
         ];
       };
-      fooAspect = ev.config.den.ctx.foo {
+      fooAspect = ev.config.den.lib.resolveStage "foo" {
         x = 0;
         y = 1;
       };
@@ -73,7 +73,7 @@ in
             den.aspects.foo.includes = [ den.aspects.groups ];
           }
           {
-            den.ctx.foo.provides.foo = { x, y }@ctx: parametric.fixedTo ctx den.aspects.foo;
+            den.stages.foo.provides.foo = { x, y }@ctx: parametric.fixedTo ctx den.aspects.foo;
           }
         ];
       }
