@@ -1,6 +1,3 @@
-# Sends: ctx-seen, resolve-complete, aspectToEffect
-# State reads: currentCtx
-# External: den.stages (target registry), den.policies (nested transitions)
 {
   lib,
   den,
@@ -16,19 +13,19 @@ let
     ctx:
     lib.concatStringsSep "," (
       lib.sort (a: b: a < b) (
-        lib.concatMap (
+        map (
           attrName:
           let
             attrVal = ctx.${attrName};
           in
           if builtins.isAttrs attrVal && attrVal ? name then
-            [ attrVal.name ]
+            attrVal.name
           else if builtins.isString attrVal then
-            [ attrVal ]
+            attrVal
           else if builtins.isInt attrVal || builtins.isFloat attrVal then
-            [ (toString attrVal) ]
+            toString attrVal
           else
-            [ attrName ]
+            attrName
         ) (builtins.attrNames ctx)
       )
     );

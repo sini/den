@@ -6,7 +6,7 @@
   ...
 }:
 let
-  inherit (import ./_types.nix { inherit lib; }) strOpt;
+  inherit (import ./_types.nix { inherit lib; }) strOpt lookupAspect mainModuleOption;
 
   hostsOption = lib.mkOption {
     description = "den hosts definition";
@@ -41,11 +41,7 @@ let
             description = "Aspect that configures this host.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default =
-              if den.aspects ? ${config.name} then
-                den.aspects.${config.name}
-              else
-                lib.warn "den.aspects.${config.name} not defined — entity gets empty aspect" { };
+            default = lookupAspect den config;
           };
           description = strOpt "host description" "${config.class}.${config.hostName}@${config.system}";
           users = lib.mkOption {
@@ -109,14 +105,7 @@ let
               }
               .${config.class};
           };
-          mainModule = lib.mkOption {
-            internal = true;
-            visible = false;
-            readOnly = true;
-            type = lib.types.deferredModule;
-            defaultText = "den.lib.aspects.resolve config.class config.resolved";
-            default = den.lib.aspects.resolve config.class config.resolved;
-          };
+          mainModule = mainModuleOption den config;
         };
       }
     );
@@ -143,11 +132,7 @@ let
             description = "Aspect that configures this user.";
             type = lib.types.raw; # no merging
             defaultText = "den.aspects.<name>";
-            default =
-              if den.aspects ? ${config.name} then
-                den.aspects.${config.name}
-              else
-                lib.warn "den.aspects.${config.name} not defined — entity gets empty aspect" { };
+            default = lookupAspect den config;
           };
           host = lib.mkOption {
             default = host;
