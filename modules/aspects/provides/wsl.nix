@@ -25,8 +25,7 @@ let
   '';
 
   fwd =
-    host:
-    { class, aspect-chain }:
+    { host, aspect-chain, ... }:
     den.provides.forward {
       each = lib.singleton true;
       fromClass = _: "wsl";
@@ -56,7 +55,7 @@ in
         imports = [ host.wsl.module ];
         wsl.enable = true;
       };
-      includes = [ (fwd host) ];
+      includes = [ fwd ];
     };
   den.schema.host.imports = [ hostConf ];
 

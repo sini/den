@@ -58,8 +58,7 @@ let
 
   userEnvAspect =
     ctxName:
-    { host, user }:
-    { class, ... }:
+    { host, user, ... }:
     {
       includes = [
         (den.lib.resolveStage "${ctxName}-user" { inherit host user; })
@@ -79,7 +78,7 @@ let
       fromClass = _: className;
       intoClass = _: host.class;
       intoPath = _: forwardPathFn { inherit host user; };
-      fromAspect = _: userEnvAspect ctxName { inherit host user; };
+      fromAspect = _: userEnvAspect ctxName;
     };
 
   makeHomeEnv =
