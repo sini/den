@@ -40,15 +40,12 @@ let
                 type = lib.types.raw;
                 default =
                   let
-                    # Entity args (host, user, home) are always passed as context
-                    # even if no corresponding stage exists — aspects may need them
-                    # for parametric resolution (e.g. { host, ... }: ...).
-                    entityKinds = [
-                      "host"
-                      "user"
-                      "home"
-                    ];
-                    isContextArg = n: builtins.elem n knownKinds || builtins.elem n entityKinds;
+                    # Entity kinds derived from schema so user-defined kinds
+                    # automatically become first-class context args.
+                    schemaKinds = builtins.filter (n: n != "conf" && !(lib.hasPrefix "_" n)) (
+                      builtins.attrNames (den.schema or { })
+                    );
+                    isContextArg = n: builtins.elem n knownKinds || builtins.elem n schemaKinds;
                     ctx = lib.filterAttrs (n: _: isContextArg n) config._module.args // {
                       ${kind} = config;
                     };
