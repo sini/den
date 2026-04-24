@@ -100,6 +100,11 @@ let
 
 in
 {
+  den.schema.host.policies = [
+    "host-to-microvm-host"
+    "microvm-host-to-microvm-guest"
+  ];
+
   den.policies = {
     host-to-microvm-host = {
       from = "host";
