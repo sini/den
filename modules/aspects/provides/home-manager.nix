@@ -5,7 +5,7 @@
   ...
 }:
 let
-  inherit (den.lib.home-env) makeHomeEnv mkDetectHost mkIntoClassUsers;
+  inherit (den.lib.home-env) makeHomeEnv;
 
   result = makeHomeEnv {
     className = "homeManager";
@@ -27,26 +27,6 @@ in
     home.provides.home = { home }: home.aspect;
   };
   den.schema.host.imports = [ result.hostConf ];
-
-  den.policies = {
-    host-to-hm-host = {
-      from = "host";
-      to = "hm-host";
-      resolve = mkDetectHost {
-        className = "homeManager";
-        optionPath = "home-manager";
-      };
-    };
-
-    hm-host-to-hm-user = {
-      from = "hm-host";
-      to = "hm-user";
-      resolve = mkIntoClassUsers "homeManager";
-    };
-  };
-
-  den.schema.host.policies = [
-    "host-to-hm-host"
-    "hm-host-to-hm-user"
-  ];
+  den.policies = result.policies;
+  den.schema.host.policies = result.schemaPolicies;
 }

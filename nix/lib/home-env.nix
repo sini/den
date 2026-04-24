@@ -114,6 +114,26 @@ let
           getModule
           ;
       };
+
+      policies = {
+        "host-to-${ctxName}-host" = {
+          from = "host";
+          to = "${ctxName}-host";
+          resolve = mkDetectHost {
+            inherit className supportedOses optionPath;
+          };
+        };
+        "${ctxName}-host-to-${ctxName}-user" = {
+          from = "${ctxName}-host";
+          to = "${ctxName}-user";
+          resolve = mkIntoClassUsers className;
+        };
+      };
+
+      schemaPolicies = [
+        "host-to-${ctxName}-host"
+        "${ctxName}-host-to-${ctxName}-user"
+      ];
     };
 
 in
