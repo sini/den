@@ -22,7 +22,6 @@ let
       ctx = { inherit host user; };
       scopeHandlers = den.lib.aspects.fx.handlers.constantHandler ctx;
       aspectWithCtx = host.aspect // {
-        __scope = den.lib.fx.effects.scope.stateful scopeHandlers;
         __scopeHandlers = scopeHandlers;
       };
     in
