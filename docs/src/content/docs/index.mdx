@@ -110,7 +110,7 @@ flowchart BT
   <Card title="Resolution Pipeline" icon="right-arrow">
     Declarative [stages](/reference/ctx/) with `den.stages`.
 
-    [Policies](/explanation/policies/) drive traversal between stages,
+    [Policies](/explanation/policies/) declare how entity kinds relate,
     using a declarative design, ensuring only valid contexts exist via
     principles like [parse don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
   </Card>
@@ -161,7 +161,7 @@ flowchart LR
 <Steps>
 1. **Schema** -- `den.hosts` and `den.homes` declare machines, users, and their properties with `den.schema` modules and extensible freeform types.
 2. **Aspects** -- `den.aspects.*` bundles per-class configs (`nixos`, `darwin`, `homeManager`, or any custom class) with `.includes` and `.provides` forming a DAG.
-3. **Resolution pipeline** -- `den.stages` transforms schema entries into stage pairs (`{host}`, `{host, user}`, `{home}`), walking policy transitions for derived stages like `hm-host`, `hm-user`, `wsl-host` or any other custom stage.
+3. **Resolution pipeline** -- `den.policies` fan out from entity kinds (`{host}` → `{host, user}`, `{home}`), while `den.stages` bind behavior at each pipeline step. Batteries register derived entity kinds like `hm-host`, `hm-user`, `wsl-host`.
 4. **Resolution** -- Parametric dispatch via `__functor` argument introspection. Functions receive only contexts whose shape matches their parameters. 
 5. **Output** -- Each host/home is instantiated via `nixpkgs.lib.nixosSystem`, `darwin.lib.darwinSystem`, or `home-manager.lib.homeManagerConfiguration`.
 </Steps>

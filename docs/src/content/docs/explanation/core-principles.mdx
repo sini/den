@@ -67,16 +67,16 @@ Most importantly, the context `{host,user}` here are **not** `_module.args` **no
 
 ### Den is Context-driven
 
-Den uses `den.stages.<name>.provides.<name>` as **Aspect Pointcuts** where configuration is applied to data in that stage.
-Say you have a data shape: `{ x }`, that you name as a `foo` stage:
+Den uses `den.stages.<name>.provides.<name>` as **Aspect Pointcuts** where configuration is applied to data at that point in the pipeline.
+Say you have an entity kind `foo` with data shape `{ x }`:
 
 ```nix
-# This says how to move from one stage `foo` into another stage `bar`
+# This policy fans out from entity kind `foo` to entity kind `bar`
 den.policies.foo-to-bar = { x }: [ { y = x; } ]
 ```
 
 The following `den.stages.bar.provides.bar` is the actual pointcut that **locates** the aspect responsible for configuring
-using data `{ y }` available at `bar` stage.
+using data `{ y }` available when resolving `bar` entities.
 
 ```nix
 # inlined aspect for this example, but can locate the aspect by any means

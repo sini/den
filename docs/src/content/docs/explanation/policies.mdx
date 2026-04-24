@@ -49,7 +49,7 @@ A policy is declared under `den.policies.<name>` as a submodule with five fields
 | Field | Type | Purpose |
 |-------|------|---------|
 | `from` | string | Source entity kind (e.g. `"host"`) |
-| `to` | string | Target entity kind or stage name |
+| `to` | string | Target entity kind |
 | `as` | string | Context key for the output (defaults to `to`). Useful for sibling routing where `from == to`. |
 | `resolve` | function | Takes pipeline context, returns a list of target context attrsets |
 | `handlers` | attrs | Named effect handlers installed when this policy fires |

@@ -54,7 +54,7 @@ den.lib.policyInspect.inspect {
 }
 ```
 
-This returns a set of matching policies with their targets, routing type, and source/destination stages.
+This returns a set of matching policies with their targets, routing type, and source/destination entity kinds.
 
 ## Trace Aspect Includes
 
