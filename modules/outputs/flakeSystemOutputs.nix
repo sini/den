@@ -13,11 +13,13 @@ let
     { system, output }:
     { class, aspect-chain }:
     let
-      # Use the target stage if it has includes (user set den.stages.flake-packages.includes).
+      # Use the target stage if it has content (user set den.stages.flake-packages).
       # Fall back to aspect-chain root for test/inline patterns where packages
       # class is on the root aspect directly.
       stageTarget = den.stages."flake-${output}" or null;
-      hasStageContent = stageTarget != null && (stageTarget.includes or [ ]) != [ ];
+      hasStageContent =
+        stageTarget != null
+        && ((stageTarget.includes or [ ]) != [ ] || (stageTarget.provides or { }) != { });
       source =
         if hasStageContent then
           den.lib.resolveStage "flake-${output}" { inherit system; }
