@@ -44,9 +44,20 @@ let
     if key != null then
       ctx ? ${key} && builtins.isAttrs ctx.${key}
     else if isFlakeScope then
-      !hasEntityValues && (stage == "flake" || ctx != { })
+      !hasEntityValues
     else
       true;
+
+  # Check if policy.resolve's required args are present in ctx.
+  # Policies with { system, ... }: won't fire with empty ctx.
+  # Policies with _: or { ... }: fire with any ctx.
+  resolveArgsSatisfied =
+    policy: ctx:
+    let
+      fargs = lib.functionArgs policy.resolve;
+      requiredArgs = builtins.filter (k: !fargs.${k}) (builtins.attrNames fargs);
+    in
+    builtins.all (k: ctx ? ${k}) requiredArgs;
 
   synthesize =
     stageName:
@@ -61,7 +72,9 @@ let
       builtins.foldl' (
         acc: policy:
         let
-          targets = if ctxSatisfies policy.from rCtx then policy.resolve rCtx else [ ];
+          scopeOk = ctxSatisfies policy.from rCtx;
+          argsOk = resolveArgsSatisfied policy rCtx;
+          targets = if scopeOk && argsOk then policy.resolve rCtx else [ ];
           targetList = if builtins.isList targets then targets else [ targets ];
         in
         if targetList == [ ] then
