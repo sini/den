@@ -28,6 +28,7 @@ let
           in
           rawAspect
           // {
+            __ctx = ctx;
             __scopeHandlers = (rawAspect.__scopeHandlers or { }) // constantHandler ctx;
           }
         else

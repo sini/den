@@ -55,10 +55,21 @@ let
     class: resolved:
     let
       wrapped = normalizeRoot resolved;
-      inherit (den.lib.aspects.fx.handlers) handlersToCtx;
-      ctx = if resolved ? __scopeHandlers then handlersToCtx resolved.__scopeHandlers else { };
+      ctx = resolved.__ctx or { };
     in
     fx.pipeline.fxResolve {
+      inherit class ctx;
+      self = wrapped;
+    };
+
+  # Like resolve but returns full pipeline result including state.provideTo.
+  fxResolveTreeFull =
+    class: resolved:
+    let
+      wrapped = normalizeRoot resolved;
+      ctx = resolved.__ctx or { };
+    in
+    fx.pipeline.fxFullResolve {
       inherit class ctx;
       self = wrapped;
     };
@@ -68,6 +79,7 @@ in
 {
   inherit types fx normalizeRoot;
   resolve = fxResolveTree;
+  resolveWithState = fxResolveTreeFull;
   inherit (hasAspect) hasAspectIn collectPathSet mkEntityHasAspect;
   mkAspectsType = typeCfg: lib.mapAttrs (_: v: v typeCfg) rawTypes;
   # Predicates exported directly (not through types mapAttrs which applies { } to each value).

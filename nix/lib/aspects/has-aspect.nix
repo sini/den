@@ -20,12 +20,7 @@ let
       normalized = den.lib.aspects.normalizeRoot tree;
       result = den.lib.aspects.fx.pipeline.fxFullResolve {
         inherit class;
-        ctx =
-          let
-            inherit (den.lib.aspects.fx.handlers) handlersToCtx;
-            src = normalized.__scopeHandlers or tree.__scopeHandlers or null;
-          in
-          if src != null then handlersToCtx src else { };
+        ctx = normalized.__ctx or tree.__ctx or { };
         self = normalized;
       };
     in

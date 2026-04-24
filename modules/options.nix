@@ -54,8 +54,8 @@ let
               # Automatically includes any primitive option declared on the
               # entity — custom entity types get this for free.
               #
-              # Usage: builtins.filter (h: h.hash_value != host.hash_value) allHosts
-              options.hash_value = lib.mkOption {
+              # Usage: builtins.filter (h: h.id_hash != host.id_hash) allHosts
+              options.id_hash = lib.mkOption {
                 description = ''
                   Auto-computed identity hash for entity comparison.
 
@@ -63,7 +63,7 @@ let
                   options (str, int, bool) declared on this entity. The schema
                   kind is included to prevent cross-kind collisions.
 
-                  Use `a.hash_value != b.hash_value` instead of `a != b` for entity
+                  Use `a.id_hash != b.id_hash` instead of `a != b` for entity
                   comparison — Nix's `==` does deep structural comparison which
                   is fragile across module system boundaries.
                 '';

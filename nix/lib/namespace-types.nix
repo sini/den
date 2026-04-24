@@ -12,17 +12,6 @@ let
         default = { };
         type = lib.types.lazyAttrsOf stageTreeType;
       };
-      # Compat alias: prevent ns.ctx.x from silently creating freeform aspects.
-      options.ctx = lib.mkOption {
-        visible = false;
-        default = { };
-        type = lib.types.lazyAttrsOf stageTreeType;
-      };
-      config.stages = lib.mkMerge (
-        lib.mapAttrsToList (ctxName: value: {
-          ${ctxName} = lib.warn "${name}.ctx.${ctxName} is deprecated — use ${name}.stages.${ctxName}" value;
-        }) (builtins.removeAttrs nsArgs.config.ctx [ "_module" ])
-      );
       options.schema = lib.mkOption {
         description = "namespace schema — freeform deferred modules per entity kind";
         defaultText = lib.literalExpression "{ }";

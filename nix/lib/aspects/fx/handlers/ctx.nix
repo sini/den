@@ -38,22 +38,10 @@ let
       };
   };
 
-  # Inverse of constantHandler — extract the plain context attrset from handlers.
-  handlersToCtx =
-    handlers:
-    builtins.mapAttrs (
-      _: handler:
-      (handler {
-        param = null;
-        state = { };
-      }).resume
-    ) handlers;
-
 in
 {
   inherit
     constantHandler
     ctxSeenHandler
-    handlersToCtx
     ;
 }

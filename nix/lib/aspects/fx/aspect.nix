@@ -15,11 +15,14 @@ let
     "meta"
     "includes"
     "provides"
+    "policies"
+    "provide-to"
     "into"
     "__fn"
     "__args"
     "__functor"
     "__functionArgs"
+    "__ctx"
     "__scopeHandlers"
     "__ctxId"
     "__parametricResolved"
@@ -103,10 +106,16 @@ let
     let
       # meta.into survives freeform deferredModule; aspect.into is the fallback.
       intoFn = aspect.meta.into or aspect.into or null;
+      hasManualInto = intoFn != null && lib.isFunction intoFn;
+      # Only fire per-policy dispatch for stage roots (aspects with __ctxStage).
+      # Inner provides/includes share the stage name but are not transition points.
+      isStageRoot = aspect ? __ctxStage;
+      hasPolicies =
+        isStageRoot && den.lib.aspects.fx.handlers.policyEffectNamesFor (aspect.name or "") != [ ];
     in
-    if intoFn != null && lib.isFunction intoFn then
+    if hasManualInto || hasPolicies then
       fx.send "into-transition" {
-        inherit intoFn;
+        intoFn = if hasManualInto then intoFn else null;
         self = aspect;
       }
     else
@@ -180,11 +189,7 @@ let
       provides = aspect.provides or { };
       providerVal = provides.${name};
       scopeHandlers = aspect.__scopeHandlers or null;
-      ctx =
-        if aspect ? __scopeHandlers then
-          den.lib.aspects.fx.handlers.handlersToCtx aspect.__scopeHandlers
-        else
-          { };
+      ctx = aspect.__ctx or { };
       isParamWrapper = isParametricWrapper providerVal;
       innerFn =
         if isParamWrapper then
@@ -245,14 +250,37 @@ let
     let
       scopeHandlers = aspect.__scopeHandlers or null;
       ctxId = aspect.__ctxId or null;
+      # Emit provide-to effects for cross-entity data routing.
+      # Aspects declare provide-to.${label} = data; the handler collects
+      # emissions in state.provideTo for phase 2 distribution.
+      provideToData = aspect."provide-to" or { };
+      emitProvideTo =
+        if provideToData == { } then
+          fx.pure null
+        else
+          fx.seq (
+            map (
+              label:
+              fx.send "provide-to" {
+                inherit label;
+                content = provideToData.${label};
+                emitterCtx = aspect.__ctx or { };
+                aspectName = aspect.name or "<anon>";
+                targetEntity = null;
+              }
+            ) (builtins.attrNames provideToData)
+          );
       childResolution = fx.bind (emitSelfProvide aspect) (
         selfProvResults:
-        fx.bind (emitTransitions aspect) (
-          transitionResults:
-          fx.bind (emitIncludes {
-            __parentScopeHandlers = scopeHandlers;
-            __parentCtxId = ctxId;
-          } (aspect.includes or [ ])) (children: fx.pure (selfProvResults ++ transitionResults ++ children))
+        fx.bind emitProvideTo (
+          _:
+          fx.bind (emitTransitions aspect) (
+            transitionResults:
+            fx.bind (emitIncludes {
+              __parentScopeHandlers = scopeHandlers;
+              __parentCtxId = ctxId;
+            } (aspect.includes or [ ])) (children: fx.pure (selfProvResults ++ transitionResults ++ children))
+          )
         )
       );
     in

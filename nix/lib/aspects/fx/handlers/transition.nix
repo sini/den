@@ -6,7 +6,7 @@
 let
   fx = den.lib.fx;
   inherit (den.lib.aspects.fx.aspect) aspectToEffect;
-  inherit (den.lib.aspects.fx.handlers) constantHandler handlersToCtx;
+  inherit (den.lib.aspects.fx.handlers) constantHandler;
   inherit (den.lib.aspects) isParametricWrapper;
 
   mkCtxId =
@@ -61,6 +61,7 @@ let
       scopeHandlers = constantHandler scopedCtx;
       tagged = targetAspect // {
         __scopeHandlers = scopeHandlers;
+        __ctx = scopedCtx;
         __ctxId = ctxId;
       };
     in
@@ -79,7 +80,7 @@ let
             let
               deferredTagged = deferred.child // {
                 __scopeHandlers = scopeHandlers;
-
+                __ctx = scopedCtx;
                 __ctxId = ctxId;
               };
             in
@@ -90,6 +91,8 @@ let
     );
 
   # Core pipeline effects that policy handlers must not shadow.
+  # Per-policy effects use "policy:<name>" prefix and are dispatched
+  # by the transition handler — they are NOT in this list.
   coreEffects = [
     "into-transition"
     "ctx-seen"
@@ -105,7 +108,7 @@ let
     "drain-deferred"
     "get-path-set"
     "has-handler"
-    "resolve-policy"
+    "provide-to"
     "resolve-target"
   ];
 
@@ -136,6 +139,7 @@ let
             crossProvider
             // {
               __scopeHandlers = scopeHandlers;
+              __ctx = scopedCtx;
               __ctxId = ctxId;
             }
           else
@@ -153,14 +157,14 @@ let
                 __fn = crossResult;
                 __args = lib.functionArgs crossResult;
                 __scopeHandlers = scopeHandlers;
-
+                __ctx = scopedCtx;
                 __ctxId = ctxId;
               }
             else
               crossResult
               // {
                 __scopeHandlers = scopeHandlers;
-
+                __ctx = scopedCtx;
                 __ctxId = ctxId;
               };
       in
@@ -194,97 +198,132 @@ let
     in
     fx.bind mergeImports (_: fx.pure innerResults);
 
+  # Routing decision: sibling targets (policy.from == policy.to) route
+  # through provide-to for cross-entity distribution. Child targets
+  # resolve locally. Manual into transitions always resolve locally.
+  isSiblingRoute =
+    transition: transition ? routing && transition.routing.from == transition.routing.to;
+
+  resolveSiblingTransition =
+    sourceAspect: currentCtx: results: transition:
+    builtins.foldl' (
+      acc: indexed:
+      fx.bind acc (
+        innerResults:
+        let
+          newCtx = indexed.ctx;
+          scopedCtx = currentCtx // newCtx;
+          rawTarget = newCtx.${transition.routing.targetKey} or newCtx;
+          targetEntity =
+            if builtins.isAttrs rawTarget && !(rawTarget ? name) then
+              builtins.trace "den: sibling route target has no name — groupByTarget will use label as key" rawTarget
+            else
+              rawTarget;
+        in
+        fx.send "provide-to" {
+          label = transition.routing.targetKey;
+          content = null;
+          emitterCtx = currentCtx;
+          aspectName = sourceAspect.name or "<anon>";
+          inherit targetEntity;
+        }
+      )
+    ) (fx.pure results) (lib.imap0 (i: ctx: { inherit i ctx; }) transition.contexts);
+
   resolveTransition =
     targetClass: sourceAspect: currentCtx: results: transition:
-    let
-      key = "${targetClass}/${lib.concatStringsSep "/" transition.path}";
-      targetKey = lib.concatStringsSep "." transition.path;
-      sourceProvides = sourceAspect.provides or { };
-      crossProvider = sourceProvides.${targetKey} or null;
-      emitCross = emitCrossProvider { inherit crossProvider sourceAspect targetKey; };
-      policyHandlers = collectPolicyHandlers (sourceAspect.name or "") targetKey;
-    in
-    fx.bind
-      (fx.send "resolve-target" {
-        path = transition.path;
-        inherit targetClass;
-      })
-      (
-        effectiveTarget:
-        if effectiveTarget == null && crossProvider == null then
-          let
-            tombstone = {
-              name = "~<missing-transition:${key}>";
-              meta = {
-                excluded = true;
-                transitionMissing = true;
-                transitionPath = key;
+    if isSiblingRoute transition then
+      resolveSiblingTransition sourceAspect currentCtx results transition
+    else
+      let
+        key = "${targetClass}/${lib.concatStringsSep "/" transition.path}";
+        targetKey = lib.concatStringsSep "." transition.path;
+        sourceProvides = sourceAspect.provides or { };
+        crossProvider = sourceProvides.${targetKey} or null;
+        emitCross = emitCrossProvider { inherit crossProvider sourceAspect targetKey; };
+        policyHandlers = collectPolicyHandlers (sourceAspect.name or "") targetKey;
+      in
+      fx.bind
+        (fx.send "resolve-target" {
+          path = transition.path;
+          inherit targetClass;
+        })
+        (
+          effectiveTarget:
+          if effectiveTarget == null && crossProvider == null then
+            let
+              tombstone = {
+                name = "~<missing-transition:${key}>";
+                meta = {
+                  excluded = true;
+                  transitionMissing = true;
+                  transitionPath = key;
+                };
+                includes = [ ];
               };
-              includes = [ ];
-            };
-          in
-          fx.bind (fx.send "resolve-complete" tombstone) (_: fx.pure (results ++ [ tombstone ]))
-        else
-          let
-            isFanOut = builtins.length transition.contexts > 1;
-            # Pre-index contexts so fan-out dedup keys are unique even when
-            # policy-contributed contexts have identical attr names
-            # (e.g., {fromClass=_:"packages"} vs {fromClass=_:"files"}).
-            indexedContexts = lib.imap0 (i: ctx: {
-              inherit i;
-              ctx = ctx;
-            }) transition.contexts;
-          in
-          builtins.foldl' (
-            acc: indexed:
-            fx.bind acc (
-              innerResults:
-              let
-                newCtx = indexed.ctx;
-                scopedCtx = currentCtx // newCtx;
-                ctxNames = mkCtxId newCtx;
-                ctxKey = if isFanOut then "${key}/{${ctxNames}}#${toString indexed.i}" else key;
-                scopeHandlers = constantHandler scopedCtx;
-                updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
-                baseComputation =
-                  if effectiveTarget != null then
-                    if isFanOut && targetClass == "flake" then
-                      resolveFanOut {
-                        inherit
-                          targetClass
-                          effectiveTarget
-                          scopedCtx
-                          scopeHandlers
-                          ctxNames
-                          ;
-                      } innerResults
+            in
+            fx.bind (fx.send "resolve-complete" tombstone) (_: fx.pure (results ++ [ tombstone ]))
+          else
+            let
+              isFanOut = builtins.length transition.contexts > 1;
+              # Pre-index contexts so fan-out dedup keys are unique even when
+              # policy-contributed contexts have identical attr names
+              # (e.g., {fromClass=_:"packages"} vs {fromClass=_:"files"}).
+              indexedContexts = lib.imap0 (i: ctx: {
+                inherit i;
+                ctx = ctx;
+              }) transition.contexts;
+            in
+            builtins.foldl' (
+              acc: indexed:
+              fx.bind acc (
+                innerResults:
+                let
+                  newCtx = indexed.ctx;
+                  scopedCtx = currentCtx // newCtx;
+                  ctxNames = mkCtxId newCtx;
+                  ctxKey = if isFanOut then "${key}/{${ctxNames}}#${toString indexed.i}" else key;
+                  scopeHandlers = constantHandler scopedCtx;
+                  updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
+                  baseComputation =
+                    if effectiveTarget != null then
+                      if isFanOut && targetClass == "flake" then
+                        resolveFanOut {
+                          inherit
+                            targetClass
+                            effectiveTarget
+                            scopedCtx
+                            scopeHandlers
+                            ctxNames
+                            ;
+                        } innerResults
+                      else
+                        resolveContextValue currentCtx effectiveTarget innerResults newCtx
                     else
-                      resolveContextValue currentCtx effectiveTarget innerResults newCtx
+                      fx.pure innerResults;
+                  # Install policy handlers for aspects resolved under this transition.
+                  # Fan-out sub-pipelines (fxFullResolve) create fresh handler scopes,
+                  # so policy handlers don't propagate into them. Nested transitions
+                  # that install handlers for the same effect name use innermost-wins
+                  # semantics (standard scope.provide shadowing).
+                  withTarget =
+                    if policyHandlers != { } then
+                      fx.effects.scope.provide policyHandlers baseComputation
+                    else
+                      baseComputation;
+                in
+                fx.bind (fx.send "ctx-seen" ctxKey) (
+                  { isFirst }:
+                  if !isFirst then
+                    fx.pure innerResults
                   else
-                    fx.pure innerResults;
-                # Install policy handlers for aspects resolved under this transition.
-                # Fan-out sub-pipelines (fxFullResolve) create fresh handler scopes,
-                # so policy handlers don't propagate into them. Nested transitions
-                # that install handlers for the same effect name use innermost-wins
-                # semantics (standard scope.provide shadowing).
-                withTarget =
-                  if policyHandlers != { } then
-                    fx.effects.scope.provide policyHandlers baseComputation
-                  else
-                    baseComputation;
-              in
-              fx.bind (fx.send "ctx-seen" ctxKey) (
-                { isFirst }:
-                if !isFirst then
-                  fx.pure innerResults
-                else
-                  fx.bind updateCtx (
-                    _: fx.bind withTarget (targetResults: emitCross scopedCtx scopeHandlers ctxNames targetResults)
-                  )
+                    fx.bind updateCtx (
+                      _: fx.bind withTarget (targetResults: emitCross scopedCtx scopeHandlers ctxNames targetResults)
+                    )
+                )
               )
-            )
-          ) (fx.pure results) indexedContexts
-      );
+            ) (fx.pure results) indexedContexts
+        );
 
   maxTransitionDepth = 50;
 
@@ -294,24 +333,89 @@ let
       let
         sourceAspect = param.self;
         rootCtx = (state.currentCtx or (_: { })) null;
-        # Merge the source aspect's context so that stages resolved with
+        # Merge the source aspect's __ctx so that stages resolved with
         # explicit context have their context available for the into function.
-        aspectCtx =
-          if sourceAspect ? __scopeHandlers then handlersToCtx sourceAspect.__scopeHandlers else { };
+        aspectCtx = sourceAspect.__ctx or { };
         currentCtx = rootCtx // aspectCtx;
         depth = state.transitionDepth or 0;
-        intoResult = param.intoFn currentCtx;
-        transitions = flattenInto intoResult [ ];
         targetClass = state.class or "nixos";
+        sourceStageName = sourceAspect.name or "";
+
+        # Manual into transitions (from stage definition).
+        manualIntoFn = param.intoFn;
+        manualTransitions = if manualIntoFn != null then flattenInto (manualIntoFn currentCtx) [ ] else [ ];
+
+        # Per-policy effects: send each matching policy effect, collect targets.
+        policyEffects = den.lib.aspects.fx.handlers.policyEffectNamesFor sourceStageName;
+
+        dispatchPolicies = builtins.foldl' (
+          acc: effectName:
+          fx.bind acc (
+            prevTransitions:
+            fx.bind
+              (fx.send effectName {
+                ctx = currentCtx;
+                stageName = sourceStageName;
+              })
+              (
+                result:
+                if result == null then
+                  fx.pure prevTransitions
+                else
+                  let
+                    targetPath = lib.splitString "." result.routing.targetKey;
+                  in
+                  fx.pure (
+                    prevTransitions
+                    ++ [
+                      {
+                        path = targetPath;
+                        contexts = result.targets;
+                        routing = result.routing;
+                      }
+                    ]
+                  )
+              )
+          )
+        ) (fx.pure manualTransitions) policyEffects;
       in
       if depth >= maxTransitionDepth then
         throw "den: transition depth exceeded ${toString maxTransitionDepth} — likely a cycle in den.policies (${sourceAspect.name or "?"})"
       else
         {
-          resume = builtins.foldl' (
-            acc: transition:
-            fx.bind acc (results: resolveTransition targetClass sourceAspect currentCtx results transition)
-          ) (fx.pure [ ]) transitions;
+          resume = fx.bind dispatchPolicies (
+            rawTransitions:
+            let
+              # Merge transitions targeting the same path — multiple policies
+              # may produce separate contexts for the same target stage.
+              # Concatenating contexts restores the fan-out behavior that
+              # the old mergePolicyInto path provided naturally.
+              # Routing metadata is kept from the first transition per path —
+              # same-path policies must have consistent from/to pairs.
+              mergeByPath = builtins.foldl' (
+                acc: t:
+                let
+                  pathKey = lib.concatStringsSep "." t.path;
+                in
+                acc
+                // {
+                  ${pathKey} =
+                    if acc ? ${pathKey} then
+                      acc.${pathKey}
+                      // {
+                        contexts = acc.${pathKey}.contexts ++ t.contexts;
+                      }
+                    else
+                      t;
+                }
+              ) { } rawTransitions;
+              allTransitions = builtins.attrValues mergeByPath;
+            in
+            builtins.foldl' (
+              acc: transition:
+              fx.bind acc (results: resolveTransition targetClass sourceAspect currentCtx results transition)
+            ) (fx.pure [ ]) allTransitions
+          );
           state = state // {
             transitionDepth = depth + 1;
           };
