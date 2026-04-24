@@ -59,4 +59,12 @@ in
       includes = [ (fwd host) ];
     };
   den.schema.host.imports = [ hostConf ];
+
+  den.policies.host-to-wsl-host = {
+    from = "host";
+    to = "wsl-host";
+    resolve =
+      { host, ... }:
+      lib.optional (host.class == "nixos" && (host.wsl or { }).enable or false) { inherit host; };
+  };
 }

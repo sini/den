@@ -23,7 +23,7 @@ let
       funcArgs = lib.genAttrs reqKeysSorted (_: false) // lib.genAttrs extraKeys (_: true);
     in
     lib.warn
-      "den.lib.perCtx [${lib.concatStringsSep "," reqKeysSorted}] is deprecated — handler-based resolution makes context guards unnecessary"
+      "den.lib.perCtx [${lib.concatStringsSep "," reqKeysSorted}] is deprecated — use a plain function ({ ${lib.concatStringsSep ", " reqKeysSorted}, ... }: ...) instead; handler-based resolution resolves context args automatically"
       {
         __fn =
           resolvedArgs:

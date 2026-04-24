@@ -9,9 +9,8 @@
 let
   # Build handler set from context.
   # Each key in ctx becomes a handler that resumes with the value.
-  # has-handler (from nix-effects) replaces probe-arg — it queries
-  # the handler scope directly, including scoped handlers from
-  # scope.stateful/scope.provide.
+  # has-handler queries the handler scope directly, including scoped
+  # handlers from scope.provide.
   constantHandler =
     ctx:
     builtins.mapAttrs (

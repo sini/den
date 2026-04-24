@@ -1,4 +1,7 @@
 # Core entity policies — fundamental traversal between entity kinds.
+#
+# Policy resolve functions can safely destructure context args because
+# synthesize-policies.nix validates entity keys before calling resolve.
 { lib, ... }:
 {
   den.policies = {
@@ -6,24 +9,25 @@
       from = "host";
       to = "user";
       resolve =
-        ctx:
-        if !(ctx ? host) || !(builtins.isAttrs ctx.host) || !(ctx.host ? users) then
-          [ ]
-        else
-          map (user: {
-            inherit (ctx) host;
-            inherit user;
-          }) (lib.attrValues ctx.host.users);
+        { host, ... }:
+        map (user: {
+          inherit host user;
+        }) (lib.attrValues host.users);
     };
     host-to-default = {
       from = "host";
       to = "default";
-      resolve = ctx: if !(ctx ? host) || !(builtins.isAttrs ctx.host) then [ ] else [ ctx ];
+      resolve = lib.singleton;
     };
     user-to-default = {
       from = "user";
       to = "default";
-      resolve = ctx: if !(ctx ? user) || !(builtins.isAttrs ctx.user) then [ ] else [ ctx ];
+      resolve = lib.singleton;
+    };
+    home-to-default = {
+      from = "home";
+      to = "default";
+      resolve = lib.singleton;
     };
   };
 }

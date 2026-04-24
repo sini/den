@@ -6,15 +6,7 @@
 }:
 let
   inherit (config) den;
-  hostEntities = import ./../nix/lib/entities/host.nix {
-    inherit
-      inputs
-      lib
-      den
-      config
-      ;
-  };
-  homeEntities = import ./../nix/lib/entities/home.nix {
+  types = import ./../nix/lib/types.nix {
     inherit
       inputs
       lib
@@ -86,8 +78,8 @@ let
   };
 in
 {
-  options.den.hosts = hostEntities.hostsOption;
-  options.den.homes = homeEntities.homesOption;
+  options.den.hosts = types.hostsOption;
+  options.den.homes = types.homesOption;
   options.den.schema = schemaOption;
   config.den.schema = {
     conf = { };

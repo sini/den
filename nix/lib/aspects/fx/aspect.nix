@@ -19,6 +19,7 @@ let
     "__fn"
     "__args"
     "__functor"
+    "__functionArgs"
     "__ctx"
     "__scopeHandlers"
     "__ctxId"

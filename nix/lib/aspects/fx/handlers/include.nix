@@ -170,7 +170,7 @@ let
               key = builtins.head keys;
               rest = builtins.tail keys;
             in
-            fx.bind (fx.send "has-handler" key) (
+            fx.bind (fx.effects.hasHandler key) (
               isAvailable: if isAvailable then probeArgs rest else fx.pure false
             );
       in

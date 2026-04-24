@@ -7,6 +7,30 @@
 let
   inherit (den.lib.home-env) makeHomeEnv;
 
+  mkDetectHost =
+    {
+      className,
+      supportedOses ? [
+        "nixos"
+        "darwin"
+      ],
+      optionPath,
+    }:
+    { host, ... }:
+    let
+      isOsSupported = builtins.elem host.class supportedOses;
+      isEnabled = (host.${optionPath} or { }).enable or false;
+      hostHasClass = builtins.any (user: lib.elem className user.classes) (lib.attrValues host.users);
+    in
+    lib.optional (isEnabled && isOsSupported && hostHasClass) { inherit host; };
+
+  mkIntoClassUsers =
+    className:
+    { host, ... }:
+    map (user: { inherit host user; }) (
+      lib.filter (u: lib.elem className u.classes) (lib.attrValues host.users)
+    );
+
   result = makeHomeEnv {
     className = "homeManager";
     ctxName = "hm";
@@ -27,4 +51,21 @@ in
     home.provides.home = { home }: home.aspect;
   };
   den.schema.host.imports = [ result.hostConf ];
+
+  den.policies = {
+    host-to-hm-host = {
+      from = "host";
+      to = "hm-host";
+      resolve = mkDetectHost {
+        className = "homeManager";
+        optionPath = "home-manager";
+      };
+    };
+
+    hm-host-to-hm-user = {
+      from = "hm-host";
+      to = "hm-user";
+      resolve = mkIntoClassUsers "homeManager";
+    };
+  };
 }
