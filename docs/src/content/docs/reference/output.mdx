@@ -37,7 +37,7 @@ host.instantiate {
 ```
 
 `host.mainModule` is internally computed by resolving the host's aspect
-with its context (`den.ctx.host`), collecting all class-specific config
+with its context, collecting all class-specific config
 and dispatched includes.
 
 The result is placed at `flake.<intoAttr>` -- by default
@@ -113,12 +113,9 @@ The following example are for `packages` but same applies for `checks`, `devShel
 
      ```nix
      # ANY Host or User aspect can produce outputs:
-     den.ctx.flake-system.into.host = { system }: 
-       map (host: { inherit host; }) 
-       (lib.attrValues den.hosts.${system});
-
-     # ONLY foo aspect can produce packages:
-     den.ctx.flake-packages.includes = [ den.aspects.foo ];
+     # The flake-system-to-flake-os policy handles host fan-out.
+     # To include aspects in flake outputs:
+     den.stages.flake-packages.includes = [ den.aspects.foo ];
      ```
 
 3. Use the `packages` class on your aspects:

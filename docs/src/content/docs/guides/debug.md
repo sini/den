@@ -40,13 +40,29 @@ Then in REPL:
 nix-repl> :lf .
 nix-repl> den.aspects.igloo
 nix-repl> den.hosts.x86_64-linux.igloo
-nix-repl> den.ctx
+nix-repl> den.stages
 ```
+
+## Inspect Policies
+
+Use `den.lib.policyInspect.inspect` to see which policies apply to an entity and where they route:
+
+```nix
+den.lib.policyInspect.inspect {
+  kind = "host";
+  context = { host = den.hosts.x86_64-linux.laptop; };
+}
+```
+
+This returns a set of matching policies with their targets, routing type, and source/destination stages.
 
 ## Trace Aspect Includes
 
 Use the following example code to get a trace
 (list of nested `aspect.name`) of included aspects.
+
+Note: `resolve.withAdapter adapters.trace` is internal to the pipeline and not intended for
+direct use outside of debugging with `den.lib`.
 
 ```nix
 let
@@ -81,6 +97,9 @@ den.aspects.laptop.includes = [
 ```
 
 ## Manually Resolve an Aspect
+
+Note: `den.lib.aspects.resolve` is internal to the pipeline. The examples below are useful
+for debugging but should not be used in production configurations.
 
 Test how an aspect resolves for a specific class:
 

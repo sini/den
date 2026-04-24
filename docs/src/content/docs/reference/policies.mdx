@@ -1,0 +1,164 @@
+---
+title: den.policies
+description: Policy declarations, types, and built-in policies.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Source" icon="github">
+[`nix/nixModule/policies.nix`](https://github.com/vic/den/blob/main/nix/nixModule/policies.nix) --
+[`nix/lib/policy-types.nix`](https://github.com/vic/den/blob/main/nix/lib/policy-types.nix) --
+[`modules/policies/core.nix`](https://github.com/vic/den/blob/main/modules/policies/core.nix) --
+[`modules/policies/flake.nix`](https://github.com/vic/den/blob/main/modules/policies/flake.nix)
+</Aside>
+
+See [Policies](/explanation/policies/) for conceptual background on how policies
+drive the evaluation pipeline.
+
+## `den.policies`
+
+Type: `lazyAttrsOf policyType`
+
+A map of policy names to policy definitions. Each policy declares a directed
+edge between entity kinds, with a resolve function that performs fan-out from
+source contexts to target contexts.
+
+```nix
+den.policies.host-to-peers = {
+  from = "host";
+  to = "host";
+  as = "peer";
+  resolve = { host, ... }:
+    map (h: { host = h; }) (lib.attrValues den.hosts.${host.system});
+};
+```
+
+## Policy Type Options
+
+### `from`
+
+Type: `str` (required)
+
+Source entity kind. The policy fires when the pipeline processes a context
+matching this kind.
+
+### `to`
+
+Type: `str` (required)
+
+Target entity kind or stage name. Determines which pipeline stage receives
+the resolved contexts.
+
+### `as`
+
+Type: `str` (default: `""`)
+
+Context key used for the synthesized output entry. When empty, defaults to the
+`to` value. This is needed for sibling routing where `from` and `to` are the
+same kind -- without `as`, the target would collide with the source key.
+
+```nix
+# host-to-host routing: `as` avoids key collision
+{ from = "host"; to = "host"; as = "peer"; ... }
+```
+
+### `resolve`
+
+Type: `raw` (required)
+
+Function that takes accumulated pipeline context and returns a list of target
+context attrsets. The argument is destructured against the current context --
+`synthesize-policies.nix` validates entity keys before calling resolve.
+
+```nix
+resolve = { host, ... }:
+  map (user: { inherit host user; }) (lib.attrValues host.users);
+```
+
+### `handlers`
+
+Type: `lazyAttrsOf raw` (default: `{ }`)
+
+Named effect handlers installed when this policy fires. Handlers are scoped
+to the transition this policy represents.
+
+## Policy Activation
+
+Core policies (those with `_core = true`) are always active. User-defined
+policies must be activated explicitly.
+
+Activation can be set at three levels:
+
+1. **Global default** -- `den.default.policies`
+2. **Per-kind schema** -- `den.schema.<kind>.policies`
+3. **Per-entity instance** -- `den.hosts.<system>.<name>.policies`
+
+```nix
+# Activate for all hosts
+den.schema.host.policies = [ "host-to-peers" ];
+
+# Activate for a single host
+den.hosts.x86_64-linux.igloo.policies = [ "host-to-peers" ];
+```
+
+The `policies` option on every entity is a `listOf str` naming the policies
+to activate. Core policies do not need to appear in this list.
+
+## Built-in Core Policies
+
+All built-in policies are marked `_core = true` and are always active.
+
+### Entity traversal (`core.nix`)
+
+| Policy | From | To | Behavior |
+|---|---|---|---|
+| `host-to-users` | `host` | `user` | One `{ host, user }` per `host.users` entry |
+| `host-to-default` | `host` | `default` | Identity (singleton) |
+| `user-to-default` | `user` | `default` | Identity (singleton) |
+| `home-to-default` | `home` | `default` | Identity (singleton) |
+
+### Flake output traversal (`flake.nix`)
+
+| Policy | From | To | Behavior |
+|---|---|---|---|
+| `flake-to-flake-system` | `flake` | `flake-system` | One `{ system }` per `den.systems` entry |
+| `flake-system-to-flake-os` | `flake-system` | `flake-os` | One `{ host }` per host in that system |
+| `flake-system-to-flake-hm` | `flake-system` | `flake-hm` | One `{ home }` per home in that system |
+| `flake-system-to-flake-packages` | `flake-system` | `flake-packages` | `{ system, output }` |
+| `flake-system-to-flake-apps` | `flake-system` | `flake-apps` | `{ system, output }` |
+| `flake-system-to-flake-checks` | `flake-system` | `flake-checks` | `{ system, output }` |
+| `flake-system-to-flake-devShells` | `flake-system` | `flake-devShells` | `{ system, output }` |
+| `flake-system-to-flake-legacyPackages` | `flake-system` | `flake-legacyPackages` | `{ system, output }` |
+
+## `den.lib.policyInspect.inspect`
+
+<Aside title="Source" icon="github">
+[`nix/lib/policy-inspect.nix`](https://github.com/vic/den/blob/main/nix/lib/policy-inspect.nix)
+</Aside>
+
+Lightweight inspection utility that calls resolve functions directly without
+running the full pipeline. Useful for debugging which targets a given entity
+resolves to.
+
+```nix
+den.lib.policyInspect.inspect {
+  kind = "host";
+  context = { host = den.hosts.x86_64-linux.igloo; };
+}
+# => { host-to-users = { targetKey = "user"; targets = [ ... ]; from = "host"; to = "user"; as = ""; routing = "child"; }; }
+```
+
+**Parameters:**
+- `kind` -- entity kind string (e.g., `"host"`)
+- `context` -- attrset representing the current pipeline context
+
+**Returns** an attrset keyed by policy name, where each value contains:
+
+| Field | Description |
+|---|---|
+| `targetKey` | Effective context key (`as` if set, otherwise `to`) |
+| `targets` | List of resolved target context attrsets |
+| `from` | Source entity kind |
+| `to` | Target entity kind |
+| `as` | The `as` override (empty string if unset) |
+| `routing` | `"sibling"` when `from == to`, otherwise `"child"` |

@@ -1,0 +1,114 @@
+---
+title: Migrating from den.ctx
+description: Upgrade from den.ctx to den.stages and den.policies.
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+`den.ctx` is deprecated. A compatibility shim forwards `den.ctx` definitions to
+`den.stages` with deprecation warnings, so existing configs still evaluate -- but
+you should migrate to remove the warnings and gain access to the full stage tree
+and policy system.
+
+## What changed
+
+| Old (`den.ctx`)                     | New                                      | Notes                                         |
+| ----------------------------------- | ---------------------------------------- | --------------------------------------------- |
+| `den.ctx.<name>`                    | `den.stages.<name>`                      | Direct rename. Same submodule shape.          |
+| `den.ctx.<name>.includes`           | `den.stages.<name>.includes`             | Unchanged semantics.                          |
+| `den.ctx.<name>.provides.<p>`       | `den.stages.<name>.provides.<p>`         | Unchanged semantics.                          |
+| `den.ctx.<name>.into`               | `den.policies`                           | Now a first-class policy declaration.         |
+| `den.ctx.<name>.meta.adapter`       | *(removed)*                              | Pipeline handles filtering automatically.     |
+| `den.lib.ctxApply`                  | *(manual)*                               | No shim -- see step 4 below.                 |
+
+<Aside type="tip">
+The shim covers 27 of 28 known usage patterns automatically. Only direct
+`ctxApply` calls require manual intervention.
+</Aside>
+
+## Compatibility shim
+
+The shim (`modules/compat/ctx-shim.nix`) is always imported. It performs two
+forwarding operations at evaluation time:
+
+- `den.ctx.<name>` values (minus `into`) are merged into `den.stages.<name>`.
+- `den.ctx.<name>.into` is forwarded to `den.stages.<name>.meta.into`.
+
+Both emit `lib.warn` deprecation messages. The shim handles flat stages only
+-- `den.ctx` never supported nested namespaces, so no tree mapping is needed.
+
+The shim will be removed in a future release.
+
+## Migration steps
+
+<Steps>
+
+1. **Rename `den.ctx` to `den.stages`**
+
+    A simple find-and-replace in your configuration files:
+
+    ```nix
+    # Before
+    den.ctx.host.includes = [ den.provides.hostname ];
+    den.ctx.user.provides.user = { host, user }: user.aspect;
+
+    # After
+    den.stages.host.includes = [ den.provides.hostname ];
+    den.stages.user.provides.user = { host, user }: user.aspect;
+    ```
+
+2. **Move `into` to `den.policies`**
+
+    If you used `den.ctx.<name>.into` to declare transitions between entity
+    kinds, replace them with explicit policy declarations:
+
+    ```nix
+    # Before
+    den.ctx.host.into = { host }:
+      map (user: { inherit host user; }) (lib.attrValues host.users);
+
+    # After
+    den.policies.host-to-users = {
+      from = "host";
+      to = "user";
+      resolve = { host, ... }:
+        map (user: { inherit host user; }) (lib.attrValues host.users);
+    };
+    ```
+
+    See [Policies](/explanation/policies/) for the full policy model.
+
+3. **Remove `meta.adapter`**
+
+    The `meta.adapter` option no longer exists. The pipeline now determines
+    which class keys apply to each output automatically. Simply delete any
+    `meta.adapter` assignments:
+
+    ```nix
+    # Before
+    den.ctx.host.meta.adapter = "nixos";
+
+    # After -- nothing needed, delete the line
+    ```
+
+4. **Replace `ctxApply` calls**
+
+    `den.lib.ctxApply` has no compatibility shim. If you called it directly,
+    replace it with the equivalent stage resolution. Consult
+    [den.stages](/reference/ctx/) for the current resolution API.
+
+5. **Verify**
+
+    Rebuild your system and confirm no deprecation warnings remain:
+
+    ```sh
+    nixos-rebuild build --flake . 2>&1 | grep -i 'deprecated'
+    ```
+
+</Steps>
+
+## Further reading
+
+- [Stages](/explanation/stages/) -- how the stage tree works
+- [Policies](/explanation/policies/) -- declaring transitions between entity kinds
+- [den.stages reference](/reference/ctx/) -- full option documentation

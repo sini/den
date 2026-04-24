@@ -104,14 +104,6 @@ Run `aspect` only in `{ host, user }` contexts.
 
 Run `aspect` only in `{ home }` contexts.
 
-## `den.lib.statics`
-
-Extracts only static includes from an aspect (non-function includes):
-
-```nix
-den.lib.statics someAspect { class = "nixos"; aspect-chain = []; }
-```
-
 ## `den.lib.owned`
 
 Extracts owned configs from an aspect (removes `includes`, `__functor`):
@@ -146,31 +138,32 @@ _module.args.__findFile = den.lib.__findFile;
 
 ## `den.lib.aspects`
 
-Den aspects API. Provides aspect type definitions, `resolve`,
-`resolve.withAdapter`, and composable `adapters`.
+Den aspects API. Provides aspect type definitions and internal resolution helpers.
 
 ### `den.lib.aspects.resolve class aspect`
 
-Resolves an aspect for a given class (e.g., `"nixos"`), returning a
-module with `imports`. Uses `adapters.default` which honors
-`meta.adapter` on aspects.
+**Internal.** Resolves an aspect for a given class (e.g., `"nixos"`), returning a
+module with `imports`. This function is used by the fx pipeline and is not a
+public API. Prefer using `entity.resolved` or the fx pipeline directly.
 
 ### `den.lib.aspects.resolve.withAdapter adapter class aspect`
 
-Resolves with a custom adapter instead of the default.
+**Internal.** Resolves with a custom adapter instead of the default. Used
+internally by the fx pipeline.
 
-### `den.lib.aspects.adapters`
+### Aspect filtering
 
-Composable adapters for `resolve.withAdapter`. Each adapter receives
-`{ aspect, class, classModule, recurse, aspect-chain, resolveChild }`
-and returns the resolved result.
+Aspect filtering (formerly `den.lib.aspects.adapters`) is now handled
+internally by the fx pipeline. The `adapters` API has been removed.
+To control which aspects are included during resolution, use `meta.adapter`
+on an aspect — see the [Aspects reference](/reference/aspects/).
 
-| Adapter | Description |
-|---------|-------------|
-| `module` | Collects class modules and recurses on includes |
-| `default` | `filterIncludes module` — the default pipeline |
-| `filter pred adapter` | Returns `{}` if `pred aspect` is false |
-| `map f adapter` | Transforms the adapter's result with `f` |
-| `mapAspect f adapter` | Transforms the aspect before passing to adapter |
-| `mapIncludes f adapter` | Transforms each include before recursion |
-| `filterIncludes adapter` | Honors `meta.adapter`, filters empty includes, tags survivors for propagation |
+## `den.lib.policyInspect`
+
+### `den.lib.policyInspect.inspect { kind, context }`
+
+Lightweight policy inspection utility. Calls resolve functions directly
+without running the full pipeline. Returns matching policies with their
+targets and routing type.
+
+See [den.policies reference](/reference/policies/) for full documentation.

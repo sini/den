@@ -32,7 +32,7 @@ den.hosts.x86_64-linux.igloo.users.tux.classes = [ "homeManager" "hjem" ];
 den.schema.user.classes = lib.mkDefault [ "homeManager" ];
 ```
 
-Home integration contexts, like `den.ctx.hm-host` only activate when
+Home integration stages, like `hm-host` only activate when
 at least one host user has `homeManager` in their `classes`.
 If so, the integration imports the HomeManager OS module, 
 and forwards each user's `homeManager` class into `home-manager.users.<userName>`.
@@ -48,15 +48,15 @@ Same details regarding `home-manager` apply to other home types like `hjem` and 
 
 ```mermaid
 flowchart TD
-  host["den.ctx.host"] -->|"into.hm-host"| hmhost["den.ctx.hm-host"]
+  host["host stage"] -->|"host-to-hm-host policy"| hmhost["hm-host stage"]
   hmhost -->|"imports HM module"| mod["home-manager.nixosModules"]
-  hmhost -->|"into.hm-user (per user)"| hmuser["den.ctx.hm-user"]
+  hmhost -->|"hm-host-to-hm-user policy (per user)"| hmuser["hm-user stage"]
   hmuser -->|"forward homeManager class"| target["home-manager.users.alice"]
 ```
 
 1. `hm-os.nix` detects hosts with HM-enabled users and supported OS class.
-2. It produces `den.ctx.hm-host`, which imports the HM OS-level module.
-3. `hm-integration.nix` creates `den.ctx.hm-user` per HM user, forwarding
+2. It produces the `hm-host` stage, which imports the HM OS-level module.
+3. `hm-integration.nix` creates the `hm-user` stage per HM user, forwarding
    the `homeManager` class into `home-manager.users.<userName>`.
 
 ### Configuring Home Manager
@@ -137,7 +137,7 @@ battery:
 
 ```nix
 den.homes.x86_64-linux."tux@igloo" = { };
-den.ctx.user.includes = [ den._.mutual-provider ];
+den.stages.user.includes = [ den._.mutual-provider ];
 ```
 
 You can then configure it using the following aspect:

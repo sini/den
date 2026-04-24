@@ -72,6 +72,9 @@ den.schema.host = { ... }: {
 };
 ```
 
+### Entity Kinds
+
+Entity kinds (`host`, `user`, `home`) are derived from the keys of `den.schema`. The pipeline uses the kind name to select the corresponding stage (`den.stages.host`, `den.stages.user`, `den.stages.home`) and to dispatch policies. Adding a key to `den.schema` registers a new entity kind.
 
 ## `den.hosts`
 
@@ -98,6 +101,7 @@ den.hosts.x86_64-linux.myhost = {
 | `description` | `str` | auto | `class.hostName@system` |
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
 | `users` | `attrsOf userType` | `{}` | User accounts on this host |
+| `policies` | `listOf str` | `[]` | Additional policies activated for this host. Core policies are always active. |
 | `instantiate` | `raw` | auto | OS builder function |
 | `intoAttr` | `listOf str` | auto | Flake output path |
 | `*` | `den.schema.host` options | | Options from base module |
@@ -131,6 +135,7 @@ Type: `attrsOf userType`
 | `userName` | `str` | `name` | System account name |
 | `classes` | `listOf str` | `[ "homeManager" ]` | Home management classes |
 | `aspect` | `str` | `name` | Main aspect name |
+| `policies` | `listOf str` | `[]` | Additional policies activated for this user. Core policies are always active. |
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
 | `*` | `den.schema.user` options | | Options from base module |
 | `*` |  | | free-form attributes |
@@ -159,6 +164,7 @@ den.homes.x86_64-linux.vic = {};
 | `description` | `str` | auto | `home.userName@system` |
 | `pkgs` | `raw` | `inputs.nixpkgs.legacyPackages.$sys` | Nixpkgs instance |
 | `instantiate` | `raw` | `inputs.home-manager.lib.homeManagerConfiguration` | Builder |
+| `policies` | `listOf str` | `[]` | Additional policies activated for this home. Core policies are always active. |
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
 | `intoAttr` | `listOf str` | `[ "homeConfigurations" name ]` | Output path |
 | `*` | `den.schema.home` options | | Options from base module |
@@ -167,18 +173,7 @@ den.homes.x86_64-linux.vic = {};
 ## Entity `resolved`
 
 Every entity (host, user, home) has a `resolved` attribute — the aspect
-produced by running the entity through its context pipeline
-(`den.ctx.${kind}`). This is auto-derived and used internally by
-`mainModule` to produce the entity's final configuration.
-
-To control which aspects are included during resolution, set
-`meta.adapter` on a context node:
-
-```nix
-den.ctx.host.meta.adapter = inherited:
-  den.lib.aspects.adapters.filter (a: a.name != "unwanted") inherited;
-```
-
-This filters transitively — nested aspects reached through includes
-are also subject to the adapter.
+produced by running the entity through the resolution pipeline. This is
+auto-derived and used internally by `mainModule` to produce the entity's
+final configuration.
 

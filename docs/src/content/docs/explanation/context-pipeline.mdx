@@ -1,99 +1,120 @@
 ---
-title: Context Pipeline
-description: How host/user/home declarations transform into NixOS/Darwin/HM configurations.
+title: Resolution Pipeline
+description: How host/user/home declarations resolve into NixOS/Darwin/HM configurations through policies and stages.
 ---
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`modules/context/os.nix`](https://github.com/vic/den/blob/main/modules/context/os.nix) --
-[`modules/context/types.nix`](https://github.com/vic/den/blob/main/modules/context/types.nix) --
-[`modules/config.nix`](https://github.com/vic/den/blob/main/modules/config.nix)
+[`modules/policies/core.nix`](https://github.com/vic/den/blob/main/modules/policies/core.nix) --
+[`modules/policies/flake.nix`](https://github.com/vic/den/blob/main/modules/policies/flake.nix) --
+[`nix/lib/aspects/fx/pipeline.nix`](https://github.com/vic/den/blob/main/nix/lib/aspects/fx/pipeline.nix) --
+[`nix/lib/aspects/fx/handlers/transition.nix`](https://github.com/vic/den/blob/main/nix/lib/aspects/fx/handlers/transition.nix)
 </Aside>
 
-## Pipeline Overview
+## Pipeline overview
 
-When Den evaluates a host, it walks a pipeline of context transformations:
+When Den evaluates a host, it runs a **resolution pipeline** driven by
+[policies](/explanation/policies/) and [stages](/explanation/stages/).
+Policies are directed edges that fan context out to downstream stages;
+stages bind behavior for each resolved context.
 
 ```mermaid
 flowchart TD
-  start["den.hosts.x86_64-linux.laptop"] --> host["den.ctx.host {host}"]
-  host -->|"_.host"| owned["Owned config: fixedTo {host} aspects.laptop"]
-  host -->|"_.user"| userctx["atLeast aspects.laptop {host, user}"]
-  host -->|"into.user"| user["den.ctx.user {host, user} (per user)"]
-  user -->|"_.user"| userown["fixedTo {host,user} aspects.alice"]
-  host -->|"into.hm-host"| hmhost["den.ctx.hm-host {host}"]
-  hmhost -->|"import HM module"| hmmod["home-manager OS module"]
-  hmhost -->|"into.hm-user"| hmuser["den.ctx.hm-user {host, user}"]
-  hmuser -->|"forward homeManager class"| fwd["home-manager.users.alice"]
+  start["den.hosts.x86_64-linux.laptop"] --> host["stage: host {host}"]
+  host -->|"host-to-users"| user["stage: user {host, user} (per user)"]
+  host -->|"host-to-default"| hdef["stage: default {host}"]
+  user -->|"user-to-default"| udef["stage: default {host, user}"]
+  host -->|"host-to-hm-host"| hmhost["stage: hm-host {host}"]
+  hmhost -->|"hm-host-to-hm-user"| hmuser["stage: hm-user {host, user}"]
+  hmuser --> fwd["forward into home-manager.users.alice"]
 ```
 
 <Steps>
-1. Host Context
+1. **Host stage**
 
-	For each entry in `den.hosts.<system>.<name>`, Den creates a `{host}` context.
-	The host context type (`den.ctx.host`) contributes:
+   For each entry in `den.hosts.<system>.<name>`, the pipeline enters the
+   `host` stage. The stage's `provides.host` function receives `{ host }`
+   and returns the host's own aspect, binding owned configs for the host's class.
 
-	- `_.host` -- Applies the host's own aspect with `fixedTo { host }`, making
-	  all owned configs available for the host's class.
-	- `_.user` -- For each user, applies the host's aspect with `atLeast { host, user }`,
-	  activating parametric includes that need both host and user.
+2. **Core policies fan out**
 
-2. User Context
+   Core policies ([`modules/policies/core.nix`](https://github.com/vic/den/blob/main/modules/policies/core.nix))
+   define the fundamental traversal edges:
 
-	`into.user` maps each `host.users` entry into a `{host, user}` context.
-	The user context type (`den.ctx.user`) contributes:
+   | Policy | From | To | Resolve |
+   |---|---|---|---|
+   | `host-to-users` | `host` | `user` | One edge per `host.users` entry |
+   | `host-to-default` | `host` | `default` | Identity (passes context through) |
+   | `user-to-default` | `user` | `default` | Identity |
 
-	- `_.user` -- Applies the user's own aspect with `fixedTo { host, user }`.
+   Each policy's `resolve` function receives the current context and returns a
+   list of downstream contexts. `host-to-users` fans out: one `{ host, user }`
+   pair per user declared on the host.
 
-3. Derived Contexts
+3. **Battery policies create derived stages**
 
-	Batteries register additional `into.*` transformations on the host context:
+   Batteries register additional policies that create derived stages when their
+   conditions are met. Each battery uses `makeHomeEnv` to produce a pair of
+   policies and matching stages:
 
-	| Transition | Condition | Produces |
-	|---|---|---|
-	| `into.hm-host` | `host.home-manager.enable && hasHmUsers` | `{host}` hm-host |
-	| `into.hm-user` | Per HM-class user on hm-host | `{host, user}` hm-user |
-	| `into.wsl-host` | `host.class == "nixos" && host.wsl.enable` | `{host}` wsl-host |
-	| `into.hjem-host` | `host.hjem.enable && hasHjemUsers` | `{host}` hjem-host |
-	| `into.hjem-user` | Per hjem-class user | `{host, user}` hjem-user |
-	| `into.maid-host` | `host.nix-maid.enable && hasMaidUsers` | `{host}` maid-host |
-	| `into.maid-user` | Per maid-class user | `{host, user}` maid-user |
+   | Policy | Condition | Target stage |
+   |---|---|---|
+   | `host-to-hm-host` | HM enabled, host has `homeManager`-class users | `hm-host` |
+   | `hm-host-to-hm-user` | Per `homeManager`-class user | `hm-user` |
+   | `host-to-hjem-host` | hjem enabled, host has `hjem`-class users | `hjem-host` |
+   | `hjem-host-to-hjem-user` | Per `hjem`-class user | `hjem-user` |
+   | `host-to-maid-host` | nix-maid enabled, host has `maid`-class users | `maid-host` |
+   | `maid-host-to-maid-user` | Per `maid`-class user | `maid-user` |
+   | `host-to-wsl-host` | NixOS host with `wsl.enable` | `wsl-host` |
 
-	Each derived context can contribute its own aspect definitions and import
-	the necessary OS-level modules (e.g., `home-manager.nixosModules.home-manager`).
+   The `-host` stage imports the battery's OS module (e.g., `home-manager.nixosModules.home-manager`).
+   The `-user` stage forwards the resolved user aspect into the appropriate
+   namespace (e.g., `home-manager.users.<name>`).
 
-3. Deduplication
+4. **Deduplication**
 
-	`dedupIncludes` in `modules/context/types.nix` ensures:
+   The transition handler tracks a `seen` set keyed by context identity.
+   When a stage is entered for the first time with a given context, the full
+   aspect (owned configs + statics + parametric matches) is included.
+   Subsequent visits with the same context key skip already-applied includes,
+   preventing `den.default` configs from being applied twice when the same
+   aspect appears at multiple stages.
 
-	- **First occurrence** of a context type uses `parametric.fixedTo`, which includes
-	  owned configs + statics + parametric matches.
-	- **Subsequent occurrences** use `parametric.atLeast`, which only includes
-	  parametric matches (owned/statics already applied).
+   Each policy transition runs its own sub-pipeline with independent dedup
+   state, so stages reached through different policies are isolated.
 
-	This prevents `den.default` configs from being applied twice when the same
-	aspect appears at multiple pipeline stages.
+5. **Home configurations**
 
-4. Home Configurations
+   Standalone `den.homes` entries follow a separate path with their own
+   core policy:
 
-	Standalone `den.homes` entries go through a separate path:
+   ```mermaid
+   flowchart TD
+     home["den.homes.x86_64-linux.alice"] --> homestage["stage: home {home}"]
+     homestage -->|"home-to-default"| hdef["stage: default {home}"]
+     homestage --> hmc["homeConfigurations.alice"]
+   ```
 
-	```mermaid
-	flowchart TD
-	  home["den.homes.x86_64-linux.alice"] --> homectx["den.ctx.home {home}"]
-	  homectx --> resolve["fixedTo {home} aspects.alice"]
-	  resolve --> hmc["homeConfigurations.alice"]
-	```
+   Home stages have no `host` in context, so policies and provides requiring
+   `{ host }` are not activated. The `home-to-default` policy still applies
+   shared defaults.
 
-	Home contexts have no host, so functions requiring `{ host }` are not activated.
-	Functions requiring `{ home }` run instead.
+6. **Output**
 
-5. Output
-
-	`modules/config.nix` collects all hosts and homes, calls `host.instantiate`
-	(defaults to `lib.nixosSystem`, `darwinSystem`, or `homeManagerConfiguration`
-	depending on class), and places results into `flake.nixosConfigurations`,
-	`flake.darwinConfigurations`, or `flake.homeConfigurations`.
+   Flake-level policies (`modules/policies/flake.nix`) drive the final
+   assembly. `flake-system-to-flake-os` iterates all hosts for a system;
+   `flake-system-to-flake-hm` iterates all homes. Each resolved entity
+   is instantiated (`lib.nixosSystem`, `darwinSystem`, or
+   `homeManagerConfiguration` depending on class) and placed into
+   `flake.nixosConfigurations`, `flake.darwinConfigurations`, or
+   `flake.homeConfigurations`.
 
 </Steps>
+
+## See also
+
+- [Entities and Schema](/explanation/entities/) -- what entities are
+- [Policies](/explanation/policies/) -- how entities relate
+- [Stages](/explanation/stages/) -- where behavior binds
+- [Aspects](/explanation/aspects/) -- how entities resolve

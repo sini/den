@@ -59,7 +59,7 @@ module = den.lib.aspects.resolve "terranix" [] aspect;
 On top of the library, Den provides `modules/` which implement:
 
 - **Schema types** (`den.hosts`, `den.homes`) for declaring NixOS/Darwin/HM entities
-- **Context pipeline** (`den.ctx.host`, `den.ctx.user`, `den.ctx.home`) for OS configurations
+- **Stages & Policies** (`den.stages`, `den.policies`) for the resolution pipeline
 - **Batteries** (`den.provides.*`) for common OS configuration patterns
 - **Output generation** (`modules/config.nix`) instantiating configurations into flake outputs
 
@@ -75,7 +75,7 @@ flowchart TD
   end
   subgraph "Den Framework (OS-specific)"
     schema["den.hosts / den.homes"]
-    ctx["den.ctx pipeline"]
+    ctx["den.stages + den.policies"]
     batteries["den.provides"]
     output["flake output generation"]
   end

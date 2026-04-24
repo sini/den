@@ -1,0 +1,141 @@
+---
+title: Entities & Schema
+description: Hosts, users, and homes as typed data declarations with schema-driven kinds.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Source" icon="github">
+[`host.nix`](https://github.com/vic/den/blob/main/nix/lib/entities/host.nix) -
+[`home.nix`](https://github.com/vic/den/blob/main/nix/lib/entities/home.nix) -
+[`_types.nix`](https://github.com/vic/den/blob/main/nix/lib/entities/_types.nix) -
+[`options.nix`](https://github.com/vic/den/blob/main/modules/options.nix)
+</Aside>
+
+Den's **Data** concern is about declaring _what entities are_. An entity is a typed
+data record — a host, a user, or a standalone home — that carries metadata consumed
+by later stages of the pipeline: [Stages](/explanation/stages/),
+[Policies](/explanation/policies/), and [Aspects](/explanation/aspects/).
+
+## Entity types
+
+Den provides three built-in entity types:
+
+- **`den.hosts`** — machines, keyed by `<system>.<name>`. Each host produces a
+  `nixosConfigurations`, `darwinConfigurations`, or `systemConfigs` flake output
+  depending on its `class` (auto-detected from the system platform).
+
+- **`den.homes`** — standalone home-manager configurations for systems without root
+  access, keyed by `<system>.<name>`. Produces `homeConfigurations` outputs.
+
+- **Users** — declared inline on a host via `den.hosts.<sys>.<host>.users.<name>`.
+  Users are not top-level entities; they live within their host.
+
+```nix
+{
+  den.hosts.x86_64-linux.igloo = {
+    users.alice = { };
+    users.bob = { };
+  };
+
+  den.homes.aarch64-darwin.alice = { };
+}
+```
+
+Every entity carries a `class` that determines how it is instantiated and where its
+output lands. For hosts this is `"nixos"` or `"darwin"`; for homes it is
+`"homeManager"`. Each entity also has an `aspect` field that points to the
+[aspect](/explanation/aspects/) responsible for configuring it — by default
+`den.aspects.<name>`.
+
+## Schema: shared options across a kind
+
+`den.schema` lets you define options that apply to _every_ entity of a given kind.
+There are three built-in schema kinds — `host`, `user`, and `home` — plus `conf`
+which is shared across all three.
+
+```nix
+{
+  # Enable home-manager integration for all hosts
+  den.schema.host.home-manager.enable = true;
+
+  # Add a custom option to every user
+  den.schema.user = { user, lib, ... }: {
+    options.groupName = lib.mkOption { default = user.userName; };
+  };
+
+  # Shared across all entity kinds
+  den.schema.conf = {
+    options.copyright = lib.mkOption { default = "Copy-Left"; };
+  };
+}
+```
+
+Schema entries are `deferredModule` values — they can be plain attrsets with
+`options`/`config` or functions that receive the entity's module arguments.
+
+<Aside>
+`den.schema` uses a freeform type, so you can define custom kinds beyond the
+built-in three. Any kind that has a matching entry in `den.stages` automatically
+gains a `resolved` attribute and participates in the resolution pipeline.
+See [Stages](/explanation/stages/) for details.
+</Aside>
+
+## Entity kinds and the resolution pipeline
+
+Each schema kind name (excluding `conf` and internal prefixes) is treated as a
+first-class **entity kind**. When a stage exists for a given kind
+(`den.stages.<kind>`), entities of that kind automatically receive:
+
+- A `resolved` attribute containing the fully resolved aspect output for that entity.
+- An `id_hash` for safe entity comparison (Nix's `==` is fragile across module
+  boundaries).
+- Context arguments derived from the entity's module args, filtered to known kinds.
+
+This is how the Data concern feeds into [Stages](/explanation/stages/) — entities
+declare what they are, and stages determine where behavior binds.
+
+## Per-entity policy activation
+
+Every entity (host, user, home) has a `policies` option — a list of policy names
+to activate when that entity is resolved. Core policies (those marked `_core = true`)
+are always active regardless.
+
+```nix
+{
+  # Activate a policy for all hosts of this kind
+  den.schema.host.policies = [ "host-to-peers" ];
+
+  # Activate a policy for a specific host
+  den.hosts.x86_64-linux.igloo.policies = [ "microvm-guests" ];
+}
+```
+
+See [Policies](/explanation/policies/) for how activation is used during resolution.
+
+## Freeform attributes
+
+Host, user, and home types all use `freeformType`, so you can attach arbitrary
+data to any entity without declaring options first:
+
+```nix
+den.hosts.x86_64-linux.igloo = {
+  gpu = "nvidia";
+  datacenter = "eu-west";
+};
+```
+
+These attributes are accessible in aspects via the entity's context argument:
+
+```nix
+den.aspects.igloo.includes = [
+  ({ host, ... }: lib.optionalAttrs (host ? gpu) {
+    nixos.hardware.nvidia.enable = true;
+  })
+];
+```
+
+For attributes that should exist on _every_ entity of a kind with a default value,
+prefer defining them in `den.schema` instead — this gives you type checking and
+documentation. See the [Schema reference](/reference/schema/) for the full option
+list.
