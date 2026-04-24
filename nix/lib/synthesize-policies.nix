@@ -44,7 +44,7 @@ let
     if key != null then
       ctx ? ${key} && builtins.isAttrs ctx.${key}
     else if isFlakeScope then
-      !hasEntityValues
+      !hasEntityValues && (stage == "flake" || ctx != { })
     else
       true;
 
