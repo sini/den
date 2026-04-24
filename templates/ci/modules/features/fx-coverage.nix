@@ -66,6 +66,109 @@
       }
     );
 
+    # Multi-level drain: deferred at host, drained at user transition.
+    # Both deferred includes need { user } and produce different class keys.
+    test-deferred-multi-drain-same-context = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo = {
+          includes = [
+            (
+              { user, ... }:
+              {
+                nixos.users.users.${user.userName}.description = "first";
+              }
+            )
+            (
+              { user, ... }:
+              {
+                nixos.users.users.${user.userName}.shell = "/bin/zsh";
+              }
+            )
+          ];
+        };
+
+        expr = {
+          desc = igloo.users.users.tux.description;
+          shell = igloo.users.users.tux.shell;
+        };
+        expected = {
+          desc = "first";
+          shell = "/bin/zsh";
+        };
+      }
+    );
+
+    # Deferred include with class keys: parametric aspect contributes
+    # a class key that only resolves when context widens.
+    test-deferred-contributes-class-key = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo = {
+          nixos.networking.hostName = "static";
+          includes = [
+            (
+              { user, ... }:
+              {
+                nixos.users.users.${user.userName}.isNormalUser = true;
+              }
+            )
+          ];
+        };
+
+        expr = {
+          hostname = igloo.networking.hostName;
+          isNormal = igloo.users.users.tux.isNormalUser;
+        };
+        expected = {
+          hostname = "static";
+          isNormal = true;
+        };
+      }
+    );
+
+    # Nested deferred: include deferred at root, drained at host,
+    # inner include deferred again, drained at user.
+    test-deferred-nested-levels = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo = {
+          includes = [
+            (
+              { host, ... }:
+              {
+                # This resolves at host level. Its include is deferred until user.
+                nixos.networking.hostName = host.name;
+                includes = [
+                  (
+                    { user, ... }:
+                    {
+                      nixos.users.users.${user.userName}.description = "nested-${host.name}";
+                    }
+                  )
+                ];
+              }
+            )
+          ];
+        };
+
+        expr = {
+          hostname = igloo.networking.hostName;
+          desc = igloo.users.users.tux.description;
+        };
+        expected = {
+          hostname = "igloo";
+          desc = "nested-igloo";
+        };
+      }
+    );
+
     # --- 2. Parametric depth limit ---
 
     test-parametric-depth-limit-throws = denTest (
