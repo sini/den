@@ -5,19 +5,11 @@
 }:
 let
   inherit (den.lib.aspects.fx.handlers) constantHandler;
+  inherit (den.lib.aspects.fx.aspect) structuralKeysSet;
 
-  # Stage nodes lack pipeline-internal keys (__fn, __args, __scopeHandlers, etc.)
-  # that aspect.nix's structuralKeysSet includes, so this list is shorter.
-  structuralKeys = [
-    "name"
-    "description"
-    "meta"
-    "includes"
-    "provides"
-    "_module"
-    "_"
-    "__functor"
-  ];
+  # Use the canonical structuralKeysSet from aspect.nix.  removeAttrs on
+  # keys absent from stageNode is a no-op, so the superset is safe.
+  structuralKeys = builtins.attrNames structuralKeysSet;
 
   resolveStage =
     name: ctx:

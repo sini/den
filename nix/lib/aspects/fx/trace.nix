@@ -5,6 +5,7 @@
 }:
 let
   inherit (den.lib.aspects.fx.identity) aspectPath pathKey;
+  inherit (den.lib.aspects) isMeaningfulName;
 
   # Derive parent from includesChain, filtering out self-references.
   # The chain contains raw identity strings from chain-push (pathKey of aspectPath).
@@ -88,13 +89,7 @@ let
               base = builtins.filter (s: builtins.match "\\{.*" s == null) segments;
             in
             if base == [ ] then chainTip else lib.last base;
-        meaningful =
-          n:
-          n != "<anon>"
-          && n != "<function body>"
-          && !(lib.hasPrefix "[definition " n)
-          && builtins.match ".*<anon>.*" n == null
-          && n != null;
+        meaningful = n: n != null && isMeaningfulName n && builtins.match ".*<anon>.*" n == null;
         isAnon = !meaningful rawName;
         name =
           if isAnon && ctxStage != null then

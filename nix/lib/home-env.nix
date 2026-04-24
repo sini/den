@@ -5,12 +5,12 @@
   ...
 }:
 let
-  atPath = path: obj: lib.attrByPath path { } obj;
-
   host-has-user-with-class =
     host: class: builtins.any (user: lib.elem class user.classes) (lib.attrValues host.users);
 
-  detectHost =
+  # Shared policy helpers for class-based batteries (home-manager, hjem, maid).
+  # Used by both makeHomeEnv (internally) and battery policy declarations.
+  mkDetectHost =
     {
       className,
       supportedOses ? [
@@ -19,13 +19,20 @@ let
       ],
       optionPath,
     }:
-    { host }:
+    { host, ... }:
     let
       isOsSupported = builtins.elem host.class supportedOses;
-      isEnabled = (atPath (lib.splitString "." optionPath) host).enable or false;
-      shouldActivate = isEnabled && isOsSupported && host-has-user-with-class host className;
+      isEnabled = (host.${optionPath} or { }).enable or false;
+      hostHasClass = host-has-user-with-class host className;
     in
-    lib.optional shouldActivate { inherit host; };
+    lib.optional (isEnabled && isOsSupported && hostHasClass) { inherit host; };
+
+  mkIntoClassUsers =
+    className:
+    { host, ... }:
+    map (user: { inherit host user; }) (
+      lib.filter (u: lib.elem className u.classes) (lib.attrValues host.users)
+    );
 
   hostOptions =
     {
@@ -48,13 +55,6 @@ let
         };
       };
     };
-
-  intoClassUsers =
-    className:
-    { host }:
-    map (user: { inherit host user; }) (
-      lib.filter (u: lib.elem className u.classes) (lib.attrValues host.users)
-    );
 
   userEnvAspect =
     ctxName:
@@ -118,5 +118,5 @@ let
 
 in
 {
-  inherit makeHomeEnv;
+  inherit makeHomeEnv mkDetectHost mkIntoClassUsers;
 }

@@ -25,6 +25,7 @@ let
     "__ctxId"
     "__parametricResolved"
     "_module"
+    "_"
   ] (_: true);
 
   emitClasses =
@@ -381,5 +382,6 @@ in
     emitIncludes
     emitTransitions
     emitSelfProvide
+    structuralKeysSet
     ;
 }

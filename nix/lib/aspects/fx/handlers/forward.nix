@@ -207,22 +207,12 @@ let
         spec = param;
         normalizedSource = normalizeRoot spec.sourceAspect;
 
-        # Resolve source in sub-pipeline. Merge parent context (host,
-        # user, system, etc.) so parametric includes can resolve, but
-        # filter pipeline-internal keys that would conflict with the
-        # sub-pipeline's own class/aspect-chain.
-        # Propagate parent context to sub-pipeline so parametric
-        # includes can resolve (e.g., { host, ... }: needs host).
-        # Filter: keep only attrset values (entities like host, user)
-        # and drop scalars/functions (system, output, class,
-        # aspect-chain) that are pipeline-internal or could cause
-        # unexpected handler matching in the sub-pipeline.
-        # Source context takes priority (explicitly set by fromCtx).
-        # Propagate parent entity context to sub-pipeline when the
-        # source has no context of its own. Sources with explicit
-        # context (fromCtx, fixedTo with __scopeHandlers) use theirs;
-        # sources without any context (e.g., lib.head aspect-chain)
-        # get parent entities so parametric includes can resolve.
+        # Propagate parent entity context (host, user, etc.) to the
+        # sub-pipeline so parametric includes can resolve. Sources with
+        # explicit context (fromCtx / __scopeHandlers) keep theirs;
+        # sources without context inherit parent entities (attrset
+        # values only -- scalars and functions like class/aspect-chain
+        # are pipeline-internal and excluded).
         parentCtx = (state.currentCtx or (_: { })) null;
         entityCtx = lib.filterAttrs (_: builtins.isAttrs) parentCtx;
         sourceCtx = spec.sourceAspect.__ctx or { };
