@@ -12,11 +12,11 @@ let
   insecureModule =
     { config, ... }@args:
     let
-      # nixpkgs.config must not be set when useGlobalPkgs is true.
       globalPkgs = args.osConfig.home-manager.useGlobalPkgs or false;
       hasInsecure = config.permittedInsecurePackages.packages != [ ];
     in
     {
+      key = "den/insecure-predicate";
       options.permittedInsecurePackages.packages = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         defaultText = lib.literalExpression "[ ]";

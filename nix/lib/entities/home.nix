@@ -30,8 +30,8 @@ let
         nameWithHost = builtins.length parts > 1;
         userName = lib.head parts;
         hostName = if nameWithHost then lib.last parts else null;
-        hostByName = den.hosts.${system}.${hostName} or null;
-        userByName = hostByName.users.${userName} or null;
+        hostByName = if hostName != null then den.hosts.${system}.${hostName} or null else null;
+        userByName = if hostByName != null then hostByName.users.${userName} or null else null;
 
         homeManagerConfiguration =
           if nameWithHost && hostByName != null then

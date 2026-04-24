@@ -12,11 +12,11 @@ let
   unfreeModule =
     { config, ... }@args:
     let
-      # nixpkgs.config must not be set when useGlobalPkgs is true.
       globalPkgs = args.osConfig.home-manager.useGlobalPkgs or false;
       hasUnfree = config.unfree.packages != [ ];
     in
     {
+      key = "den/unfree-predicate";
       options.unfree.packages = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         defaultText = lib.literalExpression "[ ]";
