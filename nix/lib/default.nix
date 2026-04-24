@@ -28,7 +28,6 @@ let
     nsTypes = ./namespace-types.nix;
     parametric = ./parametric.nix;
     take = ./take.nix;
-    lastFunctionTo = ./last-function-to.nix;
     policyTypes = ./policy-types.nix;
     resolveStage = ./resolve-stage.nix;
     stageTypes = ./stage-types.nix;
