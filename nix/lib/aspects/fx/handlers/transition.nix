@@ -100,6 +100,7 @@ let
     "resolve-complete"
     "emit-class"
     "emit-include"
+    "emit-forward"
     "chain-push"
     "chain-pop"
     "check-constraint"
@@ -231,15 +232,23 @@ let
         else
           let
             isFanOut = builtins.length transition.contexts > 1;
+            # Pre-index contexts so fan-out dedup keys are unique even when
+            # policy-contributed contexts have identical attr names
+            # (e.g., {fromClass=_:"packages"} vs {fromClass=_:"files"}).
+            indexedContexts = lib.imap0 (i: ctx: {
+              inherit i;
+              ctx = ctx;
+            }) transition.contexts;
           in
           builtins.foldl' (
-            acc: newCtx:
+            acc: indexed:
             fx.bind acc (
               innerResults:
               let
+                newCtx = indexed.ctx;
                 scopedCtx = currentCtx // newCtx;
                 ctxNames = mkCtxId newCtx;
-                ctxKey = if isFanOut then "${key}/{${ctxNames}}" else key;
+                ctxKey = if isFanOut then "${key}/{${ctxNames}}#${toString indexed.i}" else key;
                 scopeHandlers = constantHandler scopedCtx;
                 updateCtx = fx.effects.state.modify (st: st // { currentCtx = _: scopedCtx; });
                 baseComputation =
@@ -279,7 +288,7 @@ let
                   )
               )
             )
-          ) (fx.pure results) transition.contexts
+          ) (fx.pure results) indexedContexts
       );
 
   maxTransitionDepth = 50;

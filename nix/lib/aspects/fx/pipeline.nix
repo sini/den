@@ -69,6 +69,7 @@ let
     // handlers.drainDeferredHandler
     // resolvePolicyHandler
     // resolveTargetHandler
+    // handlers.forwardHandler
     // fx.effects.state.handler;
 
   resolvePolicyHandler = {

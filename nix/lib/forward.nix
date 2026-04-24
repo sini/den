@@ -1,157 +1,5 @@
 { den, lib, ... }:
 let
-  mkDirectForward =
-    {
-      intoClass,
-      evalConfig,
-      sourceModule,
-      freeformMod,
-    }:
-    path:
-    if evalConfig then
-      let
-        evaluated = lib.evalModules {
-          modules = [
-            freeformMod
-            sourceModule
-          ];
-        };
-      in
-      {
-        ${intoClass} = lib.setAttrByPath path (builtins.removeAttrs evaluated.config [ "_module" ]);
-      }
-    else
-      let
-        value = lib.setAttrByPath path (_: {
-          imports = [ sourceModule ];
-        });
-      in
-      {
-        ${intoClass} = value;
-        meta.contextDependent = true;
-      };
-
-  mkAdapter =
-    {
-      fromClass,
-      intoClass,
-      sourceModule,
-      freeformMod,
-      adapterMods,
-      adapterKey,
-      guardFn,
-      guardArgs,
-      intoPathArgs,
-      intoPathFn,
-      adaptArgsFn,
-      adaptArgv,
-    }:
-    {
-      meta.contextDependent = true;
-      includes = [
-        (mkDirectForward
-          {
-            inherit intoClass freeformMod sourceModule;
-            evalConfig = false;
-          }
-          [
-            "den"
-            "fwd"
-            adapterKey
-          ]
-        )
-      ];
-      ${intoClass} = {
-        __functionArgs = guardArgs // intoPathArgs // adaptArgv;
-        __functor = _: args: {
-          options.den.fwd.${adapterKey} = lib.mkOption {
-            defaultText = lib.literalExpression "{ }";
-            default = { };
-            type = lib.types.submoduleWith {
-              specialArgs = adaptArgsFn args;
-              modules = adapterMods;
-            };
-          };
-          config = guardFn args (lib.setAttrByPath (intoPathFn args) args.config.den.fwd.${adapterKey});
-        };
-      };
-    };
-
-  # Build a top-level adapter: like adapter but for intoPath == [].
-  mkTopLevelAdapter =
-    {
-      intoClass,
-      sourceModule,
-      freeformMod,
-      adapterMods,
-      adapterModule,
-      guardFn,
-      guardArgs,
-      extraArgsFor,
-      canDirectImport,
-    }:
-    {
-      meta.contextDependent = true;
-      ${intoClass} = {
-        __functionArgs = guardArgs;
-        __functor =
-          _: args:
-          let
-            fullArgs = args // extraArgsFor args;
-          in
-          if canDirectImport then
-            {
-              imports = [ (guardTree (guardFn args) fullArgs sourceModule) ];
-            }
-          else
-            evalImport {
-              inherit
-                adapterMods
-                sourceModule
-                extraArgsFor
-                guardFn
-                ;
-            } args;
-      };
-    };
-
-  # Guards must wrap individual module configs, not import lists — the module
-  # system evaluates imports lazily, so we recurse into { imports } nodes.
-  guardTree =
-    guard: outerArgs: node:
-    if builtins.isAttrs node && node ? imports then
-      { imports = map (guardTree guard outerArgs) node.imports; }
-    else
-      _modArgs: {
-        config = guard (if lib.isFunction node then node outerArgs else node);
-      };
-
-  evalImport =
-    {
-      adapterMods,
-      sourceModule,
-      extraArgsFor,
-      guardFn,
-    }:
-    args:
-    let
-      extraArgs = extraArgsFor args;
-      specialArgs =
-        builtins.removeAttrs args [
-          "config"
-          "options"
-          "lib"
-        ]
-        // extraArgs;
-      evaluated = lib.evalModules {
-        inherit specialArgs;
-        modules = adapterMods ++ [
-          sourceModule
-        ];
-      };
-    in
-    guardFn args evaluated.config;
-
   forwardItem =
     {
       item,
@@ -185,7 +33,6 @@ let
           }
         else
           rawAspect;
-      sourceModule = mapModule (den.lib.aspects.resolve fromClass sourceAspect);
 
       freeformMod = {
         config._module.freeformType = lib.types.lazyAttrsOf lib.types.unspecified;
@@ -240,28 +87,19 @@ let
         guard != null || adaptArgs != null || adapterModule != null || builtins.isFunction intoPath;
       needsTopLevelAdapter = needsAdapter && intoPath == [ ];
     in
-    if needsTopLevelAdapter then
-      mkTopLevelAdapter {
-        inherit
-          intoClass
-          sourceModule
-          freeformMod
-          adapterMods
-          adapterModule
-          guardFn
-          guardArgs
-          extraArgsFor
-          canDirectImport
-          ;
-      }
-    else if needsAdapter then
-      mkAdapter {
+    {
+      includes = [ ];
+      meta.__forward = {
         inherit
           fromClass
           intoClass
-          sourceModule
+          evalConfig
           freeformMod
-          adapterMods
+          sourceAspect
+          mapModule
+          staticIntoPath
+          needsAdapter
+          needsTopLevelAdapter
           adapterKey
           guardFn
           guardArgs
@@ -269,17 +107,12 @@ let
           intoPathFn
           adaptArgsFn
           adaptArgv
+          adapterMods
+          extraArgsFor
+          canDirectImport
           ;
-      }
-    else
-      mkDirectForward {
-        inherit
-          intoClass
-          evalConfig
-          sourceModule
-          freeformMod
-          ;
-      } intoPath;
+      };
+    };
 
   forwardEach = fwd: {
     includes = map (item: forwardItem (fwd // { inherit item; })) fwd.each;

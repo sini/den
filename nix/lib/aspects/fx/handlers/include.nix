@@ -233,10 +233,14 @@ let
             withScope;
         childIdentity = identity.pathKey (identity.aspectPath child);
         isConditional = builtins.isAttrs child && child ? meta && child.meta ? guard;
+        isForward =
+          builtins.isAttrs child && child ? meta && builtins.isAttrs child.meta && child.meta ? __forward;
       in
       {
         resume =
-          if isConditional then
+          if isForward then
+            fx.bind (fx.send "emit-forward" child.meta.__forward) (_: fx.pure [ ])
+          else if isConditional then
             resolveConditional child
           else
             fx.bind
