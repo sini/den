@@ -9,6 +9,7 @@
   };
 
   den.policies.flake-parts-to-flake-parts-system-tests = {
+    _core = true;
     from = "flake-parts";
     to = "flake-parts-system";
     resolve = _: [
