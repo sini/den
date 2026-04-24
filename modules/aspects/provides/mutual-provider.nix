@@ -43,7 +43,7 @@ let
         (find-mutual from user)
         (to-users from)
       ];
-    }) (builtins.filter (u: u.id_hash != user.id_hash) (builtins.attrValues host.users));
+    }) (builtins.filter (u: u.hash_value != user.hash_value) (builtins.attrValues host.users));
   };
 
   mutual-host-user =

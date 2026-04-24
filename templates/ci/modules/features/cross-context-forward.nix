@@ -71,7 +71,7 @@
           (
             { host }:
             den.provides.forward {
-              each = lib.filter (h: h.id_hash != host.id_hash) (lib.attrValues den.hosts.${host.system});
+              each = lib.filter (h: h.hash_value != host.hash_value) (lib.attrValues den.hosts.${host.system});
               fromClass = _: "ssh-host-key";
               intoClass = _: host.class;
               intoPath = _: [ ];
@@ -97,7 +97,7 @@
           (
             { host }:
             den.provides.forward {
-              each = lib.filter (h: h.id_hash != host.id_hash) (lib.attrValues den.hosts.${host.system});
+              each = lib.filter (h: h.hash_value != host.hash_value) (lib.attrValues den.hosts.${host.system});
               fromClass = _: "test-class";
               intoClass = _: host.class;
               intoPath = _: [ ];
