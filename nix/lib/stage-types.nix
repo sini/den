@@ -41,9 +41,6 @@ let
         stageSubmodule.merge loc coerced
       else
         (lib.types.lazyAttrsOf stageTreeType).merge loc coerced;
-    emptyValue = {
-      value = { };
-    };
   };
 in
 {
