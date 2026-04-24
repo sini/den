@@ -9,10 +9,25 @@ let
   stageTreeType = lib.types.mkOptionType {
     name = "stageTree";
     description = "stage definition or namespace";
-    check = lib.isAttrs;
+    check = v: lib.isAttrs v || builtins.isFunction v;
     merge =
       loc: defs:
       let
+        name = lib.last loc;
+        # Coerce bare functions: den.stages.foo = { host }: ...
+        # becomes den.stages.foo.provides.foo = { host }: ...
+        coerced = map (
+          d:
+          if builtins.isFunction d.value then
+            d
+            // {
+              value = {
+                provides.${name} = d.value;
+              };
+            }
+          else
+            d
+        ) defs;
         stageNodeKeys = [
           "_"
           "includes"
@@ -20,12 +35,12 @@ let
           "_module"
         ];
         hasKey = x: builtins.any (k: x ? ${k}) stageNodeKeys;
-        isLeaf = lib.any (d: hasKey d.value) defs;
+        isLeaf = lib.any (d: hasKey d.value) coerced;
       in
       if isLeaf then
-        stageSubmodule.merge loc defs
+        stageSubmodule.merge loc coerced
       else
-        (lib.types.lazyAttrsOf stageTreeType).merge loc defs;
+        (lib.types.lazyAttrsOf stageTreeType).merge loc coerced;
     emptyValue = {
       value = { };
     };

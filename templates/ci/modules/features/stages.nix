@@ -59,5 +59,21 @@
       }
     );
 
+    # Bare function sugar: den.stages.greet = { hello }: ...
+    # is equivalent to den.stages.greet.provides.greet = { hello }: ...
+    test-stage-function-sugar = denTest (
+      { den, funnyNames, ... }:
+      {
+        den.stages.greet =
+          { hello }:
+          {
+            funny.names = [ hello ];
+          };
+
+        expr = funnyNames (den.lib.resolveStage "greet" { hello = "world"; });
+        expected = [ "world" ];
+      }
+    );
+
   };
 }
