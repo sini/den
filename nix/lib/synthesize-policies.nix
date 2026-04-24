@@ -21,16 +21,32 @@ let
     else
       null;
 
-  # Check if context satisfies the entity requirement implied by the stage.
-  # When the entity key is present but not an attrset (e.g., host = "igloo"
-  # string from aspect name), the policy is skipped — its resolve function
-  # can safely destructure { host, ... } without guards.
-  ctxSatisfiesEntity =
+  # Check if context satisfies the scope implied by the stage name.
+  #
+  # Entity stages (host, *-host, user, *-user, home):
+  #   The implied entity key must be present as an attrset.
+  #   Policies can safely destructure { host, ... }: etc.
+  #
+  # Flake stages (flake, flake-*):
+  #   No entity values may be present (attrset values in ctx indicate
+  #   entity scope). This prevents flake-level policies from firing
+  #   during host/user transitions where system is also in context.
+  #   No hardcoded entity keys — uses value type detection.
+  #
+  # Other stages: no restriction.
+  ctxSatisfies =
     stage: ctx:
     let
       key = entityKeyFor stage;
+      isFlakeScope = stage == "flake" || lib.hasPrefix "flake-" stage;
+      hasEntityValues = builtins.any builtins.isAttrs (builtins.attrValues ctx);
     in
-    key == null || (ctx ? ${key} && builtins.isAttrs ctx.${key});
+    if key != null then
+      ctx ? ${key} && builtins.isAttrs ctx.${key}
+    else if isFlakeScope then
+      !hasEntityValues
+    else
+      true;
 
   synthesize =
     stageName:
@@ -45,7 +61,7 @@ let
       builtins.foldl' (
         acc: policy:
         let
-          targets = if ctxSatisfiesEntity policy.from rCtx then policy.resolve rCtx else [ ];
+          targets = if ctxSatisfies policy.from rCtx then policy.resolve rCtx else [ ];
           targetList = if builtins.isList targets then targets else [ targets ];
         in
         if targetList == [ ] then

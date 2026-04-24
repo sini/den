@@ -104,25 +104,16 @@ in
     host-to-microvm-host = {
       from = "host";
       to = "microvm-host";
-      resolve =
-        ctx:
-        if !(ctx ? host) || !(builtins.isAttrs ctx.host) then
-          [ ]
-        else
-          lib.optional (ctx.host.microvm.guests != [ ]) { inherit (ctx) host; };
+      resolve = { host, ... }: lib.optional (host.microvm.guests != [ ]) { inherit host; };
     };
     microvm-host-to-microvm-guest = {
       from = "microvm-host";
       to = "microvm-guest";
       resolve =
-        ctx:
-        if !(ctx ? host) || !(builtins.isAttrs ctx.host) then
-          [ ]
-        else
-          map (vm: {
-            inherit (ctx) host;
-            inherit vm;
-          }) ctx.host.microvm.guests;
+        { host, ... }:
+        map (vm: {
+          inherit host vm;
+        }) host.microvm.guests;
     };
   };
   den.stages = {
