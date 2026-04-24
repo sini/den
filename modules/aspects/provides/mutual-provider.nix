@@ -83,7 +83,6 @@ let
         prov
         // lib.optionalAttrs (ctx != { }) {
           __scopeHandlers = constantHandler ctx;
-          __ctx = ctx;
         };
 
 in

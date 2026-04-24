@@ -8,6 +8,7 @@
 }:
 let
   fx = den.lib.fx;
+  inherit (den.lib.aspects.fx.handlers) handlersToCtx;
   inherit (den.lib.aspects.fx.aspect) aspectToEffect;
   inherit (den.lib.aspects) normalizeRoot;
 
@@ -215,8 +216,12 @@ let
         # are pipeline-internal and excluded).
         parentCtx = (state.currentCtx or (_: { })) null;
         entityCtx = lib.filterAttrs (_: builtins.isAttrs) parentCtx;
-        sourceCtx = spec.sourceAspect.__ctx or { };
-        hasOwnContext = sourceCtx != { } || (spec.sourceAspect.__scopeHandlers or { }) != { };
+        sourceCtx =
+          if spec.sourceAspect ? __scopeHandlers then
+            handlersToCtx spec.sourceAspect.__scopeHandlers
+          else
+            { };
+        hasOwnContext = sourceCtx != { };
         resolveCtx = if hasOwnContext then sourceCtx else entityCtx;
 
         sourceResult = den.lib.aspects.fx.pipeline.fxFullResolve {

@@ -6,7 +6,7 @@
 let
   fx = den.lib.fx;
   inherit (den.lib.aspects.fx.aspect) aspectToEffect;
-  inherit (den.lib.aspects.fx.handlers) constantHandler;
+  inherit (den.lib.aspects.fx.handlers) constantHandler handlersToCtx;
   inherit (den.lib.aspects) isParametricWrapper;
 
   mkCtxId =
@@ -61,7 +61,6 @@ let
       scopeHandlers = constantHandler scopedCtx;
       tagged = targetAspect // {
         __scopeHandlers = scopeHandlers;
-        __ctx = scopedCtx;
         __ctxId = ctxId;
       };
     in
@@ -80,7 +79,7 @@ let
             let
               deferredTagged = deferred.child // {
                 __scopeHandlers = scopeHandlers;
-                __ctx = scopedCtx;
+
                 __ctxId = ctxId;
               };
             in
@@ -137,7 +136,6 @@ let
             crossProvider
             // {
               __scopeHandlers = scopeHandlers;
-              __ctx = scopedCtx;
               __ctxId = ctxId;
             }
           else
@@ -155,14 +153,14 @@ let
                 __fn = crossResult;
                 __args = lib.functionArgs crossResult;
                 __scopeHandlers = scopeHandlers;
-                __ctx = scopedCtx;
+
                 __ctxId = ctxId;
               }
             else
               crossResult
               // {
                 __scopeHandlers = scopeHandlers;
-                __ctx = scopedCtx;
+
                 __ctxId = ctxId;
               };
       in
@@ -296,9 +294,10 @@ let
       let
         sourceAspect = param.self;
         rootCtx = (state.currentCtx or (_: { })) null;
-        # Merge the source aspect's __ctx so that stages resolved with
+        # Merge the source aspect's context so that stages resolved with
         # explicit context have their context available for the into function.
-        aspectCtx = sourceAspect.__ctx or { };
+        aspectCtx =
+          if sourceAspect ? __scopeHandlers then handlersToCtx sourceAspect.__scopeHandlers else { };
         currentCtx = rootCtx // aspectCtx;
         depth = state.transitionDepth or 0;
         intoResult = param.intoFn currentCtx;

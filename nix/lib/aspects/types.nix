@@ -34,7 +34,7 @@ let
   # Resolve parametric includes in an aspect with the given args.
   # Used by __functor so aspects are callable: (aspect { host = ...; }).
   # Directly resolvable includes (__fn/__args wrappers) are called;
-  # the result is tagged with __ctx and __scopeHandlers so the pipeline
+  # the result is tagged with __scopeHandlers so the pipeline
   # can resolve remaining parametric children.
   resolveAspectWith =
     self: args:
@@ -57,7 +57,6 @@ let
     builtins.removeAttrs self [ "_module" ]
     // {
       includes = resolvedIncludes;
-      __ctx = args;
       __scopeHandlers = constantHandler args;
     };
 

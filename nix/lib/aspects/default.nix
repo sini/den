@@ -55,7 +55,8 @@ let
     class: resolved:
     let
       wrapped = normalizeRoot resolved;
-      ctx = resolved.__ctx or { };
+      inherit (den.lib.aspects.fx.handlers) handlersToCtx;
+      ctx = if resolved ? __scopeHandlers then handlersToCtx resolved.__scopeHandlers else { };
     in
     fx.pipeline.fxResolve {
       inherit class ctx;

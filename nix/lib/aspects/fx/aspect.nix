@@ -20,7 +20,6 @@ let
     "__args"
     "__functor"
     "__functionArgs"
-    "__ctx"
     "__scopeHandlers"
     "__ctxId"
     "__parametricResolved"
@@ -181,7 +180,11 @@ let
       provides = aspect.provides or { };
       providerVal = provides.${name};
       scopeHandlers = aspect.__scopeHandlers or null;
-      ctx = aspect.__ctx or { };
+      ctx =
+        if aspect ? __scopeHandlers then
+          den.lib.aspects.fx.handlers.handlersToCtx aspect.__scopeHandlers
+        else
+          { };
       isParamWrapper = isParametricWrapper providerVal;
       innerFn =
         if isParamWrapper then
