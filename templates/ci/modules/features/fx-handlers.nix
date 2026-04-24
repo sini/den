@@ -192,12 +192,12 @@
         result = fx.handle {
           handlers = den.lib.aspects.fx.handlers.chainHandler;
           state = {
-            includesChain = [ ];
+            includesChain = _: [ ];
           };
         } comp;
       in
       {
-        expr = result.state.includesChain;
+        expr = (result.state.includesChain) null;
         expected = [
           "a"
           "b"
@@ -216,12 +216,12 @@
         result = fx.handle {
           handlers = den.lib.aspects.fx.handlers.chainHandler;
           state = {
-            includesChain = [ ];
+            includesChain = _: [ ];
           };
         } comp;
       in
       {
-        expr = result.state.includesChain;
+        expr = (result.state.includesChain) null;
         expected = [ "a" ];
       }
     );
@@ -235,11 +235,13 @@
         raw = fx.handle {
           handlers = den.lib.aspects.fx.handlers.chainHandler;
           state = {
-            includesChain = [ ];
+            includesChain = _: [ ];
           };
         } comp;
         # Force the includesChain thunk inside tryEval to catch the throw.
-        result = builtins.tryEval (builtins.deepSeq raw.state.includesChain raw.state.includesChain);
+        result = builtins.tryEval (
+          builtins.deepSeq ((raw.state.includesChain) null) ((raw.state.includesChain) null)
+        );
       in
       {
         expr = result.success;

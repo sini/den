@@ -81,7 +81,7 @@
         result = fx.handle {
           handlers = den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            constraintRegistry = { };
+            constraintRegistry = _: { };
           };
         } comp;
       in
@@ -99,7 +99,7 @@
         result = fx.handle {
           handlers = den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            constraintRegistry = { };
+            constraintRegistry = _: { };
           };
         } comp;
       in
@@ -133,7 +133,7 @@
         result = fx.handle {
           handlers = den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            constraintRegistry = { };
+            constraintRegistry = _: { };
           };
         } comp;
       in
@@ -231,7 +231,7 @@
       in
       {
         # root + keep = 2 paths in pathSet, drop is tombstoned and excluded
-        expr = builtins.length (builtins.attrNames result.state.pathSet);
+        expr = builtins.length (builtins.attrNames ((result.state.pathSet) null));
         expected = 2;
       }
     );
@@ -362,9 +362,9 @@
           handlers =
             den.lib.aspects.fx.handlers.chainHandler // den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            includesChain = [ ];
-            constraintRegistry = { };
-            constraintFilters = [ ];
+            includesChain = _: [ ];
+            constraintRegistry = _: { };
+            constraintFilters = _: [ ];
           };
         } comp;
       in
@@ -403,9 +403,9 @@
           handlers =
             den.lib.aspects.fx.handlers.chainHandler // den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            includesChain = [ ];
-            constraintRegistry = { };
-            constraintFilters = [ ];
+            includesChain = _: [ ];
+            constraintRegistry = _: { };
+            constraintFilters = _: [ ];
           };
         } comp;
       in
@@ -444,9 +444,9 @@
           handlers =
             den.lib.aspects.fx.handlers.chainHandler // den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            includesChain = [ ];
-            constraintRegistry = { };
-            constraintFilters = [ ];
+            includesChain = _: [ ];
+            constraintRegistry = _: { };
+            constraintFilters = _: [ ];
           };
         } comp;
       in
@@ -479,9 +479,9 @@
           handlers =
             den.lib.aspects.fx.handlers.chainHandler // den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            includesChain = [ ];
-            constraintRegistry = { };
-            constraintFilters = [ ];
+            includesChain = _: [ ];
+            constraintRegistry = _: { };
+            constraintFilters = _: [ ];
           };
         } comp;
       in
@@ -520,9 +520,9 @@
           handlers =
             den.lib.aspects.fx.handlers.chainHandler // den.lib.aspects.fx.handlers.constraintRegistryHandler;
           state = {
-            includesChain = [ ];
-            constraintRegistry = { };
-            constraintFilters = [ ];
+            includesChain = _: [ ];
+            constraintRegistry = _: { };
+            constraintFilters = _: [ ];
           };
         } comp;
       in

@@ -282,18 +282,21 @@ in
           handlers."ctx-seen" =
             { param, state }:
             let
-              isFirst = !((state.seen or { }) ? ${param});
+              isFirst = !(((state.seen or (_: { })) null) ? ${param});
             in
             {
               resume = { inherit isFirst; };
               state = state // {
-                seen = (state.seen or { }) // {
-                  ${param} = true;
-                };
+                seen =
+                  _:
+                  ((state.seen or (_: { })) null)
+                  // {
+                    ${param} = true;
+                  };
               };
             };
           state = {
-            seen = { };
+            seen = _: { };
           };
         } comp;
       in

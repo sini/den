@@ -48,7 +48,7 @@ let
         selfPath = pathKey (aspectPath param);
         entry = mkBaseEntry class param // {
           name = param.name or "<anon>";
-          parent = chainParent (state.includesChain or [ ]) selfPath;
+          parent = chainParent ((state.includesChain or (_: [ ])) null) selfPath;
           ctxStage = param.__ctxStage or null;
           ctxKind = param.__ctxKind or null;
         };
@@ -76,7 +76,7 @@ let
         ctxStage = state.currentStage or null;
         # Derive ctxAspect from includes chain: nearest meaningful ancestor's
         # base name (strip provider path and ctxId suffix for readability).
-        chain = state.includesChain or [ ];
+        chain = (state.includesChain or (_: [ ])) null;
         chainTip = if chain != [ ] then lib.last chain else null;
         ctxAspect =
           if chainTip == null then

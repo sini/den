@@ -60,9 +60,9 @@ let
     // extraHandlers;
 
   defaultState = {
-    includesChain = [ ];
-    constraintRegistry = { };
-    constraintFilters = [ ];
+    includesChain = _: [ ];
+    constraintRegistry = _: { };
+    constraintFilters = _: [ ];
     paths = [ ];
   };
 in

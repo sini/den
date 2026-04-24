@@ -112,22 +112,21 @@ let
       };
   };
 
+  # IMPLEMENTATION DETAIL: Fields wrapped as thunks (`_: value`) survive
+  # builtins.deepSeq — the trampoline deepSeqs state at each step, but
+  # deepSeq on a function forces the closure, not its application. This
+  # prevents re-materializing large attrsets (pathSet, seen, etc.) at
+  # every trampoline step. Unwrap with `state.field null`.
+  #
+  # Plain fields (class, transitionDepth, etc.) are small and safe to
+  # deepSeq directly.
   defaultState = {
-    seen = { };
-    # IMPLEMENTATION DETAIL: Thunk chains (`_: []`, `x: (prev x) ++ items`)
-    # survive builtins.deepSeq because deepSeq on a function forces the
-    # closure value itself, not its application. This prevents the trampoline's
-    # per-step deepSeq from eagerly evaluating NixOS config objects inside
-    # collected modules. If a future Nix version changes deepSeq to force
-    # function bodies, this pattern breaks. Unwrap with `state.imports null`.
+    seen = _: { };
     imports = _: [ ];
-    constraintRegistry = { };
-    constraintFilters = [ ];
-    pathSet = { };
-    includesChain = [ ];
-    # Thunk chain (like imports) so trampoline's deepSeq doesn't force
-    # deferred child aspects which may reference optional inputs (hjem).
-    # Unwrap with `state.deferredIncludes null`.
+    constraintRegistry = _: { };
+    constraintFilters = _: [ ];
+    pathSet = _: { };
+    includesChain = _: [ ];
     deferredIncludes = _: [ ];
   };
 

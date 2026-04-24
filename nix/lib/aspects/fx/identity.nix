@@ -52,7 +52,8 @@ let
           state
           // lib.optionalAttrs (!isExcluded) {
             pathSet =
-              (state.pathSet or { })
+              _:
+              (state.pathSet or (_: { })) null
               // {
                 ${key} = true;
               }
@@ -67,7 +68,7 @@ let
     "get-path-set" =
       { param, state }:
       {
-        resume = state.pathSet or { };
+        resume = (state.pathSet or (_: { })) null;
         inherit state;
       };
   };

@@ -335,7 +335,7 @@
       {
         expr = {
           hasEntries = result.state.entries != [ ];
-          hasPaths = result.state.pathSet != { };
+          hasPaths = (result.state.pathSet) null != { };
           hasImports = (result.state.imports null) != [ ];
         };
         expected = {

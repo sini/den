@@ -11,30 +11,37 @@
   ...
 }:
 let
-  # Two constraint types: identity-based (exclude, substitute) and predicate-based (filter).
+  # All growing state fields are thunk-wrapped (_: value) so the
+  # trampoline's deepSeq doesn't re-materialize them at every step.
+  # Unwrap with `(state.field or (_: default)) null`.
+
   constraintRegistryHandler = {
     "register-constraint" =
       { param, state }:
       let
-        ownerChain = state.includesChain or [ ];
+        ownerChain = (state.includesChain or (_: [ ])) null;
         scope = param.scope or "subtree";
       in
       if param.type == "filter" then
         {
           resume = null;
           state = state // {
-            constraintFilters = (state.constraintFilters or [ ]) ++ [
-              {
-                predicate = param.predicate;
-                owner = param.owner or "<anon>";
-                inherit scope ownerChain;
-              }
-            ];
+            constraintFilters =
+              _:
+              ((state.constraintFilters or (_: [ ])) null)
+              ++ [
+                {
+                  predicate = param.predicate;
+                  owner = param.owner or "<anon>";
+                  inherit scope ownerChain;
+                }
+              ];
           };
         }
       else
         let
-          existing = (state.constraintRegistry or { }).${param.identity} or [ ];
+          registry = (state.constraintRegistry or (_: { })) null;
+          existing = registry.${param.identity} or [ ];
           entry = {
             type = param.type;
             getReplacement = param.getReplacement or (_: null);
@@ -45,24 +52,23 @@ let
         {
           resume = null;
           state = state // {
-            constraintRegistry = (state.constraintRegistry or { }) // {
-              ${param.identity} = existing ++ [ entry ];
-            };
+            constraintRegistry =
+              _:
+              registry
+              // {
+                ${param.identity} = existing ++ [ entry ];
+              };
           };
         };
 
-    # Check if an aspect should be excluded/substituted/filtered.
-    # First checks identity-based registry, then predicate filters.
-    # param = { identity; aspect; } or a bare identity string (used by tests).
     "check-constraint" =
       { param, state }:
       let
         nodeIdentity = if builtins.isAttrs param then param.identity else param;
         aspect = if builtins.isAttrs param then param.aspect or null else null;
-        registry = state.constraintRegistry or { };
-        filters = state.constraintFilters or [ ];
-        currentChain = state.includesChain or [ ];
-        # True when ownerChain is a prefix of currentChain (subtree membership).
+        registry = (state.constraintRegistry or (_: { })) null;
+        filters = (state.constraintFilters or (_: [ ])) null;
+        currentChain = (state.includesChain or (_: [ ])) null;
         isAncestor = ownerChain: lib.take (builtins.length ownerChain) currentChain == ownerChain;
         inScope = entry: (entry.scope or "global") == "global" || isAncestor (entry.ownerChain or [ ]);
         mkDecision = action: extra: {
@@ -72,7 +78,6 @@ let
           // extra;
           inherit state;
         };
-        # Also check prefix matches: excluding "monitoring" cascades to "monitoring/node-exporter".
         entries = registry.${nodeIdentity} or [ ];
         prefixEntries =
           if registry == { } then
@@ -80,7 +85,6 @@ let
           else
             let
               parts = lib.splitString "/" nodeIdentity;
-              # Generate all proper prefixes: for "a/b/c" → ["a", "a/b"]
               prefixes = lib.genList (i: lib.concatStringsSep "/" (lib.take (i + 1) parts)) (
                 builtins.length parts - 1
               );
@@ -102,7 +106,6 @@ let
         else
           mkDecision "keep" { }
       else
-        # No in-scope identity match — check predicate filters.
         let
           scopedFilters = builtins.filter inScope filters;
           failedFilter =
@@ -116,7 +119,6 @@ let
 
   chainHandler =
     let
-      # Derive currentStage from stageStack: last entry or null.
       topStage = stack: if stack == [ ] then null else lib.last stack;
     in
     {
@@ -124,25 +126,26 @@ let
         { param, state }:
         let
           stage = param.stage or null;
-          stageStack = state.stageStack or [ ];
+          chain = (state.includesChain or (_: [ ])) null;
+          stages = (state.chainStages or (_: [ ])) null;
+          stageStack = (state.stageStack or (_: [ ])) null;
           newStageStack = if stage != null then stageStack ++ [ stage ] else stageStack;
         in
         {
           resume = null;
           state = state // {
-            includesChain = (state.includesChain or [ ]) ++ [ param.identity ];
-            # Parallel stack: one entry per chain entry, null if not a stage root.
-            chainStages = (state.chainStages or [ ]) ++ [ stage ];
-            stageStack = newStageStack;
+            includesChain = _: chain ++ [ param.identity ];
+            chainStages = _: stages ++ [ stage ];
+            stageStack = _: newStageStack;
             currentStage = topStage newStageStack;
           };
         };
       "chain-pop" =
         { param, state }:
         let
-          chain = state.includesChain or [ ];
-          chainStages = state.chainStages or [ ];
-          stageStack = state.stageStack or [ ];
+          chain = (state.includesChain or (_: [ ])) null;
+          chainStages = (state.chainStages or (_: [ ])) null;
+          stageStack = (state.stageStack or (_: [ ])) null;
           poppedStage = if chainStages != [ ] then lib.last chainStages else null;
           newStageStack =
             if poppedStage != null && stageStack != [ ] then lib.init stageStack else stageStack;
@@ -151,18 +154,18 @@ let
           resume = null;
           state = state // {
             includesChain =
+              _:
               if chain == [ ] then
                 throw "fx: chain-pop on empty includesChain — push/pop mismatch in aspect compiler"
               else
                 lib.init chain;
-            chainStages = if chainStages == [ ] then [ ] else lib.init chainStages;
-            stageStack = newStageStack;
+            chainStages = _: if chainStages == [ ] then [ ] else lib.init chainStages;
+            stageStack = _: newStageStack;
             currentStage = topStage newStageStack;
           };
         };
     };
 
-  # Only collects modules for the specified target class.
   classCollectorHandler =
     {
       targetClass,
@@ -178,21 +181,12 @@ let
         else
           let
             nodeIdentity = param.identity or "<anon>";
-            # Strip __ctxId suffix for static aspects so the same aspect
-            # included from multiple contexts deduplicates (e.g. shared-tools
-            # from both {igloo} and {tux}). Parametric resolutions produce
-            # different modules per context, so their ctxId must be preserved.
             baseIdentity =
               if param.isContextDependent or false then
                 nodeIdentity
               else
                 lib.head (lib.splitString "/{" nodeIdentity);
             loc = "${param.class}@${baseIdentity}";
-            # Named aspects get a dedup key so the module system keeps only
-            # the first. Synthetic names must not be keyed — multiple
-            # anonymous includes with the same identity are distinct.
-            # Uses isMeaningfulName (types.nix) for base synthetic name check,
-            # plus pipeline-specific patterns from nameAnon.
             isAnon =
               !(den.lib.aspects.isMeaningfulName nodeIdentity)
               || lib.hasPrefix "<root>/" nodeIdentity
@@ -215,14 +209,12 @@ let
           };
     };
 
-  # Drained by drain-deferred when context widens.
   deferredIncludeHandler = {
     "defer-include" =
       { param, state }:
       {
         resume = [ ];
         state = state // {
-          # Thunk chain to survive deepSeq (same pattern as imports).
           deferredIncludes = x: ((state.deferredIncludes or (_: [ ])) x) ++ [ param ];
         };
       };
@@ -233,7 +225,6 @@ let
       { param, state }:
       let
         ctx = param;
-        # Unwrap thunk chain.
         deferred = (state.deferredIncludes or (_: [ ])) null;
       in
       if deferred == [ ] then

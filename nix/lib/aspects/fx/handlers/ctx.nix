@@ -27,14 +27,13 @@ let
     "ctx-seen" =
       { param, state }:
       let
-        isFirst = !((state.seen or { }) ? ${param});
+        seenSet = (state.seen or (_: { })) null;
+        isFirst = !(seenSet ? ${param});
       in
       {
         resume = { inherit isFirst; };
         state = state // {
-          seen = (state.seen or { }) // {
-            ${param} = true;
-          };
+          seen = _: seenSet // { ${param} = true; };
         };
       };
   };

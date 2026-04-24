@@ -24,7 +24,7 @@ let
         self = normalized;
       };
     in
-    result.state.pathSet or { };
+    (result.state.pathSet or (_: { })) null;
 
   hasAspectIn =
     {
