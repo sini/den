@@ -20,6 +20,14 @@ let
   # Context args are derived from the entity's _module.args, filtered to
   # known stage kinds so framework args don't leak through.
   knownKinds = builtins.attrNames (den.stages or { });
+
+  # Option type names whose values are safe for identity hashing.
+  primitiveTypeNames = [
+    "str"
+    "int"
+    "bool"
+  ];
+
   schemaEntryType =
     let
       base = lib.types.deferredModule;
@@ -31,9 +39,53 @@ let
         let
           kind = lib.last loc;
           merged = base.merge loc defs;
+
           resolvedCtx =
-            { config, ... }:
+            { config, options, ... }:
             {
+              # Stable identity hash for entity comparison.
+              #
+              # Nix's `==` does deep structural comparison which diverges or
+              # infinitely recurses when the same entity is accessed via
+              # different module system thunks. This hash reflects on all
+              # non-internal primitive options (str, int, bool), prefixed by
+              # schema kind, to produce a cheap string identity.
+              #
+              # Automatically includes any primitive option declared on the
+              # entity — custom entity types get this for free.
+              #
+              # Usage: builtins.filter (h: h.id_hash != host.id_hash) allHosts
+              options.id_hash = lib.mkOption {
+                description = ''
+                  Auto-computed identity hash for entity comparison.
+
+                  Derived by reflecting on all non-internal, primitive-typed
+                  options (str, int, bool) declared on this entity. The schema
+                  kind is included to prevent cross-kind collisions.
+
+                  Use `a.id_hash != b.id_hash` instead of `a != b` for entity
+                  comparison — Nix's `==` does deep structural comparison which
+                  is fragile across module system boundaries.
+                '';
+                readOnly = true;
+                internal = true;
+                type = lib.types.str;
+                default =
+                  let
+                    isPrimitive =
+                      _: opt:
+                      (opt ? type) && builtins.elem (opt.type.name or "") primitiveTypeNames && !(opt.internal or false);
+                    identityKeys = lib.sort (a: b: a < b) (builtins.attrNames (lib.filterAttrs isPrimitive options));
+                    encode =
+                      k:
+                      let
+                        v = config.${k};
+                      in
+                      "${k}=${toString v}";
+                    fingerprint = "${kind}\0${lib.concatMapStringsSep "\0" encode identityKeys}";
+                  in
+                  builtins.hashString "sha256" fingerprint;
+              };
               options.resolved = lib.mkOption {
                 description = "The resolved aspect for this ${kind}.";
                 readOnly = true;
