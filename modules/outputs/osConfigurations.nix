@@ -7,7 +7,7 @@ let
       fromClass = _: host.class;
       intoClass = _: "flake";
       intoPath = _: [ "flake" ];
-      fromAspect = _: den.lib.resolveStage "host" { inherit host; };
+      fromAspect = _: host.resolved;
       mapModule =
         _: module:
         lib.setAttrByPath host.intoAttr (

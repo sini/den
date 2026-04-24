@@ -43,7 +43,7 @@ let
         (find-mutual from user)
         (to-users from)
       ];
-    }) (builtins.filter (u: u != user) (builtins.attrValues host.users));
+    }) (builtins.filter (u: u.name != user.name) (builtins.attrValues host.users));
   };
 
   mutual-host-user =

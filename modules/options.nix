@@ -46,7 +46,7 @@ let
                       builtins.attrNames (den.schema or { })
                     );
                     isContextArg = n: builtins.elem n knownKinds || builtins.elem n schemaKinds;
-                    ctx = lib.filterAttrs (n: _: isContextArg n) config._module.args // {
+                    ctx = lib.filterAttrs (n: v: isContextArg n && v != null) config._module.args // {
                       ${kind} = config;
                     };
                   in
