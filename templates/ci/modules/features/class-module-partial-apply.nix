@@ -475,5 +475,36 @@
       }
     );
 
+    # Collision — class-wins via entity schema: module-system value wins.
+    test-collision-class-wins = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.schema.host.collisionPolicy = "class-wins";
+
+        den.stages.test-collision-cw = {
+          includes = [
+            { nixos._module.args.host = "from-module-system"; }
+          ];
+          nixos =
+            { host, config, ... }:
+            {
+              networking.hostName = if builtins.isString host then host else host.name;
+            };
+        };
+
+        den.policies.host-to-collision-cw = {
+          from = "host";
+          to = "test-collision-cw";
+          resolve = _: [ { } ];
+        };
+
+        den.default.policies = [ "host-to-collision-cw" ];
+
+        expr = igloo.networking.hostName;
+        expected = "from-module-system";
+      }
+    );
+
   };
 }

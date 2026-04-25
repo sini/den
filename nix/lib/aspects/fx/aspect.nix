@@ -152,9 +152,18 @@ let
         else
           let
             policy = resolveCollisionPolicy { inherit ctx aspectPolicy globalPolicy; };
-            # G(X): the actual module wrapper. Den args always win via //.
-            # NixOS thunks in moduleArgs are shadowed without evaluation.
-            wrapper = moduleArgs: warnedModule (moduleArgs // denArgs);
+            # G(X): the actual module wrapper. Merge order depends on policy.
+            # For class-wins args, moduleArgs shadows denArgs (class value used).
+            # For den-wins/error args, denArgs shadows moduleArgs (NixOS thunks
+            # shadowed without evaluation).
+            classWinsNames = builtins.filter (name: policy name == "class-wins") denArgNames;
+            classWinsDen = lib.genAttrs classWinsNames (k: denArgs.${k});
+            denWinsDen = removeAttrs denArgs classWinsNames;
+            wrapper =
+              moduleArgs:
+              # class-wins args: den first, then moduleArgs shadows
+              # den-wins/error args: moduleArgs first, then denArgs shadows
+              warnedModule (classWinsDen // moduleArgs // denWinsDen);
             # Validate(X): collision detector. Receives same moduleArgs from
             # NixOS but only produces warnings/errors. The check is inside
             # the warnings value — a thunk that's only forced after the
