@@ -53,15 +53,15 @@ let
         missingDenArgNames = builtins.filter (k: builtins.elem k schemaKinds && !(allArgs.${k} or false)) (
           builtins.filter (k: !(ctx ? ${k})) argNames
         );
+        # Emit warnings for missing den args (matching schema kinds, no default)
+        # regardless of whether other den args are found.
+        warnedModule = builtins.foldl' (
+          mod: k: lib.warn "den: class module requests '${k}' but no ${k} context is available" mod
+        ) module missingDenArgNames;
       in
       if denArgNames == [ ] then
-        let
-          warned = builtins.foldl' (
-            mod: k: lib.warn "den: class module requests '${k}' but no ${k} context is available" mod
-          ) module missingDenArgNames;
-        in
         {
-          module = warned;
+          module = warnedModule;
           wrapped = false;
         }
       else
@@ -99,7 +99,7 @@ let
                   lib.warn "den: class module arg '${name}' collision — den-wins, module-system value shadowed" true
               ) denArgs;
             in
-            module (moduleArgs // kept);
+            warnedModule (moduleArgs // kept);
         in
         {
           module = lib.setFunctionArgs wrapper remainingArgs;

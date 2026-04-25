@@ -10,7 +10,11 @@
         - "class-wins": module-system value wins, den value dropped
         - "den-wins": den value wins, module-system value shadowed
       '';
-      type = lib.types.enum [ "error" "class-wins" "den-wins" ];
+      type = lib.types.enum [
+        "error"
+        "class-wins"
+        "den-wins"
+      ];
       default = "error";
     };
   };
