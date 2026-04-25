@@ -55,6 +55,7 @@ export default defineConfig({
 						{ label: 'Resolution Pipeline', slug: 'explanation/context-pipeline' },
 						{ label: 'Library vs Framework', slug: 'explanation/library-vs-framework' },
 						{ label: 'ABC on Den Effects', slug: 'explanation/effects' },
+						{ label: 'Diagrams', slug: 'explanation/diagrams' },
 					],
 				},
 				{
@@ -99,6 +100,7 @@ export default defineConfig({
 						{ label: 'den.stages', slug: 'reference/ctx' },
 						{ label: 'den.policies', slug: 'reference/policies' },
 						{ label: 'den.lib', slug: 'reference/lib' },
+						{ label: 'den.lib.diag', slug: 'reference/diag' },
 						{ label: 'flake.*', slug: 'reference/output' },
 					],
 				},
