@@ -55,7 +55,7 @@ let
     class: resolved:
     let
       wrapped = normalizeRoot resolved;
-      ctx = resolved.__ctx or { };
+      ctx = fx.aspect.ctxFromHandlers (resolved.__scopeHandlers or { });
     in
     fx.pipeline.fxResolve {
       inherit class ctx;
@@ -67,7 +67,7 @@ let
     class: resolved:
     let
       wrapped = normalizeRoot resolved;
-      ctx = resolved.__ctx or { };
+      ctx = fx.aspect.ctxFromHandlers (resolved.__scopeHandlers or { });
     in
     fx.pipeline.fxFullResolve {
       inherit class ctx;

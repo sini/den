@@ -18,7 +18,6 @@ let
       builtins.removeAttrs v [
         "_"
         "__functor"
-        "__ctx"
       ]
     else
       v

@@ -216,8 +216,9 @@ let
         # are pipeline-internal and excluded).
         parentCtx = (state.currentCtx or (_: { })) null;
         entityCtx = lib.filterAttrs (_: builtins.isAttrs) parentCtx;
-        sourceCtx = spec.sourceAspect.__ctx or { };
-        hasOwnContext = sourceCtx != { } || (spec.sourceAspect.__scopeHandlers or { }) != { };
+        sourceScopeHandlers = spec.sourceAspect.__scopeHandlers or { };
+        sourceCtx = den.lib.aspects.fx.aspect.ctxFromHandlers sourceScopeHandlers;
+        hasOwnContext = sourceScopeHandlers != { };
         resolveCtx = if hasOwnContext then sourceCtx else entityCtx;
 
         sourceResult = den.lib.aspects.fx.pipeline.fxFullResolve {

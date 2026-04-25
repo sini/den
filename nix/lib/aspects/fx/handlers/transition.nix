@@ -50,8 +50,8 @@ let
       ) attrset
     );
 
-  # Resolve a single context value by tagging the target aspect with __ctx
-  # and resolving it. For fan-out transitions, each context value's target
+  # Resolve a single context value by tagging the target aspect with
+  # __scopeHandlers and resolving it. For fan-out transitions, each context value's target
   # gets its own inner resolution with independent dedup state.
   resolveContextValue =
     parentCtx: targetAspect: results: newCtx:
@@ -61,7 +61,6 @@ let
       scopeHandlers = constantHandler scopedCtx;
       tagged = targetAspect // {
         __scopeHandlers = scopeHandlers;
-        __ctx = scopedCtx;
         __ctxId = ctxId;
       };
     in
@@ -80,7 +79,6 @@ let
             let
               deferredTagged = deferred.child // {
                 __scopeHandlers = scopeHandlers;
-                __ctx = scopedCtx;
                 __ctxId = ctxId;
               };
             in
@@ -139,7 +137,6 @@ let
             crossProvider
             // {
               __scopeHandlers = scopeHandlers;
-              __ctx = scopedCtx;
               __ctxId = ctxId;
             }
           else
@@ -157,14 +154,12 @@ let
                 __fn = crossResult;
                 __args = lib.functionArgs crossResult;
                 __scopeHandlers = scopeHandlers;
-                __ctx = scopedCtx;
                 __ctxId = ctxId;
               }
             else
               crossResult
               // {
                 __scopeHandlers = scopeHandlers;
-                __ctx = scopedCtx;
                 __ctxId = ctxId;
               };
       in
@@ -333,9 +328,9 @@ let
       let
         sourceAspect = param.self;
         rootCtx = (state.currentCtx or (_: { })) null;
-        # Merge the source aspect's __ctx so that stages resolved with
+        # Merge the source aspect's context so that stages resolved with
         # explicit context have their context available for the into function.
-        aspectCtx = sourceAspect.__ctx or { };
+        aspectCtx = den.lib.aspects.fx.aspect.ctxFromHandlers (sourceAspect.__scopeHandlers or { });
         currentCtx = rootCtx // aspectCtx;
         depth = state.transitionDepth or 0;
         targetClass = state.class or "nixos";

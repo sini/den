@@ -22,7 +22,6 @@ let
     "__args"
     "__functor"
     "__functionArgs"
-    "__ctx"
     "__scopeHandlers"
     "__ctxId"
     "__parametricResolved"
@@ -354,7 +353,7 @@ let
       provides = aspect.provides or { };
       providerVal = provides.${name};
       scopeHandlers = aspect.__scopeHandlers or null;
-      ctx = aspect.__ctx or { };
+      ctx = ctxFromHandlers (aspect.__scopeHandlers or { });
       isParamWrapper = isParametricWrapper providerVal;
       innerFn =
         if isParamWrapper then
@@ -429,7 +428,7 @@ let
               fx.send "provide-to" {
                 inherit label;
                 content = provideToData.${label};
-                emitterCtx = aspect.__ctx or { };
+                emitterCtx = ctxFromHandlers (aspect.__scopeHandlers or { });
                 aspectName = aspect.name or "<anon>";
                 targetEntity = null;
               }
@@ -586,5 +585,6 @@ in
     emitSelfProvide
     structuralKeysSet
     wrapClassModule
+    ctxFromHandlers
     ;
 }

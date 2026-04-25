@@ -29,7 +29,6 @@ let
       };
       provides = stageNode.provides or { };
       includes = stageNode.includes or [ ];
-      __ctx = ctx;
       __ctxStage = name;
       __scopeHandlers = scopeHandlers;
     };
