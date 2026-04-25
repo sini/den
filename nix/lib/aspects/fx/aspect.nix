@@ -119,43 +119,55 @@ let
         let
           denArgs = lib.genAttrs denArgNames (k: ctx.${k});
           remainingArgs = removeAttrs allArgs denArgNames;
-          wrapper =
-            moduleArgs:
-            let
-              collisions = builtins.intersectAttrs moduleArgs denArgs;
-              resolvePolicy =
-                name:
-                if aspectPolicy != null then
-                  aspectPolicy
-                else if
-                  builtins.isAttrs (ctx.${name} or null)
-                  && (ctx.${name} ? collisionPolicy)
-                  && ctx.${name}.collisionPolicy != null
-                then
-                  ctx.${name}.collisionPolicy
-                else
-                  globalPolicy;
-              kept = lib.filterAttrs (
-                name: _:
-                let
-                  policy = resolvePolicy name;
-                in
-                if !(collisions ? ${name}) then
-                  true
-                else if policy == "error" then
-                  throw "den: class module arg '${name}' collides with module-system arg — set collisionPolicy to resolve"
-                else if policy == "class-wins" then
-                  lib.warn "den: class module arg '${name}' collision — class-wins, den value dropped" false
-                else
-                  lib.warn "den: class module arg '${name}' collision — den-wins, module-system value shadowed" true
-              ) denArgs;
-            in
-            warnedModule (moduleArgs // kept);
         in
-        {
-          module = lib.setFunctionArgs wrapper remainingArgs;
-          wrapped = true;
-        };
+        # Full application: all functionArgs are den args (no module-system args).
+        # Call the function directly instead of wrapping — this handles the
+        # { host }: ({ config, pkgs, ... }: {}) pattern where the outer function
+        # returns another function (or any value) to be used as the class module.
+        if remainingArgs == { } then
+          {
+            module = warnedModule denArgs;
+            wrapped = true;
+          }
+        else
+          let
+            wrapper =
+              moduleArgs:
+              let
+                collisions = builtins.intersectAttrs moduleArgs denArgs;
+                resolvePolicy =
+                  name:
+                  if aspectPolicy != null then
+                    aspectPolicy
+                  else if
+                    builtins.isAttrs (ctx.${name} or null)
+                    && (ctx.${name} ? collisionPolicy)
+                    && ctx.${name}.collisionPolicy != null
+                  then
+                    ctx.${name}.collisionPolicy
+                  else
+                    globalPolicy;
+                kept = lib.filterAttrs (
+                  name: _:
+                  let
+                    policy = resolvePolicy name;
+                  in
+                  if !(collisions ? ${name}) then
+                    true
+                  else if policy == "error" then
+                    throw "den: class module arg '${name}' collides with module-system arg — set collisionPolicy to resolve"
+                  else if policy == "class-wins" then
+                    lib.warn "den: class module arg '${name}' collision — class-wins, den value dropped" false
+                  else
+                    lib.warn "den: class module arg '${name}' collision — den-wins, module-system value shadowed" true
+                ) denArgs;
+              in
+              warnedModule (moduleArgs // kept);
+          in
+          {
+            module = lib.setFunctionArgs wrapper remainingArgs;
+            wrapped = true;
+          };
 
   # Reconstruct ctx from scope handlers. constantHandler maps each key
   # to { param, state }: { resume = value; inherit state; }, so invoking

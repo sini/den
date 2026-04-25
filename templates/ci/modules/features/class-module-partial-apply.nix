@@ -345,5 +345,38 @@
       }
     );
 
+    # Full application: nixos = { host }: ({ config, ... }: {})
+    # All functionArgs are den args, so the function is called directly
+    # instead of merged. The result (inner function) becomes the class module.
+    test-full-application-curried = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.stages.test-full-apply = {
+          includes = [ ];
+          nixos =
+            { host }:
+            (
+              { config, ... }:
+              {
+                networking.hostName = host.name;
+              }
+            );
+        };
+
+        den.policies.host-to-test-full-apply = {
+          from = "host";
+          to = "test-full-apply";
+          resolve = _: [ { } ];
+        };
+
+        den.default.policies = [ "host-to-test-full-apply" ];
+
+        expr = igloo.networking.hostName;
+        expected = "igloo";
+      }
+    );
+
   };
 }
