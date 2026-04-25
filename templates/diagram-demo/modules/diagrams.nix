@@ -135,8 +135,8 @@ in
         in
         entityEntries { inherit pkgs rc diag; } {
           inherit entity;
-          name = u.name;
-          dir = "users/${u.name}";
+          name = u.userName;
+          dir = "hosts/${u.host.name}/users/${u.userName}";
           viewDefs = userViewDefs (graphClasses entity);
         }
       ) filteredUsers;
@@ -201,14 +201,14 @@ in
       userGalleries = map (
         u:
         let
-          dir = "users/${u.name}";
+          dir = "hosts/${u.host.name}/users/${u.userName}";
         in
         {
-          path = "diagrams/users/${u.name}.md";
+          path = "diagrams/hosts/${u.host.name}/users/${u.userName}.md";
           drv = mkGallery pkgs {
-            name = u.name;
+            name = u.userName;
             inherit dir;
-            title = "Gallery: ${u.name}";
+            title = "Gallery: ${u.userName} @ ${u.host.name}";
             entries = everyEntry;
           };
         }
