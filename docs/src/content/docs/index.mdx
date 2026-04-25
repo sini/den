@@ -3,16 +3,19 @@ title: Context-aware Dendritic Nix
 description: Aspect-oriented, context-driven Nix configurations for NixOS, nix-darwin, and home-manager.
 template: splash
 hero:
-  tagline: Aspect-oriented, context-driven Nix configurations
+  tagline: One aspect. Every platform. NixOS, Darwin, home-manager — composed, not duplicated.
   image:
     html: |
       <img width="100%" src="https://github.com/user-attachments/assets/af9c9bca-ab8b-4682-8678-31a70d510bbb" />
   actions:
-    - text: Getting Started
+    - text: Get Started
       link: /guides/from-zero-to-den
       icon: right-arrow
-    - text: Core Principles
-      link: /explanation/core-principles
+    - text: Coming from NixOS?
+      link: /explanation/coming-from
+      variant: secondary
+    - text: Documentation
+      link: /overview/
       variant: minimal
     - text: Why Den?
       link: /motivation/
@@ -20,12 +23,6 @@ hero:
     - text: Source Code
       link: https://github.com/vic/den
       icon: github
-      variant: secondary
-    - text: Docs Overview
-      link: /overview/
-      variant: minimal
-    - text: Community
-      link: /community/
       variant: minimal
 ---
 
@@ -53,21 +50,49 @@ import { Steps, LinkButton, Card, CardGrid } from '@astrojs/starlight/components
 </div>
 
 
-## What is Den
+## The Problem
 
+Traditional Nix configurations are host-first. Bluetooth on three machines means three files with duplicated config — one per host, split again across NixOS and home-manager.
 
-At its core, Den is a **library** for activating Nix configuration aspects via context transformations.  
+```nix
+# Without Den — duplicated across hosts and module systems
+hosts/laptop/configuration.nix   # hardware.bluetooth.enable = true
+hosts/laptop/home.nix            # services.blueman-applet.enable = true
+hosts/desktop/configuration.nix  # hardware.bluetooth.enable = true (again)
+hosts/mac/darwin.nix             # homebrew.casks = [ "blueutil" ] (different syntax)
+```
 
-On top of the library, Den provides a **framework** for the common case
-of NixOS/nix-Darwin/Home-Manager.  
+## The Den Way
 
-Den embraces your Nix choices and does not impose itself. All parts of Den are optional and replaceable.
+Den inverts this: **aspects** are the primary unit. One aspect, all platforms.
 
-## How Den works
+```nix
+# With Den — one aspect configures everything
+den.aspects.bluetooth = {
+  nixos.hardware.bluetooth.enable = true;
+  homeManager.services.blueman-applet.enable = true;
+  darwin.homebrew.casks = [ "blueutil" ];
+};
 
-Den uses a Dendritic configuration model. Features are organized as **aspects** -- composable attrsets with per-class modules and a dependency graph (`provides`/`includes`).
+# Every host that includes it gets bluetooth — across all classes
+den.aspects.laptop.includes = [ den.aspects.bluetooth ];
+den.aspects.desktop.includes = [ den.aspects.bluetooth ];
+```
 
-A **context transformation pipeline** traverses configurable entities, activating corresponding aspects on each context stage, ultimately producing a single, unified system configuration.
+Den context args flow automatically — no wrappers, no `specialArgs`, no infinite recursion:
+
+```nix
+# Den args and NixOS module args coexist in a single function
+den.aspects.laptop.nixos = { host, config, pkgs, ... }: {
+  networking.hostName = host.name;
+};
+```
+
+## How It Works
+
+Den is a **library** for composing Nix configurations via [aspect-oriented programming](/explanation/core-principles/) and a **framework** for NixOS/Darwin/home-manager built on top.
+
+Under the hood, Den uses a pure [algebraic effects](/explanation/effects/) pipeline — aspects compile to computations, handlers decide what to do, and a trampoline interprets the result. This gives you extensible [policies](/explanation/policies/) for entity topology, [diagrams](/explanation/diagrams/) of your resolution graph, and [custom classes](/guides/custom-classes/) for any Nix module system.
 
 <div style="display: grid; grid-template-columns: 1fr 1fr; grid-gap: 20px;">
 <div>
@@ -100,49 +125,22 @@ flowchart BT
 ## Den as a *library*
 
 <CardGrid>
-  <Card title="Any Nix Configuration Class" icon="puzzle">
-    NixOS, Darwin, system-manager, Terraform,
-    or [custom classes](/guides/custom-classes/)
-
-    Den works with anything configurable through Nix modules and any
-    topology you can describe with Nix data and function transformations.
+  <Card title="Aspect-Oriented" icon="puzzle">
+    [Aspects](/explanation/aspects/) bundle NixOS, Darwin, home-manager, or [custom class](/guides/custom-classes/) config in one composable unit.
+    Includes form a DAG. Provides create sub-aspects. One concern, all platforms.
   </Card>
-  <Card title="Resolution Pipeline" icon="right-arrow">
-    Declarative [stages](/reference/ctx/) with `den.stages`.
-
-    [Policies](/explanation/policies/) declare how entity kinds relate,
-    using a declarative design, ensuring only valid contexts exist via
-    principles like [parse don't validate](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
+  <Card title="Pure Effects Pipeline" icon="right-arrow">
+    Built on [algebraic effects](/explanation/effects/) via `nix-effects`. Aspects compile to computations, handlers own resolution strategy. [Policies](/explanation/policies/) drive entity topology. [Stages](/explanation/stages/) bind behavior. Everything is extensible.
   </Card>
   <Card title="No Lock-in" icon="open-book">
     Works with flake-parts, without flake-parts, or [without flakes at all](/tutorials/noflake/).
-
-    Den never uses `lib.evalModules` directly, but provides APIs and modules for use with your favorite Nix module system.
+    Den works with anything configurable through Nix modules — NixOS, Terraform, NixVim, or your own domain.
   </Card>
   <Card title="Sharable Aspects" icon="star">
-    [Namespaces](/guides/namespaces/) let you publish and consume aspect
-    libraries across flakes or non-flakes. 
-
-    Den is social, trying to bring re-usability across stable and unstable Nix boundaries.
-    No Flakes mandated.
+    [Namespaces](/guides/namespaces/) let you publish and consume aspect libraries across flakes or non-flakes.
+    [Diagrams](/explanation/diagrams/) visualize your resolution graph for debugging and documentation.
   </Card>
 </CardGrid>
-
-The following three lines is how a NixOS configuration is built.
-The very same process can be used for other Nix configuration domains outside
-of NixOS.
-
-```nix
-# Use Den API -- Resolution pipeline runs here, nothing is configured yet.
-aspect = den.stages.host { host = den.hosts.x86_64-linux.igloo; };
-
-# We enter the NixOS domain by resolving for the "nixos" class.
-nixosModule = den.lib.aspects.resolve "nixos" aspect;
-
-# Use NixOS API -- Instantiate using nixosSystem with the resolved module.
-nixosConfigurations.igloo = lib.nixosSystem { modules = [ nixosModule ]; };
-```
-
 
 ## Den as a _framework_.
 
@@ -162,7 +160,7 @@ flowchart LR
 1. **Schema** -- `den.hosts` and `den.homes` declare machines, users, and their properties with `den.schema` modules and extensible freeform types.
 2. **Aspects** -- `den.aspects.*` bundles per-class configs (`nixos`, `darwin`, `homeManager`, or any custom class) with `.includes` and `.provides` forming a DAG.
 3. **Resolution pipeline** -- `den.policies` fan out from entity kinds (`{host}` → `{host, user}`, `{home}`), while `den.stages` bind behavior at each pipeline step. Batteries register derived entity kinds like `hm-host`, `hm-user`, `wsl-host`.
-4. **Resolution** -- Parametric dispatch via `__functor` argument introspection. Functions receive only contexts whose shape matches their parameters. 
+4. **Resolution** -- Context-aware dispatch: functions receive entity data automatically based on their argument shape. [Class modules](/explanation/class-modules/) can access both Den context and NixOS module args in a single function.
 5. **Output** -- Each host/home is instantiated via `nixpkgs.lib.nixosSystem`, `darwin.lib.darwinSystem`, or `home-manager.lib.homeManagerConfiguration`.
 </Steps>
 

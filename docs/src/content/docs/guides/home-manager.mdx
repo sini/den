@@ -79,7 +79,7 @@ Override the HM module per host if needed:
 
 ```nix
 den.hosts.x86_64-linux.laptop = {
-  users.vic.classes = [ "home-manager" ];
+  users.vic.classes = [ "homeManager" ];
   home-manager.module = inputs.home-manager-unstable.nixosModules.home-manager;
 };
 ```

@@ -7,7 +7,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
 [`modules/options.nix`](https://github.com/vic/den/blob/main/modules/options.nix) --
-[`modules/_types.nix`](https://github.com/vic/den/blob/main/modules/_types.nix)
+[`nix/lib/entities/`](https://github.com/vic/den/tree/main/nix/lib/entities)
 </Aside>
 
 ## Schema Base Modules
@@ -97,7 +97,7 @@ den.hosts.x86_64-linux.myhost = {
 | `hostName` | `str` | `name` | Network hostname |
 | `system` | `str` | parent key | Platform (e.g., `x86_64-linux`) |
 | `class` | `str` | auto | `"nixos"` or `"darwin"` based on system |
-| `aspect` | `str` | `name` | Main aspect name for this host |
+| `aspect` | `raw` | `den.aspects.<name>` | Resolved aspect attrset for this host |
 | `description` | `str` | auto | `class.hostName@system` |
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
 | `users` | `attrsOf userType` | `{}` | User accounts on this host |
@@ -134,8 +134,8 @@ Type: `attrsOf userType`
 |--------|------|---------|-------------|
 | `name` | `str` | attr name | User configuration name |
 | `userName` | `str` | `name` | System account name |
-| `classes` | `listOf str` | `[ "homeManager" ]` | Home management classes |
-| `aspect` | `str` | `name` | Main aspect name |
+| `classes` | `listOf str` | `[ "user" ]` | Nix classes this user participates in |
+| `aspect` | `raw` | `den.aspects.<name>` | Resolved aspect attrset |
 | `policies` | `listOf str` | `[]` | Additional policies activated for this user. Core policies are always active. |
 | `collisionPolicy` | `null \| enum` | `null` | Class module collision policy: `"error"`, `"den-wins"`, or `"class-wins"`. See [Class Modules](/explanation/class-modules/). |
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
@@ -162,7 +162,7 @@ den.homes.x86_64-linux.vic = {};
 | `userName` | `str` | `name` | User account name |
 | `system` | `str` | parent key | Platform system |
 | `class` | `str` | `"homeManager"` | Home management class |
-| `aspect` | `str` | `name` | Main aspect name |
+| `aspect` | `raw` | `den.aspects.<name>` | Resolved aspect attrset |
 | `description` | `str` | auto | `home.userName@system` |
 | `pkgs` | `raw` | `inputs.nixpkgs.legacyPackages.$sys` | Nixpkgs instance |
 | `instantiate` | `raw` | `inputs.home-manager.lib.homeManagerConfiguration` | Builder |

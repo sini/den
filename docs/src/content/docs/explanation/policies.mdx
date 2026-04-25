@@ -107,8 +107,9 @@ den.policies.host-to-peers = {
   to = "host";
   as = "peer";  # avoids collision since from == to
   resolve = { host, ... }:
-    lib.filter (h: h.hostName != host.hostName)
-      (lib.attrValues den.hosts.${host.system});
+    map (h: { peer = h; inherit host; })
+      (lib.filter (h: h.hostName != host.hostName)
+        (lib.attrValues den.hosts.${host.system}));
 };
 
 # Activate for all hosts

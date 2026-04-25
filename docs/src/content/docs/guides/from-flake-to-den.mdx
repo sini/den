@@ -77,7 +77,7 @@ Also read the **No Monoliths** aside in that page about splitting this example c
 
   den.aspects.tux = {
     includes = [ den.provides.define-user den.provides.primary-user ];
-    homeManager = { pkgs, ... }: { packages = [ pkgs.vim ]; };
+    homeManager = { pkgs, ... }: { home.packages = [ pkgs.vim ]; };
   };
 }
 ```

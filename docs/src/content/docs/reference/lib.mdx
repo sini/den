@@ -6,8 +6,8 @@ description: Library functions for parametric dispatch, argument introspection, 
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`nix/lib.nix`](https://github.com/vic/den/blob/main/nix/lib.nix) --
-[`nix/fn-can-take.nix`](https://github.com/vic/den/blob/main/nix/fn-can-take.nix)
+[`nix/lib/default.nix`](https://github.com/vic/den/blob/main/nix/lib/default.nix) --
+[`nix/lib/can-take.nix`](https://github.com/vic/den/blob/main/nix/lib/can-take.nix)
 </Aside>
 
 <Aside type="caution" title="Deprecation Notice">
@@ -54,12 +54,6 @@ Extends the received context with additional attributes before dispatch:
 ```nix
 den.lib.parametric.expands { extra = true; } someAspect
 ```
-
-### `den.lib.parametric.withOwn`
-
-Low-level constructor. Takes a `functor: self -> ctx -> aspect` and wraps
-an aspect so that owned configs and statics are included at the static
-stage, and the functor runs at the parametric stage.
 
 ## `den.lib.canTake`
 
@@ -113,33 +107,6 @@ Run `aspect` only in `{ host, user }` contexts.
 
 Run `aspect` only in `{ home }` contexts.
 
-## `den.lib.owned`
-
-**Deprecated.** Extracts owned configs from an aspect (removes `includes`, `__functor`).
-The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
-
-```nix
-den.lib.owned someAspect
-```
-
-## `den.lib.isFn`
-
-**Deprecated.** Returns `true` if the value is a function or has `__functor`.
-The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
-
-```nix
-den.lib.isFn myValue
-```
-
-## `den.lib.isStatic`
-
-**Deprecated.** Returns `true` if the function can take `{ class, aspect-chain }`.
-The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
-
-```nix
-den.lib.isStatic myFn
-```
-
 ## `den.lib.__findFile`
 
 The angle bracket resolver. See [Angle Brackets Syntax](/guides/angle-brackets/).
@@ -158,17 +125,10 @@ Den aspects API. Provides aspect type definitions and internal resolution helper
 module with `imports`. This function is used by the fx pipeline and is not a
 public API. Prefer using `entity.resolved` or the fx pipeline directly.
 
-### `den.lib.aspects.resolve.withAdapter adapter class aspect`
-
-**Internal.** Resolves with a custom adapter instead of the default. Used
-internally by the fx pipeline.
-
 ### Aspect filtering
 
 Aspect filtering (formerly `den.lib.aspects.adapters`) is now handled
 internally by the fx pipeline. The `adapters` API has been removed.
-To control which aspects are included during resolution, use `meta.adapter`
-on an aspect — see the [Aspects reference](/reference/aspects/).
 
 ## `den.lib.resolveStage`
 

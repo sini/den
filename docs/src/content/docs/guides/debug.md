@@ -58,18 +58,15 @@ This returns a set of matching policies with their targets, routing type, and so
 
 ## Trace Aspect Includes
 
-Use the following example code to get a trace
-(list of nested `aspect.name`) of included aspects.
-
-Note: `resolve.withAdapter adapters.trace` is internal to the pipeline and not intended for
-direct use outside of debugging with `den.lib`.
+The resolution pipeline includes built-in tracing via the `diag` library.
+Use `den.lib.diag.hostContext` to capture a full trace of which aspects are
+included and how they resolve. See [Diagrams](/explanation/diagrams/) for details.
 
 ```nix
-let
-  inherit (den.lib.aspects) resolve adapters;
-  aspect = den.hosts.x86_64-linux.resolved;
-in
-resolve.withAdapter adapters.trace "nixos" aspect
+# In a REPL:
+diag = den.lib.diag
+g = diag.hostContext { host = den.hosts.x86_64-linux.laptop; }
+diag.toMermaid g  # renders the full aspect graph
 ```
 
 ## Trace Context
@@ -104,15 +101,14 @@ for debugging but should not be used in production configurations.
 Test how an aspect resolves for a specific class:
 
 ```console
-nix-repl> module = den.lib.aspects.resolve "nixos" [] den.aspects.laptop;
+nix-repl> module = den.lib.aspects.resolve "nixos" den.aspects.laptop
 nix-repl> config = (lib.evalModules { modules = [ module ]; }).config
 ```
 
-For parametric aspects, apply context first:
+For context-dependent aspects, use the host's resolved output:
 
 ```console
-nix-repl> aspect = den.aspects.laptop { host = den.hosts.x86_64-linux.laptop; }
-nix-repl> module = den.lib.aspects.resolve "nixos" [] aspect;
+nix-repl> den.hosts.x86_64-linux.laptop.mainModule
 ```
 
 ## Inspect a Host's Main Module
