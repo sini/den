@@ -378,5 +378,103 @@
       }
     );
 
+    # Collision — error (default): _module.args.host injected by another
+    # module. The companion module detects this via config._module.args
+    # and fires an assertion (default policy = "error").
+    test-collision-error-throws = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.stages.test-collision-err = {
+          includes = [
+            { nixos._module.args.host = "from-module-system"; }
+          ];
+          nixos =
+            { host, config, ... }:
+            {
+              networking.hostName = if builtins.isString host then host else host.name;
+            };
+        };
+
+        den.policies.host-to-collision-err = {
+          from = "host";
+          to = "test-collision-err";
+          resolve = _: [ { } ];
+        };
+
+        den.default.policies = [ "host-to-collision-err" ];
+
+        expr = igloo.assertions;
+        expectedError = {
+          type = "ThrownError";
+          msg = "collides with _module.args";
+        };
+      }
+    );
+
+    # Collision — den-wins via entity schema: companion warns but den value used.
+    test-collision-den-wins = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.schema.host.collisionPolicy = "den-wins";
+
+        den.stages.test-collision-dw = {
+          includes = [
+            { nixos._module.args.host = "from-module-system"; }
+          ];
+          nixos =
+            { host, config, ... }:
+            {
+              networking.hostName = if builtins.isString host then host else host.name;
+            };
+        };
+
+        den.policies.host-to-collision-dw = {
+          from = "host";
+          to = "test-collision-dw";
+          resolve = _: [ { } ];
+        };
+
+        den.default.policies = [ "host-to-collision-dw" ];
+
+        # Den value wins — host is the den entity, not the string.
+        expr = igloo.networking.hostName;
+        expected = "igloo";
+      }
+    );
+
+    # Collision — global config override: den.config.classModuleCollisionPolicy = "den-wins"
+    test-collision-global-override = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.config.classModuleCollisionPolicy = "den-wins";
+
+        den.stages.test-collision-global = {
+          includes = [
+            { nixos._module.args.host = "from-module-system"; }
+          ];
+          nixos =
+            { host, config, ... }:
+            {
+              networking.hostName = if builtins.isString host then host else host.name;
+            };
+        };
+
+        den.policies.host-to-collision-global = {
+          from = "host";
+          to = "test-collision-global";
+          resolve = _: [ { } ];
+        };
+
+        den.default.policies = [ "host-to-collision-global" ];
+
+        expr = igloo.networking.hostName;
+        expected = "igloo";
+      }
+    );
+
   };
 }

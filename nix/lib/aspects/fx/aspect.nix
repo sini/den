@@ -168,6 +168,65 @@ let
             wrapped = true;
           };
 
+  # Companion module injected alongside wrapped class modules to detect
+  # _module.args collisions. Den args are removed from setFunctionArgs so
+  # the module system won't pass them to the wrapper — but someone might
+  # set _module.args.host expecting it to work. This companion checks
+  # config._module.args for overlapping keys and applies the collision policy.
+  mkCollisionDetector =
+    {
+      denArgNames,
+      ctx,
+      aspectPolicy,
+      globalPolicy,
+    }:
+    { config, lib, ... }:
+    let
+      resolvePolicy =
+        name:
+        if aspectPolicy != null then
+          aspectPolicy
+        else if
+          builtins.isAttrs (ctx.${name} or null)
+          && (ctx.${name} ? collisionPolicy)
+          && ctx.${name}.collisionPolicy != null
+        then
+          ctx.${name}.collisionPolicy
+        else
+          globalPolicy;
+      # Lazily check _module.args — only evaluated when warnings/assertions
+      # are consumed (at system build time, not during module arg resolution).
+      colliding = builtins.filter (name: config._module.args ? ${name}) denArgNames;
+      checks = map (
+        name:
+        let
+          policy = resolvePolicy name;
+        in
+        if policy == "error" then
+          {
+            assertions = [
+              {
+                assertion = false;
+                message = "den: class module arg '${name}' collides with _module.args.${name} — set collisionPolicy to resolve";
+              }
+            ];
+          }
+        else if policy == "class-wins" then
+          {
+            warnings = [
+              "den: _module.args.${name} is set but den context also provides '${name}' — den value is used (class-wins has no effect for _module.args; use specialArgs instead)"
+            ];
+          }
+        else
+          {
+            warnings = [
+              "den: _module.args.${name} is set but den context provides '${name}' — den value takes precedence"
+            ];
+          }
+      ) colliding;
+    in
+    lib.mkMerge checks;
+
   # Reconstruct ctx from scope handlers. constantHandler maps each key
   # to { param, state }: { resume = value; inherit state; }, so invoking
   # with dummy args extracts the original value. This works for all
@@ -191,21 +250,43 @@ let
       globalPolicy = den.config.classModuleCollisionPolicy or "error";
     in
     fx.seq (
-      map (
+      lib.concatMap (
         k:
         let
           result = wrapClassModule {
             module = aspect.${k};
             inherit ctx aspectPolicy globalPolicy;
           };
+          mainEmit = fx.send "emit-class" {
+            class = k;
+            identity = nodeIdentity;
+            inherit (result) module;
+            isContextDependent =
+              result.wrapped || (aspect.__parametricResolved or false) || (aspect.meta.contextDependent or false);
+          };
+          denArgNames = builtins.filter (name: ctx ? ${name}) (
+            builtins.attrNames (
+              if builtins.isFunction aspect.${k} then builtins.functionArgs aspect.${k} else { }
+            )
+          );
+          companionEmit = fx.send "emit-class" {
+            class = k;
+            identity = "${nodeIdentity}/<collision-detector>";
+            module = mkCollisionDetector {
+              inherit
+                denArgNames
+                ctx
+                aspectPolicy
+                globalPolicy
+                ;
+            };
+            isContextDependent = true;
+          };
         in
-        fx.send "emit-class" {
-          class = k;
-          identity = nodeIdentity;
-          inherit (result) module;
-          isContextDependent =
-            result.wrapped || (aspect.__parametricResolved or false) || (aspect.meta.contextDependent or false);
-        }
+        [ mainEmit ]
+        ++ lib.optional (
+          result.wrapped && denArgNames != [ ] && !(aspect.__parametricResolved or false)
+        ) companionEmit
       ) classKeys
     );
 
