@@ -10,9 +10,16 @@ import { Aside } from '@astrojs/starlight/components';
 [`nix/fn-can-take.nix`](https://github.com/vic/den/blob/main/nix/fn-can-take.nix)
 </Aside>
 
+<Aside type="caution" title="Deprecation Notice">
+Several `den.lib` functions are deprecated. The pipeline now handles parametric dispatch
+and class module wrapping automatically. Functions marked **Deprecated** below still work
+but should not be used in new code. See [Class Modules](/explanation/class-modules/).
+</Aside>
+
 ## `den.lib.parametric`
 
-Wraps an aspect with a `__functor` that filters `includes` by argument compatibility.
+**Deprecated.** Wraps an aspect with a `__functor` that filters `includes` by argument compatibility.
+The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
 
 ```nix
 den.lib.parametric { nixos.x = 1; includes = [ ... ]; }
@@ -56,7 +63,8 @@ stage, and the functor runs at the parametric stage.
 
 ## `den.lib.canTake`
 
-Function argument introspection.
+**Deprecated.** Function argument introspection.
+The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
 
 ### `den.lib.canTake params fn`
 
@@ -72,7 +80,8 @@ Returns `true` only if `fn`'s required arguments exactly match `params`.
 
 ## `den.lib.take`
 
-Conditional function application.
+**Deprecated.** Conditional function application.
+The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
 
 ### `den.lib.take.atLeast fn ctx`
 
@@ -89,8 +98,8 @@ discarding `aspect-chain` in `import-tree`.
 
 ## Context Shortcuts
 
-These helpers are shortcuts built with `den.lib.take.exactly` and
-`den.lib.parametric.fixedTo`:
+**Deprecated.** These helpers are shortcuts built with `den.lib.take.exactly` and
+`den.lib.parametric.fixedTo`. The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
 
 ### `den.lib.perHost aspect`
 
@@ -106,7 +115,8 @@ Run `aspect` only in `{ home }` contexts.
 
 ## `den.lib.owned`
 
-Extracts owned configs from an aspect (removes `includes`, `__functor`):
+**Deprecated.** Extracts owned configs from an aspect (removes `includes`, `__functor`).
+The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
 
 ```nix
 den.lib.owned someAspect
@@ -114,7 +124,8 @@ den.lib.owned someAspect
 
 ## `den.lib.isFn`
 
-Returns `true` if the value is a function or has `__functor`:
+**Deprecated.** Returns `true` if the value is a function or has `__functor`.
+The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
 
 ```nix
 den.lib.isFn myValue
@@ -122,7 +133,8 @@ den.lib.isFn myValue
 
 ## `den.lib.isStatic`
 
-Returns `true` if the function can take `{ class, aspect-chain }`:
+**Deprecated.** Returns `true` if the function can take `{ class, aspect-chain }`.
+The pipeline now handles this automatically. See [Class Modules](/explanation/class-modules/) and [Parametric Aspects](/explanation/parametric/).
 
 ```nix
 den.lib.isStatic myFn

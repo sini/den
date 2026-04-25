@@ -28,11 +28,12 @@ The `__functor` receives `self` (the attrset itself) and returns a function.
 ## Aspects as Functors
 
 Every aspect in Den has a default `__functor` that inspects context
-parameters to decide what to produce:
+parameters to decide what to produce. Bare attrsets and functions work
+directly — `den.lib.parametric` is no longer needed:
 
 ```nix
-# Default: parametric. inspects context shape
-den.lib.parametric {
+# Bare functions work directly — no wrapper required
+{
   nixos.foo = 1;
   includes = [
     ({ host }: { nixos.networking.hostName = host.hostName; })

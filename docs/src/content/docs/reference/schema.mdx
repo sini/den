@@ -102,6 +102,7 @@ den.hosts.x86_64-linux.myhost = {
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
 | `users` | `attrsOf userType` | `{}` | User accounts on this host |
 | `policies` | `listOf str` | `[]` | Additional policies activated for this host. Core policies are always active. |
+| `collisionPolicy` | `null \| enum` | `null` | Class module collision policy for this entity: `"error"`, `"den-wins"`, or `"class-wins"`. See [Class Modules](/explanation/class-modules/). |
 | `instantiate` | `raw` | auto | OS builder function |
 | `intoAttr` | `listOf str` | auto | Flake output path |
 | `*` | `den.schema.host` options | | Options from base module |
@@ -136,6 +137,7 @@ Type: `attrsOf userType`
 | `classes` | `listOf str` | `[ "homeManager" ]` | Home management classes |
 | `aspect` | `str` | `name` | Main aspect name |
 | `policies` | `listOf str` | `[]` | Additional policies activated for this user. Core policies are always active. |
+| `collisionPolicy` | `null \| enum` | `null` | Class module collision policy: `"error"`, `"den-wins"`, or `"class-wins"`. See [Class Modules](/explanation/class-modules/). |
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
 | `*` | `den.schema.user` options | | Options from base module |
 | `*` |  | | free-form attributes |
@@ -165,6 +167,7 @@ den.homes.x86_64-linux.vic = {};
 | `pkgs` | `raw` | `inputs.nixpkgs.legacyPackages.$sys` | Nixpkgs instance |
 | `instantiate` | `raw` | `inputs.home-manager.lib.homeManagerConfiguration` | Builder |
 | `policies` | `listOf str` | `[]` | Additional policies activated for this home. Core policies are always active. |
+| `collisionPolicy` | `null \| enum` | `null` | Class module collision policy: `"error"`, `"den-wins"`, or `"class-wins"`. See [Class Modules](/explanation/class-modules/). |
 | `resolved` | `raw` | auto | Resolved aspect from context pipeline (see below) |
 | `intoAttr` | `listOf str` | `[ "homeConfigurations" name ]` | Output path |
 | `*` | `den.schema.home` options | | Options from base module |

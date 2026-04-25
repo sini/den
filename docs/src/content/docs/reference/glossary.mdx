@@ -69,7 +69,7 @@ See: [Aspects](/explanation/aspects/)
 
 ### parametric
 
-A function-wrapped aspect that receives context args and returns an aspect. Den introspects function arguments to determine which contexts a parametric aspect applies to: `{ host }: ...` runs in host contexts, `{ host, user }: ...` in user contexts.
+A context-aware function whose argument shape determines when it applies: `{ host }: ...` runs only in host contexts, `{ host, user }: ...` only in user contexts. Den introspects function arguments and dispatches automatically — bare functions in `includes` work without any wrapper. The explicit `den.lib.parametric` wrapper is deprecated; the pipeline handles dispatch automatically.
 
 See: [Parametric aspects](/explanation/parametric/)
 

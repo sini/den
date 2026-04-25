@@ -11,13 +11,13 @@ Den's core (`/default.nix`) is domain-agnostic. It provides:
 
 | Function | Purpose |
 |---|---|
-| `parametric` | Wrap an aspect with context-aware dispatch |
-| `parametric.atLeast` | Match functions with at least the given params |
-| `parametric.exactly` | Match functions with exactly the given params |
+| `parametric` | *(deprecated)* Context dispatch now happens automatically |
+| `parametric.atLeast` | *(deprecated)* Use bare functions — dispatch is automatic |
+| `parametric.exactly` | *(deprecated)* Use bare functions — dispatch is automatic |
 | `parametric.fixedTo` | Apply an aspect with a fixed context |
 | `parametric.expands` | Extend context before dispatch |
 | `canTake` | Check if a function accepts given arguments |
-| `take.atLeast` / `take.exactly` | Conditionally apply functions |
+| `take.atLeast` / `take.exactly` | *(deprecated)* Dispatch is now handled by the pipeline |
 | `statics` | Extract only static includes from an aspect |
 | `owned` | Extract only owned configs (no includes, no functor) |
 | `isFn` | Check if value is a function or has `__functor` |
@@ -39,8 +39,9 @@ context pipelines for any Nix module system:
 # see den-as-lib.nix CI test for working example
 
 # Define aspects for a custom domain
+# den.lib.parametric is deprecated — bare attrsets work directly:
 den.aspects = {
-  web-server = den.lib.parametric {
+  web-server = {
     terranix.resource.aws_instance.web = { ami = "..."; };
     includes = [
       # configures using the terranix Nix class

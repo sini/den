@@ -183,7 +183,10 @@ den.aspects.alice.provides.work-vpn = { host, user, ... }:
 <Aside type="caution">
 Owned configs from `den.default` are deduplicated across pipeline stages.
 Parametric functions in `den.default.includes` are evaluated at every context
-stage. Use `den.lib.take.exactly` if a function should only run in specific contexts.
+stage. The pipeline handles dispatch automatically based on function argument
+shape: a function taking `{ host }` only runs in host contexts, `{ host, user }`
+only in user contexts. Write your includes as bare functions — no extra wrapper
+is needed. (`den.lib.take.exactly` is deprecated.)
 </Aside>
 
 ## Aspect Meta-Data

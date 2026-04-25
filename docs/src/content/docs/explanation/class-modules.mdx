@@ -1,0 +1,171 @@
+---
+title: Class Modules
+description: Flat-form class modules with automatic den context injection.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Source" icon="github">
+[`nix/lib/aspects/fx/aspect.nix`](https://github.com/vic/den/blob/main/nix/lib/aspects/fx/aspect.nix)
+</Aside>
+
+## The Problem
+
+Accessing den context (like `host` or `user`) inside a class module previously required a two-layer curried function. The outer function captured den args via parametric dispatch, and the inner function was the actual NixOS/Darwin/home-manager module:
+
+```nix
+# Two-layer form (still works, but verbose)
+{ host, ... }: {
+  nixos = { config, pkgs, ... }: {
+    networking.hostName = host.name;
+  };
+}
+```
+
+This worked, but the extra indirection was boilerplate -- especially when you just needed one den arg alongside standard module-system args.
+
+## The Solution
+
+You can now write class modules in **flat form**, mixing den context args and module-system args in a single function:
+
+```nix
+# Flat form -- den args and module-system args side by side
+{
+  nixos = { host, config, pkgs, ... }: {
+    networking.hostName = host.name;
+  };
+}
+```
+
+The pipeline's `wrapClassModule` intercepts class modules before they reach the OS module system. It inspects `builtins.functionArgs`, identifies which args exist in the pipeline context (`ctx`), pre-applies those values, and advertises only the remaining args to the module system via `lib.setFunctionArgs`. The module never knows it was wrapped.
+
+## How It Works
+
+1. `builtins.functionArgs module` returns the full set of declared args.
+2. Each arg name is checked against the pipeline context: a key is a den arg if `ctx ? ${key}`.
+3. Den args are pre-applied. The remaining args are advertised to the module system.
+4. At call time, the wrapper merges the module-system args with the pre-applied den args and calls the original function.
+
+## Usage Examples
+
+### Basic flat form
+
+A static aspect whose `nixos` class module requests `host` directly:
+
+```nix
+{
+  den.aspects.my-aspect = {
+    nixos = { host, config, ... }: {
+      networking.hostName = host.name;
+    };
+  };
+}
+```
+
+### Multiple den args
+
+Request both `host` and `user` when a policy provides both in context:
+
+```nix
+{
+  nixos = { host, user, config, ... }: {
+    users.users.${user.name}.description = "${host.name}/${user.name}";
+  };
+}
+```
+
+### Full application
+
+When **all** function args are den args (no module-system args at all), the function is called directly and its return value becomes the class module. This handles the pattern where a function returns another function:
+
+```nix
+{
+  nixos = { host }: { config, ... }: {
+    networking.hostName = host.name;
+  };
+}
+```
+
+Here `{ host }` has no `...` and no module-system args. `wrapClassModule` calls it with `{ host = ctx.host; }` and uses the returned function as the class module.
+
+### Static aspect with flat form
+
+No outer parametric wrapper needed -- context flows through the pipeline's scope handlers:
+
+```nix
+{
+  den.aspects.static-networking = {
+    nixos = { host, config, ... }: {
+      networking.hostName = host.name;
+    };
+  };
+
+  den.stages.my-stage.includes = [ den.aspects.static-networking ];
+}
+```
+
+## The Ellipsis Requirement
+
+<Aside type="caution">
+Flat-form class modules **must** include `...` in their argument pattern.
+</Aside>
+
+The NixOS module system passes extra args (`config`, `options`, `lib`, `pkgs`, `modulesPath`, and anything from `specialArgs` or `_module.args`) to every module function. Without `...`, the module system's extra args cause an eval error. This is already conventional for NixOS modules, but worth noting since the flat form makes it easy to forget.
+
+The exception is **full application** -- if every arg is a den arg (e.g., `{ host }:`), the function is called directly by den and never reaches the module system, so `...` is not needed.
+
+## Deprecated Helpers
+
+The following `den.lib` helpers are no longer needed for new code. They still work (backward compatible) but flat-form class modules replace their use cases:
+
+| Old | New |
+|---|---|
+| `den.lib.parametric ({ host }: { nixos = ...; })` | `{ nixos = { host, config, ... }: ...; }` |
+| `den.lib.perHost ({ host }: { nixos = ...; })` | Same flat form -- shape dispatch is automatic |
+| `den.lib.perUser ({ user }: { ... })` | `{ nixos = { user, config, ... }: ...; }` |
+| `den.lib.perHome ({ home }: { ... })` | `{ homeManager = { home, config, ... }: ...; }` |
+| `den.lib.take.*` | Pipeline handles matching automatically |
+
+Migration is straightforward: move the den args from the outer function into the class module's arg pattern and add `...` if not already present.
+
+## Collision Policies
+
+A collision occurs when den wants to inject an arg (e.g., `host`) but the module system also provides a value for the same name -- via `specialArgs` or `_module.args`. By default, this throws an error to force an explicit resolution.
+
+### Resolution levels
+
+Policy is resolved from three levels (first match wins):
+
+| Level | Where to set | Scope |
+|---|---|---|
+| Aspect | `meta.collisionPolicy` on the aspect | All class modules in that aspect |
+| Entity | `collisionPolicy` on the entity schema (`den.schema.host`) | All uses of that entity kind |
+| Global | `den.config.classModuleCollisionPolicy` | Entire flake (default: `"error"`) |
+
+### Policy values
+
+| Policy | Behavior |
+|---|---|
+| `"error"` | Throw an eval error (default) |
+| `"den-wins"` | Den value takes precedence; `lib.warn` emitted |
+| `"class-wins"` | Module-system value takes precedence; `lib.warn` emitted |
+
+### Setting collision policies
+
+```nix
+# Aspect level
+den.aspects.my-aspect.meta.collisionPolicy = "den-wins";
+
+# Entity level (all hosts)
+den.schema.host.collisionPolicy = "den-wins";
+
+# Global
+den.config.classModuleCollisionPolicy = "den-wins";
+```
+
+## See Also
+
+- [Aspects & Functors](/explanation/aspects) -- how aspects work and the `__functor` pattern
+- [Parametric Aspects](/explanation/parametric) -- legacy parametric dispatch (still supported)
+- [Context Pipeline](/explanation/context-pipeline) -- how context flows through the resolution pipeline
+- [Policies](/explanation/policies) -- how policies dispatch context to stages

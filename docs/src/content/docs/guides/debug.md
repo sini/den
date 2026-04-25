@@ -127,10 +127,14 @@ nix-repl> cfg.networking.hostName
 
 **Duplicate values in lists**: Den deduplicates owned and static configs
 from `den.default`, but parametric functions in `den.default.includes`
-run at every context stage. Use `den.lib.perHost` to restrict:
+run at every context stage. The pipeline handles dispatch automatically
+based on function argument shape — write a bare function with the context
+args you need. (`den.lib.perHost` is deprecated.)
 
 ```nix
-den.lib.perHost ({ host }: { nixos.x = 1; })
+# Deprecated: den.lib.perHost ({ host }: { nixos.x = 1; })
+# Modern — bare function; only runs in host contexts:
+({ host }: { nixos.x = 1; })
 ```
 
 **Missing attribute**: The context does not have the expected parameter.

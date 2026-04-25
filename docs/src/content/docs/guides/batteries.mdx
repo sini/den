@@ -203,7 +203,8 @@ den.aspects.alice.includes = [
 Batteries compose with regular aspects:
 
 ```nix
-den.aspects.my-admin = den.lib.parametric {
+# den.lib.parametric is deprecated — bare attrsets work directly:
+den.aspects.my-admin = {
   includes = [
     den.provides.primary-user
     (den.provides.user-shell "fish")
