@@ -379,8 +379,7 @@
     );
 
     # Collision — error (default): _module.args.host injected by another
-    # module. The companion module detects this via config._module.args
-    # and fires an assertion (default policy = "error").
+    # module collides with den-provided host. Default policy throws.
     test-collision-error-throws = denTest (
       { den, igloo, ... }:
       {
@@ -405,15 +404,15 @@
 
         den.default.policies = [ "host-to-collision-err" ];
 
-        expr = igloo.assertions;
+        expr = igloo.networking.hostName;
         expectedError = {
           type = "ThrownError";
-          msg = "collides with _module.args";
+          msg = "collides with module-system arg";
         };
       }
     );
 
-    # Collision — den-wins via entity schema: companion warns but den value used.
+    # Collision — den-wins via entity schema: den value wins over module-system.
     test-collision-den-wins = denTest (
       { den, igloo, ... }:
       {

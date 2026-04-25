@@ -29,6 +29,27 @@ let
     "_"
   ] (_: true);
 
+  # Resolve collision policy from three levels: aspect meta → entity → global.
+  # Shared by wrapClassModule (specialArgs collisions) and mkCollisionDetector
+  # (_module.args collisions).
+  resolveCollisionPolicy =
+    {
+      ctx,
+      aspectPolicy,
+      globalPolicy,
+    }:
+    name:
+    if aspectPolicy != null then
+      aspectPolicy
+    else if
+      builtins.isAttrs (ctx.${name} or null)
+      && (ctx.${name} ? collisionPolicy)
+      && ctx.${name}.collisionPolicy != null
+    then
+      ctx.${name}.collisionPolicy
+    else
+      globalPolicy;
+
   # Deferred modules from the freeform type (lazyAttrsOf deferredModule)
   # are { imports = [...]; } attrsets. The original function is nested
   # inside.  We recursively descend into imports to find and wrap any
@@ -130,102 +151,52 @@ let
           }
         else
           let
-            wrapper =
+            policy = resolveCollisionPolicy { inherit ctx aspectPolicy globalPolicy; };
+            # G(X): the actual module wrapper. Den args always win via //.
+            # NixOS thunks in moduleArgs are shadowed without evaluation.
+            wrapper = moduleArgs: warnedModule (moduleArgs // denArgs);
+            # Validate(X): collision detector. Receives same moduleArgs from
+            # NixOS but only produces warnings/errors. The check is inside
+            # the warnings value — a thunk that's only forced after the
+            # module system's fixed point converges, avoiding recursion.
+            validator =
               moduleArgs:
               let
-                collisions = builtins.intersectAttrs moduleArgs denArgs;
-                resolvePolicy =
+                collisionChecks = lib.concatMap (
                   name:
-                  if aspectPolicy != null then
-                    aspectPolicy
-                  else if
-                    builtins.isAttrs (ctx.${name} or null)
-                    && (ctx.${name} ? collisionPolicy)
-                    && ctx.${name}.collisionPolicy != null
-                  then
-                    ctx.${name}.collisionPolicy
-                  else
-                    globalPolicy;
-                kept = lib.filterAttrs (
-                  name: _:
                   let
-                    policy = resolvePolicy name;
+                    # Only evaluates moduleArgs.${name} when config.warnings
+                    # is consumed — after fixed point. tryEval catches the
+                    # thunk failure when nobody set _module.args.${name}.
+                    hasReal = (builtins.tryEval (builtins.seq moduleArgs.${name} true)).value or false;
+                    p = policy name;
                   in
-                  if !(collisions ? ${name}) then
-                    true
-                  else if policy == "error" then
+                  if !hasReal then
+                    [ ]
+                  else if p == "error" then
                     throw "den: class module arg '${name}' collides with module-system arg — set collisionPolicy to resolve"
-                  else if policy == "class-wins" then
-                    lib.warn "den: class module arg '${name}' collision — class-wins, den value dropped" false
+                  else if p == "class-wins" then
+                    [
+                      "den: class module arg '${name}' collision — class-wins, den value dropped"
+                    ]
                   else
-                    lib.warn "den: class module arg '${name}' collision — den-wins, module-system value shadowed" true
-                ) denArgs;
+                    [
+                      "den: class module arg '${name}' collision — den-wins, module-system value shadowed"
+                    ]
+                ) denArgNames;
               in
-              warnedModule (moduleArgs // kept);
+              {
+                warnings = collisionChecks;
+              };
+            # Both advertise den args as optional so NixOS passes thunks.
+            advertisedArgs = remainingArgs // lib.genAttrs denArgNames (_: true);
           in
           {
-            module = lib.setFunctionArgs wrapper remainingArgs;
+            module = lib.setFunctionArgs wrapper advertisedArgs;
+            # Validator emitted separately via emitClasses
+            inherit validator advertisedArgs;
             wrapped = true;
           };
-
-  # Companion module injected alongside wrapped class modules to detect
-  # _module.args collisions. Den args are removed from setFunctionArgs so
-  # the module system won't pass them to the wrapper — but someone might
-  # set _module.args.host expecting it to work. This companion checks
-  # config._module.args for overlapping keys and applies the collision policy.
-  mkCollisionDetector =
-    {
-      denArgNames,
-      ctx,
-      aspectPolicy,
-      globalPolicy,
-    }:
-    { config, lib, ... }:
-    let
-      resolvePolicy =
-        name:
-        if aspectPolicy != null then
-          aspectPolicy
-        else if
-          builtins.isAttrs (ctx.${name} or null)
-          && (ctx.${name} ? collisionPolicy)
-          && ctx.${name}.collisionPolicy != null
-        then
-          ctx.${name}.collisionPolicy
-        else
-          globalPolicy;
-      # Lazily check _module.args — only evaluated when warnings/assertions
-      # are consumed (at system build time, not during module arg resolution).
-      colliding = builtins.filter (name: config._module.args ? ${name}) denArgNames;
-      checks = map (
-        name:
-        let
-          policy = resolvePolicy name;
-        in
-        if policy == "error" then
-          {
-            assertions = [
-              {
-                assertion = false;
-                message = "den: class module arg '${name}' collides with _module.args.${name} — set collisionPolicy to resolve";
-              }
-            ];
-          }
-        else if policy == "class-wins" then
-          {
-            warnings = [
-              "den: _module.args.${name} is set but den context also provides '${name}' — den value is used (class-wins has no effect for _module.args; use specialArgs instead)"
-            ];
-          }
-        else
-          {
-            warnings = [
-              "den: _module.args.${name} is set but den context provides '${name}' — den value takes precedence"
-            ];
-          }
-      ) colliding;
-    in
-    lib.mkMerge checks;
 
   # Reconstruct ctx from scope handlers. constantHandler maps each key
   # to { param, state }: { resume = value; inherit state; }, so invoking
@@ -264,29 +235,14 @@ let
             isContextDependent =
               result.wrapped || (aspect.__parametricResolved or false) || (aspect.meta.contextDependent or false);
           };
-          denArgNames = builtins.filter (name: ctx ? ${name}) (
-            builtins.attrNames (
-              if builtins.isFunction aspect.${k} then builtins.functionArgs aspect.${k} else { }
-            )
-          );
-          companionEmit = fx.send "emit-class" {
+          validatorEmit = fx.send "emit-class" {
             class = k;
-            identity = "${nodeIdentity}/<collision-detector>";
-            module = mkCollisionDetector {
-              inherit
-                denArgNames
-                ctx
-                aspectPolicy
-                globalPolicy
-                ;
-            };
+            identity = "${nodeIdentity}/<collision-validator>";
+            module = lib.setFunctionArgs result.validator result.advertisedArgs;
             isContextDependent = true;
           };
         in
-        [ mainEmit ]
-        ++ lib.optional (
-          result.wrapped && denArgNames != [ ] && !(aspect.__parametricResolved or false)
-        ) companionEmit
+        [ mainEmit ] ++ lib.optional (result ? validator) validatorEmit
       ) classKeys
     );
 
