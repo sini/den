@@ -109,20 +109,14 @@ batteries. Your flake can define additional stages for custom pipeline steps.
 | `wsl-host` | `{ host }` | WSL battery |
 | `flake-system` | flake outputs | core |
 | `default` | -- | default aspects |
+| `home` | `{ home }` | core |
+| `hm-host` | `{ host }` | home-manager battery |
+| `hm-user` | `{ host, user }` | home-manager battery |
 
-## Migrating from den.ctx
-
-The old `den.ctx` namespace is preserved as a compatibility shim that forwards to
-`den.stages` with deprecation warnings. The key differences:
-
-- `den.ctx` was flat (no nested namespaces).
-- `den.ctx.*.into` is gone -- transitions are now handled by [policies](/explanation/policies/).
-- Stages don't have `__functor` -- they aren't callable.
-
-To migrate, replace `den.ctx.<name>` with `den.stages.<name>` and move any `into`
-definitions to `den.policies`.
-
-## Further reading
+## See also
 
 - [Aspects & Functors](/explanation/aspects/) -- how aspect fragments are resolved
+- [Policies](/explanation/policies/) -- how entity kinds relate (drives stage traversal)
 - [Resolution Pipeline](/explanation/context-pipeline/) -- the full evaluation flow
+- [den.stages reference](/reference/ctx/) -- full option documentation
+- [Migrating from den.ctx](/guides/migrate-ctx/) -- if upgrading from the old `den.ctx` API

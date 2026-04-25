@@ -51,7 +51,7 @@ Let's look at how Den brings this concept out of `nixpkgs` and directly into you
 
 All examples from this guide can be run on a Nix REPL.
 
-For now you have to use our experimental branch until that lands on Den main:
+Try them in the Den CI REPL:
 
 ```shell
 nix repl "github:vic/den?dir=templates/ci"
@@ -227,9 +227,7 @@ And we are just scratching the surface of what is possible using effects in Den.
 
 *For contributors and those squashing bugs:*
 
-Up to `v0.16.0`, Den already ships a half-baked, rigid-context, manually-threaded effects system as its core.
-
-We are now moving Den to use a proper effects system. The reason is better context control and better dedup detection. Our prototype has already validated this.
+Den's resolution pipeline is built on `nix-effects`, a formal algebraic effects library for Nix. This replaced an earlier internal effects system with proper handler composition, scoped effects, and trampoline-based evaluation.
 
 <Aside type="tip" title="Den is about UX">
 **Our goal is not Den machinery but the _experience_ we can provide to Den users.**
@@ -251,7 +249,7 @@ Den will be using `vic/nix-effects`, based on `vic/nfx`, based on `vic/fx-rs` ba
 ##### 2. Footprint and Maintenance
 While `nix-effects` is an external dependency, its impact on the project is measured:
 * **The "Core" is minimal:** The actual logic driving the effects is remarkably small. The repository appears larger because it includes extensive inline testing and documentation.
-* **A Structural Swap:** By moving to a formalized effects library, we are actually **removing** a significant amount of "half-baked" internal code from Den’s core. It allows us to replace home-grown, imperative-style hacks with a professional, ability-based system.
+* **A Structural Swap:** The formalized effects library replaced internal ad-hoc code in Den’s core with a professional, ability-based system.
 
 ##### 3. Provenance and Design
 The library’s design is deeply rooted in functional programming research. It was hand-crafted to explore "freer monads" and "ability-based" programming within the Nix language. While the high-level type theory in the documentation can look dense, it’s there to provide a foundation for reliability that standard `lib` patterns don't natively expose. 

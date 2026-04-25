@@ -1,0 +1,112 @@
+---
+title: Coming from...
+description: Map familiar Nix concepts to their Den equivalents.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+This page helps you translate concepts you already know into Den's model.
+Den does not replace NixOS, home-manager, or flake-parts -- it sits on top of them
+and generates the same flake outputs you are used to.
+
+## Coming from NixOS
+
+| NixOS concept | Den equivalent |
+|---|---|
+| `lib.nixosSystem { modules = [...]; }` | `den.hosts.<system>.<name>` -- Den calls `nixosSystem` for you |
+| `configuration.nix` / module files | `den.aspects.<name>.nixos` -- [aspects](/explanation/aspects/) bundle per-class config |
+| `imports = [ ./module.nix ]` | `includes = [ den.aspects.foo ]` -- typed references, not file paths |
+| `specialArgs = { ... }` | Parametric dispatch -- `{ host, user }: { ... }` -- function args, not module args |
+| `lib.mkIf condition { ... }` | Context shape IS the condition -- `{ host, user }: ...` only runs when both exist |
+| Per-host module directories | Aspects with owned configs per class -- one aspect, multiple platforms |
+| `nixos-rebuild switch --flake .#host` | Same command -- Den produces `nixosConfigurations` as usual |
+
+<Aside>
+Den does not change how you deploy. The flake outputs it generates are standard
+`nixosConfigurations`, so `nixos-rebuild`, `colmena`, `deploy-rs`, and similar
+tools all work without modification.
+</Aside>
+
+## Coming from home-manager
+
+| home-manager concept | Den equivalent |
+|---|---|
+| `homeManagerConfiguration { modules = [...]; }` | `den.homes.<system>.<name>` for standalone, or `den.hosts.*.users.*.classes = ["homeManager"]` for integrated |
+| HM module files | `den.aspects.<name>.homeManager` -- same module system, different attachment |
+| `home-manager switch --flake .#user@host` | Same command -- Den produces `homeConfigurations` |
+| Separate HM and NixOS configs for one concern | One aspect configures both: `{ nixos = ...; homeManager = ...; }` |
+
+The key difference is that a single aspect like `gaming` can carry both the NixOS
+system config (drivers, services) and the home-manager user config (dotfiles, apps).
+When Den resolves for a host, it extracts the `nixos` attrs; when it resolves for
+a home, it extracts the `homeManager` attrs. You write the concern once.
+
+## Coming from flake-parts
+
+| flake-parts concept | Den equivalent |
+|---|---|
+| `perSystem` | `den.stages.flake-system` -- flake-level [policies](/explanation/policies/) fan out per system |
+| `flake.nixosConfigurations` | `den.hosts` -- Den generates flake outputs from entity declarations |
+| `mkFlake` | `inputs.den.flakeModule` or `inputs.den.denModule` -- Den is a flake-parts module |
+| `flakeModules` for sharing | `den.ful` namespaces -- shareable aspect libraries |
+
+Den is built on flake-parts, so the two are complementary. You can use `perSystem`
+alongside Den for outputs that do not involve host or user entities (packages,
+devShells, checks).
+
+## Why Den uses real functions, not module args
+
+This is the key architectural difference.
+
+NixOS modules look like functions (`{ pkgs, config, ... }: { ... }`) but their
+arguments come from `_module.args` and `specialArgs`, which are part of the module
+fixpoint. When config values depend on those args and those args depend on config,
+you get infinite recursion -- a familiar pain point in complex NixOS setups.
+
+Den aspects are actual functions that receive [context](/explanation/core-principles/)
+**before** module evaluation begins:
+
+```nix
+{ host }: {
+  nixos.networking.hostName = host.hostName;
+}
+```
+
+The `host` argument is plain data, resolved outside the module system. By the time
+NixOS `evalModules` runs, the aspect has already produced a concrete attrset. This
+means you can freely depend on entity data -- host name, user list, system
+architecture -- without risking infinite recursion.
+
+<Aside>
+As the [Core Principles](/explanation/core-principles/) page puts it: context is
+**not** `_module.args` **nor** `specialArgs`. It is a real function call with
+real data.
+</Aside>
+
+Den also uses context shape for dispatch. A function that takes `{ host, user }`
+is silently skipped in stages where only `{ host }` exists. No `mkIf`, no
+`enable` flags -- the function signature declares when it applies. See
+[Parametric dispatch](/explanation/parametric/) for details.
+
+## What Den adds
+
+Beyond mapping existing concepts, Den introduces:
+
+- **Cross-class composition** -- one aspect configures `nixos` + `homeManager` + `darwin` in a single place.
+- **Parametric dispatch** -- function argument shape determines when config applies, replacing conditionals.
+- **Policy-driven topology** -- [policies](/explanation/policies/) define how entities relate (host-to-users, host-to-wsl, custom), and the graph is extensible.
+- **Reusable batteries** -- common patterns like primary-user setup or user shell config ship as includable aspects via `den.provides.*`.
+- **Shareable libraries** -- `den.ful` namespaces let you publish and consume aspect collections across flakes.
+
+## What stays the same
+
+- Deployment commands (`nixos-rebuild`, `home-manager switch`) are unchanged.
+- Nix module syntax inside `nixos = { ... }` or `homeManager = { ... }` is standard -- you use the same options you already know.
+- Flake inputs, overlays, and `pkgs` work the same way.
+
+## Next steps
+
+- [Templates overview](/tutorials/overview/) -- start a new Den project
+- [Declare hosts](/guides/declare-hosts/) -- define your first entity
+- [Aspects](/explanation/aspects/) -- understand how aspects compose
+- [Core Principles](/explanation/core-principles/) -- the full design story

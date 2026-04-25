@@ -24,7 +24,7 @@ Den framework is built around **context pipeline** transformations.
 In order to create a full OS configuration, everything starts with a host definition:
 
 ```nix "igloo" "tux"
-den.hostx.x86_64-linux.igloo.users.tux = {}
+den.hosts.x86_64-linux.igloo.users.tux = {}
 ```
 
 We need to build the `nixos` Nix module that will later be used by `lib.nixosSystem`.

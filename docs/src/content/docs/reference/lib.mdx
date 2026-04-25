@@ -158,6 +158,19 @@ internally by the fx pipeline. The `adapters` API has been removed.
 To control which aspects are included during resolution, use `meta.adapter`
 on an aspect — see the [Aspects reference](/reference/aspects/).
 
+## `den.lib.resolveStage`
+
+### `den.lib.resolveStage name ctx`
+
+Resolves a stage by name with a given context attrset. Returns an aspect-like
+record containing the stage's `provides`, `includes`, class attrs, and pipeline
+metadata (`__ctx`, `__ctxStage`, `__scopeHandlers`). Used internally by the
+pipeline and by `den.lib.diag` convenience wrappers.
+
+```nix
+root = den.lib.resolveStage "user" { inherit host user; };
+```
+
 ## `den.lib.policyInspect`
 
 ### `den.lib.policyInspect.inspect { kind, context }`

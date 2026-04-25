@@ -43,10 +43,18 @@ Den provides three built-in entity types:
 ```
 
 Every entity carries a `class` that determines how it is instantiated and where its
-output lands. For hosts this is `"nixos"` or `"darwin"`; for homes it is
-`"homeManager"`. Each entity also has an `aspect` field that points to the
-[aspect](/explanation/aspects/) responsible for configuring it — by default
-`den.aspects.<name>`.
+output lands. For hosts this is `"nixos"` (auto-detected from `x86_64-linux` / `aarch64-linux`)
+or `"darwin"` (from `*-darwin`); for homes it is `"homeManager"`. Override with
+`class = "darwin"` if auto-detection is wrong. Each entity also has an `aspect` field
+that points to the [aspect](/explanation/aspects/) responsible for configuring it —
+by default `den.aspects.<name>`.
+
+<Aside type="tip" title="Class vs Entity Kind">
+Don't confuse **class** (`nixos`, `darwin`, `homeManager` — a Nix module evaluation
+domain) with **entity kind** (`host`, `user`, `home` — a Den data type). Classes
+determine _which module system_ evaluates the config. Entity kinds determine _how
+policies dispatch_.
+</Aside>
 
 ## Schema: shared options across a kind
 
@@ -138,4 +146,4 @@ den.aspects.igloo.includes = [
 For attributes that should exist on _every_ entity of a kind with a default value,
 prefer defining them in `den.schema` instead — this gives you type checking and
 documentation. See the [Schema reference](/reference/schema/) for the full option
-list.
+list, or the [Declare Hosts & Users](/guides/declare-hosts/) guide for practical examples.

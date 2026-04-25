@@ -97,3 +97,10 @@ module = den.lib.aspects.resolve "nixos" den.aspects.igloo;
 Resolution collects all `nixos` attrs from owned configs, walks `includes`
 recursively, applies parametric dispatch, deduplicates, and produces a
 single `deferredModule` containing all NixOS configuration.
+
+## See also
+
+- [Configure Aspects](/guides/configure-aspects/) — practical guide to owned configs, includes, provides
+- [Parametric Aspects](/explanation/parametric/) — context-aware dispatch via argument introspection
+- [Resolution Pipeline](/explanation/context-pipeline/) — how aspects feed into the full pipeline
+- [den.aspects reference](/reference/aspects/) — full option documentation
