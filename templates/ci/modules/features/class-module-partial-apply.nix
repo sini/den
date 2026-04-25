@@ -240,5 +240,110 @@
       }
     );
 
+    # Flat-form class module on a static (non-parametric) aspect included in
+    # a dispatched stage. Context flows via __scopeHandlers to children.
+    test-flat-form-on-static-aspect = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.static-flat = {
+          nixos =
+            { host, config, ... }:
+            {
+              networking.hostName = host.name;
+            };
+        };
+
+        den.stages.test-static-flat = {
+          includes = [ den.aspects.static-flat ];
+        };
+
+        den.policies.host-to-test-static-flat = {
+          from = "host";
+          to = "test-static-flat";
+          resolve = _: [ { } ];
+        };
+
+        den.default.policies = [ "host-to-test-static-flat" ];
+
+        expr = igloo.networking.hostName;
+        expected = "igloo";
+      }
+    );
+
+    # Host-parametric aspect with user-parametric class — outer function
+    # resolves host via den, inner class module requests user via wrapping.
+    # Policy provides both host and user in context.
+    test-host-parametric-user-class = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.stages.test-cross-param = {
+          includes = [
+            (
+              { host, ... }:
+              {
+                nixos =
+                  { user, config, ... }:
+                  {
+                    users.users.tux.description = "${host.name}/${user.name}";
+                  };
+              }
+            )
+          ];
+        };
+
+        den.policies.host-to-test-cross-param = {
+          from = "host";
+          to = "test-cross-param";
+          resolve = { host, ... }: map (user: { inherit host user; }) (builtins.attrValues host.users);
+        };
+
+        den.default.policies = [ "host-to-test-cross-param" ];
+
+        expr = igloo.users.users.tux.description;
+        expected = "igloo/tux";
+      }
+    );
+
+    # Parenthesized two-layer form: { host }: ({ config, pkgs, ... }: {})
+    # Parens are syntactically irrelevant in Nix. After parametric resolution,
+    # the inner function is the class module with host captured via closure.
+    test-parenthesized-two-layer = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.stages.test-paren = {
+          includes = [
+            (
+              { host, ... }:
+              {
+                nixos = (
+                  { config, ... }:
+                  {
+                    networking.hostName = host.name;
+                  }
+                );
+              }
+            )
+          ];
+        };
+
+        den.policies.host-to-test-paren = {
+          from = "host";
+          to = "test-paren";
+          resolve = _: [ { } ];
+        };
+
+        den.default.policies = [ "host-to-test-paren" ];
+
+        expr = igloo.networking.hostName;
+        expected = "igloo";
+      }
+    );
+
   };
 }
