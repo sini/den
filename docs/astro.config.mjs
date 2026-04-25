@@ -29,7 +29,7 @@ export default defineConfig({
 		starlight({
 			title: 'den',
 			social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/vic/den' }
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/denful/den' }
       ],
 			sidebar: [
 				{
@@ -177,7 +177,7 @@ export default defineConfig({
 				}),
 			],
 			editLink: {
-				baseUrl: 'https://github.com/vic/den/edit/main/docs/',
+				baseUrl: 'https://github.com/denful/den/edit/main/docs/',
 			},
 			customCss: [
 				'./src/styles/custom.css'

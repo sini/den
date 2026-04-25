@@ -6,7 +6,7 @@ description: Den based NVF configuration without NixOS
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`templates/nvf-standalone`](https://github.com/vic/den/tree/main/templates/nvf-standalone)
+[`templates/nvf-standalone`](https://github.com/denful/den/tree/main/templates/nvf-standalone)
 </Aside>
 
 The `nvf-standalone` template demonstrates how to use Den for
@@ -17,7 +17,7 @@ purposes this uses [NVF Standalone](https://nvf.notashelf.dev/#ch-standalone-ins
 
 ```console
 mkdir my-neovim && cd my-neovim
-nix flake init -t github:vic/den#nvf-standalone
+nix flake init -t github:denful/den#nvf-standalone
 nix flake update den
 nix run .#my-neovim
 ```

@@ -6,8 +6,8 @@ description: Stage tree options, function sugar, and built-in stages.
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`nix/nixModule/stages.nix`](https://github.com/vic/den/blob/main/nix/nixModule/stages.nix) --
-[`nix/lib/stage-types.nix`](https://github.com/vic/den/blob/main/nix/lib/stage-types.nix)
+[`nix/nixModule/stages.nix`](https://github.com/denful/den/blob/main/nix/nixModule/stages.nix) --
+[`nix/lib/stage-types.nix`](https://github.com/denful/den/blob/main/nix/lib/stage-types.nix)
 </Aside>
 
 See [Stages](/explanation/stages/) for a conceptual overview.
@@ -176,5 +176,5 @@ deprecation warnings. The shim also maps `den.ctx.<name>.into` to
 `den.stages.<name>.meta.into`. Transition support (the old `into` option)
 is now handled by [policies](/reference/policies/). The shim will be
 removed in a future release. See
-[`modules/compat/ctx-shim.nix`](https://github.com/vic/den/blob/main/modules/compat/ctx-shim.nix).
+[`modules/compat/ctx-shim.nix`](https://github.com/denful/den/blob/main/modules/compat/ctx-shim.nix).
 </Aside>

@@ -7,9 +7,9 @@ import { Aside } from '@astrojs/starlight/components';
 
  
 <Aside title="Source" icon="github">
-[`types`](https://github.com/vic/den/blob/main/nix/lib/types.nix) -
-[`schema`](https://github.com/vic/den/blob/main/modules/options.nix) -
-[`examples/microvm`](https://github.com/vic/den/blob/main/templates/microvm/modules/microvm-integration.nix)
+[`types`](https://github.com/denful/den/blob/main/nix/lib/types.nix) -
+[`schema`](https://github.com/denful/den/blob/main/modules/options.nix) -
+[`examples/microvm`](https://github.com/denful/den/blob/main/templates/microvm/modules/microvm-integration.nix)
 </Aside>
  
 
@@ -106,10 +106,10 @@ Home schema:
 
 `den.schema.{host,user,home}` provides shared configuration applied to all entities of each kind.
 
-Some batteries also extend base modules [see `home-env.nix`](https://github.com/vic/den/blob/main/nix/home-env.nix)
+Some batteries also extend base modules [see `home-env.nix`](https://github.com/denful/den/blob/main/nix/home-env.nix)
 that is used by home-manager/hjem/maid to extend the Host schema with options like `hjem.module`/`home-manager.module`.
 
-Another more advanced examples is our [templates/microvm](https://github.com/vic/den/tree/main/templates/microvm/modules/microvm-integration.nix)
+Another more advanced examples is our [templates/microvm](https://github.com/denful/den/tree/main/templates/microvm/modules/microvm-integration.nix)
 that adds options related to running virtualized OS.
 
 ```nix

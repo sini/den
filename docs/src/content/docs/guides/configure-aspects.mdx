@@ -6,9 +6,9 @@ description: Owned configs, includes, provides, and den.default.
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`nix/lib/aspects`](https://github.com/vic/den/tree/main/nix/lib/aspects) ·
-[`aspects definition`](https://github.com/vic/den/tree/main/modules/aspects/definition.nix) ·
-[`example aspects`](https://github.com/vic/den/tree/main/modules/aspects/provides) ·
+[`nix/lib/aspects`](https://github.com/denful/den/tree/main/nix/lib/aspects) ·
+[`aspects definition`](https://github.com/denful/den/tree/main/modules/aspects/definition.nix) ·
+[`example aspects`](https://github.com/denful/den/tree/main/modules/aspects/provides) ·
 </Aside>
 
 # Den created aspects.
@@ -194,7 +194,7 @@ is needed. (`den.lib.take.exactly` is deprecated.)
 Aspects have a `meta` submodule that can be used to attach meta-data
 at the aspect-level.
 
-This is useful for [introspection, for example](https://github.com/vic/den/commit/809834982bb92e77228c91b9c24be8b17c06dfd3), using some key to filter out aspects
+This is useful for [introspection, for example](https://github.com/denful/den/commit/809834982bb92e77228c91b9c24be8b17c06dfd3), using some key to filter out aspects
 or communicate information about aspects to other tooling like graph generators.
 
 Since `.meta` is a freeformType you can add any custom attribute or import a module on it.

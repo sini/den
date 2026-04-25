@@ -60,7 +60,7 @@ The result of that exploration was [flake-aspects](https://github.com/vic/flake-
 
 `flake-aspects` allows for aspects to be parametric by using the Nix [`__functor` pattern](/explanation/aspects/#the-__functor-pattern), it also allows aspects to be nested unlike the flat-structure we had in `flake.modules` which caused people to use weird-named modules `flake.modules.nixos."host/desktop"` or similar for string-based-semantics. It also allows declaring dependencies between aspects themselves, not using **stringly-typed** references like `.modules = [ "base" "gaming" ]` which was one of the shortcomings early-days unify had.
 
-An important point is that parametric aspect's context **are not** _module.args, they do not depend on config. This allows using them for [conditional](https://github.com/vic/den/blob/main/templates/ci/modules/features/conditional-config.nix) imports.
+An important point is that parametric aspect's context **are not** _module.args, they do not depend on config. This allows using them for [conditional](https://github.com/denful/den/blob/main/templates/ci/modules/features/conditional-config.nix) imports.
 
 
 <Aside>
@@ -96,7 +96,7 @@ Den, tries to answer some specific issues regarding NixOS/nix-Darwin configurati
 
 ## Den is about sharing functions to configs.
 
-Based on Den sharable aspects (which depend on a minimal surface syntax for namespaces), I'm planning to create [denful](https://github.com/vic/denful). A lazyvim-like configurations distribution that people can include from, just like they do with editor distributions.
+Based on Den sharable aspects (which depend on a minimal surface syntax for namespaces), I'm planning to create [denful](https://github.com/denful/denful). A lazyvim-like configurations distribution that people can include from, just like they do with editor distributions.
 
 And this exploration is all part of the `dendrix` initiative. Trying to come up with better ways to share configurations *even* between flakes/no-flakes users. `dendrix` indexes using [`import-tree`](https://github.com/vic/import-tree) collections instead of flakes, because flakes demand all its inputs to be downloaded, a collection of modules in an import-tree can define the inputs they need by using [`flake-file`](https://github.com/vic/flake-file) and these inputs can be propagated to the final user's flake or npins/unflake.
 

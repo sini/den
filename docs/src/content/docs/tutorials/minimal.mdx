@@ -7,7 +7,7 @@ description: The smallest possible Den setup — one host, one user, no extra de
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`templates/minimal`](https://github.com/vic/den/tree/main/templates/minimal)
+[`templates/minimal`](https://github.com/denful/den/tree/main/templates/minimal)
 </Aside>
 
 The minimal template demonstrates Den's core with zero extra dependencies beyond nixpkgs.
@@ -16,7 +16,7 @@ The minimal template demonstrates Den's core with zero extra dependencies beyond
 
 ```console
 mkdir my-nix && cd my-nix
-nix flake init -t github:vic/den#minimal
+nix flake init -t github:denful/den#minimal
 nix flake update den
 ```
 
@@ -41,7 +41,7 @@ modules/
   inputs = {
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
     import-tree.url = "github:vic/import-tree";
-    den.url = "github:vic/den";
+    den.url = "github:denful/den";
   };
 }
 ```

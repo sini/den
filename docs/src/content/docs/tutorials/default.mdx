@@ -7,7 +7,7 @@ description: Recommended starting point with flake-parts, Home-Manager, and VM t
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`templates/default`](https://github.com/vic/den/tree/main/templates/default)
+[`templates/default`](https://github.com/denful/den/tree/main/templates/default)
 </Aside>
 
 The default template is the recommended way to start a new Den project. It includes flake-parts, Home-Manager, dendritic flake-file, and a VM for testing.
@@ -16,7 +16,7 @@ The default template is the recommended way to start a new Den project. It inclu
 
 ```console
 mkdir my-nix && cd my-nix
-nix flake init -t github:vic/den#default
+nix flake init -t github:denful/den#default
 nix flake update den
 ```
 
@@ -137,7 +137,7 @@ nix run .#vm
     (inputs.den.flakeModules.dendritic or { })
   ];
   flake-file.inputs = {
-    den.url = "github:vic/den";
+    den.url = "github:denful/den";
     flake-file.url = "github:vic/flake-file";
     home-manager = {
       url = "github:nix-community/home-manager";

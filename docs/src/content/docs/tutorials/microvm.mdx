@@ -7,10 +7,10 @@ description: Feature showcase MicroVM integration with custom context pipelines 
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`templates/microvm`](https://github.com/vic/den/tree/main/templates/microvm)
+[`templates/microvm`](https://github.com/denful/den/tree/main/templates/microvm)
 </Aside>
 
-[templates/microvm](https://github.com/vic/den/tree/main/templates/microvm) demonstrates Den's extensibility: custom `den.stages` and `den.schema` extensions for integrating other Nix libraries like [MicroVM.nix](https://github.com/microvm-nix/microvm.nix).
+[templates/microvm](https://github.com/denful/den/tree/main/templates/microvm) demonstrates Den's extensibility: custom `den.stages` and `den.schema` extensions for integrating other Nix libraries like [MicroVM.nix](https://github.com/microvm-nix/microvm.nix).
 
 This template shows two patterns for building MicroVMs with Den.
 
@@ -20,8 +20,8 @@ This template shows two patterns for building MicroVMs with Den.
 
 A standalone NixOS configuration that runs as MicroVM directly as an application.
 
-- Den example: [runnable-example.nix](https://github.com/vic/den/tree/main/templates/microvm/modules/runnable-example.nix)
-- Den support: [microvm-runners.nix](https://github.com/vic/den/tree/main/templates/microvm/modules/microvm-runners.nix)
+- Den example: [runnable-example.nix](https://github.com/denful/den/tree/main/templates/microvm/modules/runnable-example.nix)
+- Den support: [microvm-runners.nix](https://github.com/denful/den/tree/main/templates/microvm/modules/microvm-runners.nix)
 
 ```console
 nix run .#runnable-microvm
@@ -33,8 +33,8 @@ See [MicroVM Docs on Package Runners](https://microvm-nix.github.io/microvm.nix/
 
 Guest MicroVMs declared on a host and managed together.
 
-- Den example: [guests-example.nix](https://github.com/vic/den/tree/main/templates/microvm/modules/guests-example.nix)
-- Den support: [microvm-integration.nix](https://github.com/vic/den/tree/main/templates/microvm/modules/microvm-integration.nix)
+- Den example: [guests-example.nix](https://github.com/denful/den/tree/main/templates/microvm/modules/guests-example.nix)
+- Den support: [microvm-integration.nix](https://github.com/denful/den/tree/main/templates/microvm/modules/microvm-integration.nix)
 
 ```console
 nixos-rebuild build --flake .#server
@@ -46,7 +46,7 @@ See [MicroVM Docs on Declarative MicroVMs](https://microvm-nix.github.io/microvm
 
 ```console
 mkdir my-nix && cd my-nix
-nix flake init -t github:vic/den#microvm
+nix flake init -t github:denful/den#microvm
 nix flake update den
 ```
 

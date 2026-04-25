@@ -7,7 +7,7 @@ description: Using Den with stable Nix — no flakes needed.
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`templates/noflake`](https://github.com/vic/den/tree/main/templates/noflake)
+[`templates/noflake`](https://github.com/denful/den/tree/main/templates/noflake)
 </Aside>
 
 The noflake template shows that Den works perfectly without Nix flakes. It uses [npins](https://github.com/andir/npins) for dependency management and works with stable Nix.
@@ -18,14 +18,14 @@ Since this template doesn't use flakes, clone it manually:
 
 ```console
 mkdir my-nix && cd my-nix
-cp -r $(nix eval --raw 'github:vic/den#templates.noflake.path')/* .
+cp -r $(nix eval --raw 'github:denful/den#templates.noflake.path')/* .
 npins update den
 ```
 
 Or use `nix flake init` if you have flakes enabled:
 
 ```console
-nix flake init -t github:vic/den#noflake
+nix flake init -t github:denful/den#noflake
 ```
 
 ## Project Structure

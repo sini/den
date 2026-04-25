@@ -6,10 +6,10 @@ description: How host/user/home declarations resolve into NixOS/Darwin/HM config
 import { Steps, Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`modules/policies/core.nix`](https://github.com/vic/den/blob/main/modules/policies/core.nix) --
-[`modules/policies/flake.nix`](https://github.com/vic/den/blob/main/modules/policies/flake.nix) --
-[`nix/lib/aspects/fx/pipeline.nix`](https://github.com/vic/den/blob/main/nix/lib/aspects/fx/pipeline.nix) --
-[`nix/lib/aspects/fx/handlers/transition.nix`](https://github.com/vic/den/blob/main/nix/lib/aspects/fx/handlers/transition.nix)
+[`modules/policies/core.nix`](https://github.com/denful/den/blob/main/modules/policies/core.nix) --
+[`modules/policies/flake.nix`](https://github.com/denful/den/blob/main/modules/policies/flake.nix) --
+[`nix/lib/aspects/fx/pipeline.nix`](https://github.com/denful/den/blob/main/nix/lib/aspects/fx/pipeline.nix) --
+[`nix/lib/aspects/fx/handlers/transition.nix`](https://github.com/denful/den/blob/main/nix/lib/aspects/fx/handlers/transition.nix)
 </Aside>
 
 ## Pipeline overview
@@ -39,7 +39,7 @@ flowchart TD
 
 2. **Core policies fan out**
 
-   Core policies ([`modules/policies/core.nix`](https://github.com/vic/den/blob/main/modules/policies/core.nix))
+   Core policies ([`modules/policies/core.nix`](https://github.com/denful/den/blob/main/modules/policies/core.nix))
    define the fundamental traversal edges:
 
    | Policy | From | To | Resolve |

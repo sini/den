@@ -6,9 +6,9 @@ description: How to configure mutual configs in Den.
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`context/user.nix`](https://github.com/vic/den/blob/main/modules/context/user.nix) ·
-[`context/host.nix`](https://github.com/vic/den/blob/main/modules/context/host.nix) ·
-[`mutual-provider.nix`](https://github.com/vic/den/blob/main/modules/aspects/provides/mutual-provider.nix)
+[`context/user.nix`](https://github.com/denful/den/blob/main/modules/context/user.nix) ·
+[`context/host.nix`](https://github.com/denful/den/blob/main/modules/context/host.nix) ·
+[`mutual-provider.nix`](https://github.com/denful/den/blob/main/modules/aspects/provides/mutual-provider.nix)
 </Aside>
 
 ## What Mutual-Config Mean
@@ -64,7 +64,7 @@ This is the normal `den.stages.host` pipeline. All OS contributions come from th
 
 ## `den.provides.mutual-provider`
 
-The [`den.provides.mutual-provider`](https://github.com/vic/den/blob/main/modules/aspects/provides/mutual-provider.nix) battery allows you to define mutual configurations by letting you to define named aspects under `.provides.` to create explicit policy between users and hosts.
+The [`den.provides.mutual-provider`](https://github.com/denful/den/blob/main/modules/aspects/provides/mutual-provider.nix) battery allows you to define mutual configurations by letting you to define named aspects under `.provides.` to create explicit policy between users and hosts.
 
 ```nix
 # mutual-provider is activated at a `{host,user}` context
