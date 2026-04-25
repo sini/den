@@ -118,44 +118,10 @@ den.aspects.my-laptop.includes = [
 ```
 </Aside>
 
----
-
-## Deprecated Wrapper APIs
-
-The following wrappers are no longer needed. Bare functions work directly —
-Den handles dispatch automatically.
-
-<Aside type="caution" title="Deprecated">
-`den.lib.parametric`, `den.lib.perHost`, `den.lib.perUser`, `den.lib.perHome`,
-and `den.lib.take.*` still exist for backward compatibility but should not
-be used in new code.
-
-```nix
-# Old — den.lib.parametric wrapper
-den.aspects.battery = den.lib.parametric {
-  nixos.foo = 1;
-  includes = [ ({ host, ... }: { nixos.x = host.name; }) ];
-};
-
-# New — bare parametric function
-den.aspects.battery = { host, ... }: {
-  nixos.foo = 1;
-  nixos.x = host.name;
-};
-```
-
-```nix
-# Old — den.lib.perHost / perUser / perHome
-den.lib.perHost ({ host, ... }: { nixos.x = host.name; })
-
-# New — bare function (identical behavior)
-{ host, ... }: { nixos.x = host.name; }
-```
-</Aside>
-
 ## See also
 
 - [Aspects & Functors](/explanation/aspects/) — aspect structure and resolution
 - [Class Modules](/explanation/class-modules/) — flat-form context injection inside class modules
 - [Resolution Pipeline](/explanation/context-pipeline/) — how parametric dispatch fits the pipeline
 - [den.lib reference](/reference/lib/) — `canTake` and other library functions
+- [Migrating from den.ctx](/guides/migrate-ctx/) — if upgrading from deprecated wrapper APIs (`den.lib.parametric`, `perHost`, etc.)
