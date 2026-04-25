@@ -246,6 +246,17 @@ let
                 type = lib.types.listOf lib.types.str;
                 default = typeCfg.providerPrefix or [ ];
               };
+              options.collisionPolicy = lib.mkOption {
+                description = "Collision policy for flat-form class module arg/module-system arg overlap.";
+                type = lib.types.nullOr (
+                  lib.types.enum [
+                    "error"
+                    "class-wins"
+                    "den-wins"
+                  ]
+                );
+                default = null;
+              };
             };
             defaultText = lib.literalExpression "{ }";
             default = { };
