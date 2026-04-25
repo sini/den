@@ -54,7 +54,7 @@ export default defineConfig({
 							items: [
 								{ label: 'Aspects & Functors', slug: 'explanation/aspects' },
 								{ label: 'Class Modules', slug: 'explanation/class-modules' },
-								{ label: 'Parametric Aspects', slug: 'explanation/parametric', badge: { text: 'legacy', variant: 'note' } },
+								{ label: 'Parametric Aspects', slug: 'explanation/parametric' },
 							],
 						},
 						{
