@@ -69,6 +69,8 @@
     );
 
     # Multiple den args: both `host` and `user` are pre-applied from context.
+    # The policy resolves with both host and user in the dispatch context,
+    # so both are available for partial application in the class module.
     test-multiple-den-args = denTest (
       { den, igloo, ... }:
       {
@@ -91,7 +93,7 @@
         den.policies.host-to-test-multi-args = {
           from = "host";
           to = "test-multi-args";
-          resolve = _: [ { } ];
+          resolve = { host, ... }: map (user: { inherit host user; }) (builtins.attrValues host.users);
         };
 
         den.default.policies = [ "host-to-test-multi-args" ];
@@ -211,20 +213,27 @@
       }
     );
 
-    # Flat-form class module on an aspect (not just a stage) — host is
-    # accessible when the aspect is resolved in host context.
-    test-flat-form-on-aspect = denTest (
+    # Flat-form class module on a parametric aspect — the outer parametric
+    # function receives host context, which propagates to __ctx, enabling
+    # wrapClassModule to pre-apply host to the inner flat-form nixos module.
+    test-flat-form-on-parametric-aspect = denTest (
       { den, igloo, ... }:
       {
         den.hosts.x86_64-linux.igloo.users.tux = { };
 
-        den.aspects.igloo = {
-          nixos =
-            { host, config, ... }:
+        den.aspects.flat-aspect-test.includes = [
+          (
+            { host, ... }:
             {
-              networking.hostName = host.name;
-            };
-        };
+              nixos =
+                { host, config, ... }:
+                {
+                  networking.hostName = host.name;
+                };
+            }
+          )
+        ];
+        den.aspects.igloo.includes = [ den.aspects.flat-aspect-test ];
 
         expr = igloo.networking.hostName;
         expected = "igloo";
