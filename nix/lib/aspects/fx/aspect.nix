@@ -30,6 +30,47 @@ let
     "_"
   ] (_: true);
 
+  # Deferred modules from the freeform type (lazyAttrsOf deferredModule)
+  # are { imports = [...]; } attrsets. The original function is nested
+  # inside.  We recursively descend into imports to find and wrap any
+  # functions that request den context args.
+  wrapDeferredImports =
+    args: imports:
+    let
+      go =
+        imp:
+        if builtins.isFunction imp then
+          let
+            result = wrapClassModule (args // { module = imp; });
+          in
+          {
+            inherit (result) wrapped;
+            value = result.module;
+          }
+        else if builtins.isAttrs imp && imp ? imports then
+          let
+            inner = map go imp.imports;
+            anyWrapped = builtins.any (r: r.wrapped) inner;
+          in
+          {
+            wrapped = anyWrapped;
+            value = imp // {
+              imports = map (r: r.value) inner;
+            };
+          }
+        else
+          {
+            wrapped = false;
+            value = imp;
+          };
+      results = map go imports;
+      anyWrapped = builtins.any (r: r.wrapped) results;
+    in
+    {
+      wrapped = anyWrapped;
+      imports = map (r: r.value) results;
+    };
+
   wrapClassModule =
     {
       module,
@@ -37,7 +78,17 @@ let
       aspectPolicy,
       globalPolicy,
     }:
-    if !builtins.isFunction module then
+    if builtins.isAttrs module && module ? imports then
+      let
+        result = wrapDeferredImports { inherit ctx aspectPolicy globalPolicy; } module.imports;
+      in
+      {
+        module = module // {
+          imports = result.imports;
+        };
+        inherit (result) wrapped;
+      }
+    else if !builtins.isFunction module then
       {
         inherit module;
         wrapped = false;
@@ -106,10 +157,25 @@ let
           wrapped = true;
         };
 
+  # Reconstruct ctx from scope handlers. constantHandler maps each key
+  # to { param, state }: { resume = value; inherit state; }, so invoking
+  # with dummy args extracts the original value. This works for all
+  # aspects in the tree (not just stage roots) since __scopeHandlers
+  # propagates to children, unlike __ctx which only exists on roots.
+  ctxFromHandlers =
+    handlers:
+    lib.mapAttrs (
+      _: handler:
+      (handler {
+        param = null;
+        state = { };
+      }).resume
+    ) handlers;
+
   emitClasses =
     aspect: classKeys: nodeIdentity:
     let
-      ctx = aspect.__ctx or { };
+      ctx = ctxFromHandlers (aspect.__scopeHandlers or { });
       aspectPolicy = aspect.meta.collisionPolicy or null;
       globalPolicy = den.config.classModuleCollisionPolicy or "error";
     in
