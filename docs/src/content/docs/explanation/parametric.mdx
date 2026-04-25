@@ -83,25 +83,6 @@ context drives the *entire aspect* (which classes to include, what includes to
 add). Use class-level injection when only a specific class module needs
 entity data alongside module-system args.
 
-## The `canTake` Mechanism
-
-`den.lib.canTake` is the underlying function that powers automatic dispatch.
-It checks whether a function's required arguments are satisfiable:
-
-```nix
-canTake { host = ...; } ({ host, ... }: ...)  # => true
-canTake { host = ...; } ({ host, user }: ...)  # => false (user missing)
-
-canTake.exactly { host = ...; } ({ host }: ...)                 # => true
-canTake.exactly { host = ...; foo = ...; } ({ host, ... }: ...) # => false
-```
-
-- `canTake.atLeast` — all required params present (default behavior).
-- `canTake.exactly` — required params match provided params exactly.
-
-You rarely need `canTake` directly — Den applies it automatically during
-pipeline resolution.
-
 <Aside type="caution" title="Avoid anonymous functions in includes">
 Use named aspects instead of inline anonymous functions. Named aspects produce
 better error traces and are easier to debug with the [diagram library](/explanation/diagrams/).
