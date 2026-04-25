@@ -82,7 +82,7 @@ let
                         v = config.${k};
                       in
                       "${k}=${toString v}";
-                    fingerprint = "${kind}\0${lib.concatMapStringsSep "\0" encode identityKeys}";
+                    fingerprint = "${kind}|${lib.concatMapStringsSep "|" encode identityKeys}";
                   in
                   builtins.hashString "sha256" fingerprint;
               };

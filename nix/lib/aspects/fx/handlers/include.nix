@@ -146,10 +146,23 @@ let
   # 2. For remaining args, use has-handler effect to query root handlers
   # Unresolvable includes are deferred (resolved at deeper context level).
   keepChild =
-    child:
+    child: decision:
     let
-      childArgs = child.__args or { };
-      childScopeHandlers = child.__scopeHandlers or { };
+      # Tag the child with the constraint owner so the tracer can name
+      # anonymous entries after their constraint source.
+      owner = decision.owner or null;
+      taggedChild =
+        if owner != null then
+          child
+          // {
+            meta = (child.meta or { }) // {
+              constraintOwner = owner;
+            };
+          }
+        else
+          child;
+      childArgs = taggedChild.__args or { };
+      childScopeHandlers = taggedChild.__scopeHandlers or { };
       isParametric = childArgs != { };
     in
     if isParametric then
@@ -177,14 +190,14 @@ let
       fx.bind (probeArgs keysToProbe) (
         allAvailable:
         if allAvailable then
-          fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ])
+          fx.bind (aspectToEffect taggedChild) (resolved: fx.pure [ resolved ])
         else
           # Emit a resolve-complete for the deferred child so it appears in traces,
           # then defer-include it for later resolution when context widens.
           let
             stub = {
-              name = child.name or "<anon>";
-              meta = (child.meta or { }) // {
+              name = taggedChild.name or "<anon>";
+              meta = (taggedChild.meta or { }) // {
                 deferred = true;
               };
               includes = [ ];
@@ -199,7 +212,7 @@ let
           )
       )
     else
-      fx.bind (aspectToEffect child) (resolved: fx.pure [ resolved ]);
+      fx.bind (aspectToEffect taggedChild) (resolved: fx.pure [ resolved ]);
 
   nameAnon =
     state: idx: ctxId:
@@ -255,7 +268,7 @@ let
                 else if decision.action == "substitute" then
                   substituteChild child decision
                 else
-                  keepChild child
+                  keepChild child decision
               );
         inherit state;
       };

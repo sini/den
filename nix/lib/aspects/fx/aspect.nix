@@ -386,7 +386,13 @@ let
           let
             base = {
               inherit (aspect) name;
-              meta = (aspect.meta or { }) // (if builtins.isAttrs resolved then resolved.meta or { } else { });
+              meta =
+                (aspect.meta or { })
+                // (if builtins.isAttrs resolved then resolved.meta or { } else { })
+                // {
+                  isParametric = true;
+                  fnArgNames = builtins.attrNames userArgs;
+                };
             }
             // lib.optionalAttrs (aspect ? into) { inherit (aspect) into; }
             // lib.optionalAttrs (aspect ? provides) { inherit (aspect) provides; };

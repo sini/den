@@ -7,6 +7,18 @@ let
   inherit (den.lib.aspects.fx.identity) aspectPath pathKey;
   inherit (den.lib.aspects) isMeaningfulName;
 
+  policyEntryDefaults = {
+    provider = [ ];
+    excluded = false;
+    excludedFrom = null;
+    replacedBy = null;
+    isProvider = false;
+    handlers = [ ];
+    hasClass = false;
+    isParametric = false;
+    fnArgNames = [ ];
+  };
+
   # Derive parent from includesChain, filtering out self-references.
   # The chain contains raw identity strings from chain-push (pathKey of aspectPath).
   #
@@ -18,12 +30,22 @@ let
   # don't push to the chain, the filter is a no-op for them — which is correct.
   # The filter only matters for meaningful (chain-pushing) nodes where
   # selfFullPath == raw pathKey.
+  # Find nearest meaningful ancestor in the chain, skipping anonymous
+  # intermediates. Falls back to last entry if no meaningful one found.
   chainParent =
     chain: selfPath:
     let
       filtered = builtins.filter (p: p != selfPath) chain;
+      meaningful = builtins.filter (
+        p: isMeaningfulName p && builtins.match ".*<anon>.*" p == null
+      ) filtered;
     in
-    if filtered == [ ] then null else lib.last filtered;
+    if meaningful != [ ] then
+      lib.last meaningful
+    else if filtered != [ ] then
+      lib.last filtered
+    else
+      null;
 
   # Shared entry fields for both trace handlers.
   mkBaseEntry = class: param: {
@@ -89,10 +111,13 @@ let
               base = builtins.filter (s: builtins.match "\\{.*" s == null) segments;
             in
             if base == [ ] then chainTip else lib.last base;
+        constraintOwner = param.meta.constraintOwner or null;
         meaningful = n: n != null && isMeaningfulName n && builtins.match ".*<anon>.*" n == null;
         isAnon = !meaningful rawName;
         name =
-          if isAnon && ctxStage != null then
+          if isAnon && constraintOwner != null then
+            "filter:${constraintOwner}"
+          else if isAnon && ctxStage != null then
             let
               aspectTag = if ctxAspect != null then "(${ctxAspect})" else "";
               provTag = lib.optionalString (provPath != "") ":${provPath}";
@@ -114,7 +139,45 @@ let
       };
   };
 
+  # Policy dispatch trace: compose with compilePolicyHandlers to record
+  # policy fire events. Uses composeHandlers so the policy handler
+  # provides the resume (targets/routing) and this handler appends a
+  # trace entry to state.entries.
+  policyTraceHandlers =
+    let
+      policies = den.policies or { };
+    in
+    lib.mapAttrs' (name: _policy: {
+      name = "policy:${name}";
+      value =
+        { param, state }:
+        let
+          # The composed handler runs after the policy handler.
+          # param is the original context sent by the transition handler.
+          # We record the policy fire; the actual resume comes from the
+          # policy handler via composeHandlers.
+          ctxStage = state.currentStage or null;
+          chain = (state.includesChain or (_: [ ])) null;
+          parent = if chain != [ ] then lib.last chain else null;
+          entry = policyEntryDefaults // {
+            name = "policy:${name}";
+            inherit ctxStage parent;
+            isPolicyDispatch = true;
+            policyName = name;
+            from = _policy.from;
+            to = if _policy.as != "" then _policy.as else _policy.to;
+          };
+        in
+        {
+          # Resume is overridden by composeHandlers — policy handler wins.
+          resume = null;
+          state = state // {
+            entries = (state.entries or [ ]) ++ [ entry ];
+          };
+        };
+    }) policies;
+
 in
 {
-  inherit structuredTraceHandler tracingHandler;
+  inherit structuredTraceHandler tracingHandler policyTraceHandlers;
 }
