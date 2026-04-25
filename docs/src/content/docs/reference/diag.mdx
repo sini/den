@@ -1,0 +1,314 @@
+---
+title: den.lib.diag
+description: Diagram library for visualizing aspect resolution graphs.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+<Aside title="Source" icon="github">
+[`nix/lib/diag/`](https://github.com/vic/den/blob/main/nix/lib/diag/)
+</Aside>
+
+The diagramming library provides a composable pipeline for rendering aspect-resolution
+graphs: **trace capture** collects structured trace entries from resolved aspects,
+**graph construction** builds a format-agnostic IR, **filters** prune and reshape the IR,
+and **renderers** emit Mermaid, DOT, PlantUML, or JSON strings.
+
+See [Diagrams explanation](/explanation/diagrams/) for concepts and usage patterns.
+
+## Convenience wrappers
+
+High-level entry points that resolve an entity and return a graph IR in one call.
+
+### `hostContext { host, classes?, direction? }`
+
+Build a host-scoped graph. When `classes` is omitted, auto-discovers from `[ "nixos" "homeManager" "user" ]` plus each user's declared classes. Returns the graph IR plus `rootAspect`, `pathSets`, and `classes`.
+
+### `userContext { host, user, classes?, direction? }`
+
+Build a user-scoped graph. Defaults to `[ "homeManager" "user" ]` plus the user's own classes.
+
+### `homeContext { home, classes?, direction? }`
+
+Build a home-scoped graph. Defaults to `[ "homeManager" ]` plus the home's own classes.
+
+### `context { root, name, classes, direction? }`
+
+Generic entry point for any entity kind. `root` is a resolved stage (from `den.lib.resolveStage`), `name` is used as the graph root label, and `classes` lists the aspect classes to trace. `direction` defaults to `"LR"`.
+
+```nix
+root = den.lib.resolveStage "user" { inherit host user; };
+g = diag.context { inherit root; name = user.name; classes = [ "homeManager" ]; };
+```
+
+## Graph construction
+
+### `graph.build { entries, rootName, ctxTrace?, direction? }`
+
+Core IR builder. Transforms a list of structured trace entries into a graph record containing `nodes`, `edges`, `stages`, `stageEdges`, `rootId`, `rootName`, and `direction`. This is the lowest-level constructor -- convenience wrappers call it internally.
+
+### `graph.ofHost args`
+
+Thin wrapper around `hostContext` that strips auxiliary fields (`rootAspect`, `pathSets`, `classes`), returning a plain graph record.
+
+### `graph.ofNamespace { name?, aspects?, direction?, filter? }`
+
+Static namespace graph built from `den.aspects` declarations (no host resolution). Walks authored building blocks and their static inclusions. Useful for fleet-level views showing the full aspect catalogue.
+
+## Filters
+
+All filters are available on the `graph` attrset (e.g., `diag.graph.aspectsOnly`). Each takes a graph IR and returns a new graph IR.
+
+### Predicate filters
+
+| Filter | Signature | Description |
+|---|---|---|
+| `userDeclaredOnly` | `graph -> graph` | Nodes with `hasClass = true` -- user-authored aspects only |
+| `pipelineOnly` | `graph -> graph` | Wrapper/plumbing nodes only -- reveals resolution machinery |
+| `crossClassOnly` | `graph -> graph` | Nodes contributing to 2+ classes -- bridge aspects |
+| `orphansAndLeaves` | `graph -> graph` | Nodes with no incoming edges (orphans) or no outgoing edges (leaves) |
+
+### Closure filters
+
+| Filter | Signature | Description |
+|---|---|---|
+| `classSlice` | `string -> graph -> graph` | Ancestor closure from nodes active in the given class |
+| `neighborhoodOf` | `(node -> bool) -> graph -> graph` | Nodes matching predicate plus their direct neighbors |
+| `adaptersOnly` | `graph -> graph` | Nodes with resolution handlers plus neighbors |
+| `parametricOnly` | `graph -> graph` | Parametric aspects (`isParametric = true`) plus neighbors |
+
+### Reshape filters
+
+| Filter | Signature | Description |
+|---|---|---|
+| `contextOnly` | `graph -> graph` | Context pipeline stages as nodes, aspect content discarded |
+| `aspectsOnly` | `graph -> graph` | User aspects with context wrappers folded out, provider edges dropped |
+| `providersOnly` | `graph -> graph` | Provider hierarchy as a multi-level tree |
+| `providersResolved` | `graph -> graph` | Providers alongside their resolved output nodes |
+| `decisionsView` | `graph -> graph` | Structural decisions -- excluded nodes grouped by adapter owner |
+
+### Fold filters
+
+| Filter | Signature | Description |
+|---|---|---|
+| `foldWrappers` | `graph -> graph` | Remove wrapper/context nodes, rewire edges to their children |
+| `foldProviders` | `graph -> graph` | Collapse provider chains into single edges |
+| `flattenStages` | `graph -> graph` | Remove stage subgraph grouping |
+
+### Composite filters
+
+| Filter | Signature | Description |
+|---|---|---|
+| `filterMeaningful` | `graph -> graph` | Drop anonymous and definition-stub nodes |
+| `filterUserAspects` | `graph -> graph` | `foldWrappers` composed with `filterMeaningful` |
+| `simplified` | `graph -> graph` | `foldProviders` + `flattenStages` + `aspectsOnly` |
+
+### Structural
+
+| Function | Signature | Description |
+|---|---|---|
+| `fanMetrics` | `graph -> [{ id, label, fanIn, fanOut, total, ... }]` | Fan-in/fan-out counts per node, sorted by total |
+| `diff` | `{ a, b } -> graph` | Merge two graphs with `origin` tags (`"a"`, `"b"`, `"both"`) on each node and edge |
+
+### Presence filters
+
+| Filter | Signature | Description |
+|---|---|---|
+| `hasAspectPresent` | `{ class } -> graph -> graph` | Nodes answering `hasAspect = true` for the given class (ancestor closure) |
+| `hasAspectForAnyClass` | `[string] -> graph -> graph` | Union of `hasAspectPresent` across multiple classes |
+
+## Renderers
+
+Every renderer has two forms: `toFoo` uses the default theme and `toFooWith { theme?, mermaidConfig? }` accepts explicit options. All take `graph -> string` (or `fleetData -> string` for fleet renderers).
+
+### Graph renderers
+
+| Renderer | Format | Notes |
+|---|---|---|
+| `toMermaid` / `toMermaidWith` | Mermaid flowchart | Primary renderer; supports ELK layout via `mermaidConfig` |
+| `toDot` / `toDotWith` | Graphviz DOT | No `mermaidConfig` option |
+| `toPlantUML` / `toPlantUMLWith` | PlantUML | No `mermaidConfig` option |
+
+### Sequence renderers
+
+| Renderer | Format | Notes |
+|---|---|---|
+| `toSequenceMermaid` / `toSequenceMermaidWith` | Mermaid sequence | Stage sequence diagram |
+| `toSequenceMermaidExpanded` / `toSequenceMermaidExpandedWith` | Mermaid sequence | Expanded with per-aspect detail |
+| `toPolicySequenceMermaid` / `toPolicySequenceMermaidWith` | Mermaid sequence | Policy-level sequence |
+| `toStageEdgesMermaid` / `toStageEdgesMermaidWith` | Mermaid | Stage topology edges |
+
+### C4 renderers
+
+| Renderer | Format | Notes |
+|---|---|---|
+| `toC4Component` / `toC4ComponentWith` | PlantUML C4 | Component diagram |
+| `toC4Container` / `toC4ContainerWith` | PlantUML C4 | Container diagram |
+| `toC4Context` / `toC4ContextWith` | PlantUML C4 | Context diagram (fleet-level) |
+| `toC4ComponentMermaid` / `toC4ComponentMermaidWith` | Mermaid C4 | Component diagram |
+| `toC4ContainerMermaid` / `toC4ContainerMermaidWith` | Mermaid C4 | Container diagram |
+| `toC4ContextMermaid` / `toC4ContextMermaidWith` | Mermaid C4 | Context diagram |
+
+### Flow renderers
+
+| Renderer | Format | Notes |
+|---|---|---|
+| `toSankeyMermaid` / `toSankeyMermaidWith` | Mermaid sankey | Aspect flow |
+| `toFleetSankeyMermaid` / `toFleetSankeyMermaidWith` | Mermaid sankey | Fleet-wide flow |
+| `toFanMetricsSankey` / `toFanMetricsSankeyWith` | Mermaid sankey | Fan-in/fan-out metrics |
+
+### Hierarchy renderers
+
+| Renderer | Format | Notes |
+|---|---|---|
+| `toTreemapMermaid` / `toTreemapMermaidWith` | Mermaid | Aspect treemap |
+| `toFleetTreemapMermaid` / `toFleetTreemapMermaidWith` | Mermaid | Fleet-wide treemap |
+| `toFleetProviderMatrix` / `toFleetProviderMatrixWith` | Mermaid | Provider matrix across hosts |
+
+### Other renderers
+
+| Renderer | Format | Notes |
+|---|---|---|
+| `toMindmapMermaid` / `toMindmapMermaidWith` | Mermaid mindmap | Aspect mindmap |
+| `toStateMermaid` / `toStateMermaidWith` | Mermaid state | State diagram |
+| `toJSON` | JSON | Graph IR serialized to JSON (no theme) |
+
+### `renderers { theme?, mermaidConfig? }`
+
+Factory that returns an attrset of all pre-configured renderers. Each key is a `toFoo` function with the given theme/config baked in. Includes `toJSON`.
+
+## Themes
+
+### `defaultTheme`
+
+Hard-coded github-light palette. No `pkgs` required -- the library is usable without running any build-time tools.
+
+### `themeFromBase16 { pkgs, scheme }`
+
+Build a theme from a [base16](https://github.com/tinted-theming/schemes) palette. Converts the YAML scheme to JSON via `yj` at build time.
+
+```nix
+theme = diag.themeFromBase16 { inherit pkgs; scheme = "catppuccin-mocha"; };
+```
+
+### `themeFromPalette palette`
+
+Build a theme from a raw palette attrset (`{ base00, base01, ..., base0F }`).
+
+### `paletteFromBase16 { pkgs, scheme }`
+
+Low-level helper: returns the raw `{ base00, ..., base0F }` palette without wrapping it in a theme record.
+
+### Theme record fields
+
+A theme record contains: `palette`, `background`, `foreground`, `mutedForeground`, `nodeBg`, `nodeBorder`, `nodeText`, `clusterBg`, `clusterBorder`, `edgeColor`, `edgeText`, `labelBg`, `rootFill`, `rootStroke`, `rootText`, `excludedFill`, `excludedStroke`, `excludedText`, `replacedFill`, `replacedStroke`, `replacedText`, and `accentPool` (list of 8 accent colors used by per-node color hashing).
+
+## Fleet
+
+### `fleet.of { hosts?, flakeName? }`
+
+Build fleet-wide data from the host registry. `hosts` defaults to `den.hosts`; `flakeName` defaults to `"den flake"`.
+
+Returns:
+
+| Field | Type | Description |
+|---|---|---|
+| `flakeName` | `string` | Display name for the fleet |
+| `hosts` | `[{ name, description }]` | Host records (description is the system string) |
+| `users` | `[{ name }]` | Deduplicated user records across all hosts |
+| `relations` | `[{ from, to, label }]` | User-to-host edges labeled with class names |
+| `providerSubAspects` | `[{ provider, subAspect, hostName }]` | Lazily evaluated provider sub-aspects per host |
+
+## Render context
+
+### `renderContext { pkgs, theme?, mermaidConfig?, mermaidCli?, renderFonts?, fontFamily? }`
+
+Factory that builds a record carrying everything needed to render views. Wires up SVG infrastructure and pre-configured renderer sets.
+
+Returns:
+
+| Field | Description |
+|---|---|
+| `render` | Renderer set with default theme (no `mermaidConfig`) |
+| `renderDense` | Renderer set with `mermaidConfig` applied |
+| `theme` | The resolved theme record |
+| `views` | Pre-built view definition sets (`.core`, `.host`, `.user`, `.home`, `.fleet`, `.classViews`) |
+| `mmdSourceToSvg` | `base -> source -> derivation` -- Mermaid source to SVG |
+| `pumlSourceToSvg` | `base -> source -> derivation` -- PlantUML source to SVG |
+
+```nix
+rc = diag.renderContext { inherit pkgs; mermaidConfig = { layout = "elk"; }; };
+rendered = rc.render.toMermaid myGraph;
+```
+
+## Export helpers
+
+Utilities for turning view definitions into derivations, packages, and write scripts. Available under `diag.export`.
+
+### `entityEntries { pkgs, rc, diag } { entity, name, dir, viewDefs, galleryDrv? }`
+
+Generate all derivation entries (markdown + SVG) for a single entity. `entity` must be a pre-computed graph.
+
+### `fleetEntries { pkgs } { fleetData, viewDefs, galleryDrv? }`
+
+Generate all derivation entries for fleet-level views.
+
+### `entriesToPackages`
+
+`entries -> attrset` -- Convert entry list to a `{ name = derivation; }` attrset suitable for `packages`.
+
+### `entriesToFiles`
+
+`entries -> [{ path_, drv }]` -- Convert entries to file records.
+
+### `mkGallery pkgs { name, dir, title, entries }`
+
+Build a gallery markdown file embedding all SVG views for a directory.
+
+### `mkWriteScript pkgs { entries, galleries?, readmeDrv?, destExpr?, scriptName? }`
+
+Assemble a shell script that copies all entries and galleries to a target directory. Used by diagram templates to produce a `write-diagrams` package.
+
+## Views
+
+View definitions describe what to compute from a graph IR and how to present it. Each is a list of records with fields: `view` (identifier), `title`, `altText`, `mdLang`, `svgInfix`, `svgFn`, and `compute` (`graph -> string`).
+
+### `views.core rc`
+
+Essential views shared by all entity kinds: aspect hierarchy, stage sequence, expanded stage sequence, policy sequence, provider tree, and IR JSON.
+
+### `views.extended rc`
+
+Optional extra views: context hierarchy, simplified, stage topology, providers resolved, adapter impact, structural decisions, and user-declared aspects.
+
+### `views.host rc` / `views.user rc` / `views.home rc`
+
+Entity-specific view sets. Currently all return `views.core rc`.
+
+### `views.fleet rc`
+
+Fleet-wide views: aspect namespace, fleet C4 context (PlantUML), and fleet provider matrix.
+
+### `views.classViews rc classes`
+
+Dynamic per-class views. Generates a class-slice view for each class name in the list.
+
+## Trace capture
+
+Low-level capture functions used internally by the convenience wrappers. Available at the top level of `den.lib.diag`.
+
+### `capture class root`
+
+Capture structured trace entries for a single class. Returns a list of entries.
+
+### `captureAll classes root`
+
+Capture entries for multiple classes, concatenated.
+
+### `captureWithPaths classes root`
+
+Returns `{ entries, pathsByClass, ctxTrace }` -- entries plus per-class path sets needed by presence filters.
+
+### `captureWithPathsWith { classes, root, extraHandlers? }`
+
+Extended form accepting additional trace handlers.
