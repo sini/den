@@ -104,6 +104,17 @@ let
                   in
                   den.lib.resolveStage kind ctx;
               };
+              options.collisionPolicy = lib.mkOption {
+                description = "How to handle collisions between den context args and module-system args in flat-form class modules.";
+                type = lib.types.nullOr (
+                  lib.types.enum [
+                    "error"
+                    "class-wins"
+                    "den-wins"
+                  ]
+                );
+                default = null;
+              };
             };
         in
         if den.stages ? ${kind} then
