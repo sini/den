@@ -30,17 +30,104 @@ let
     "_"
   ] (_: true);
 
+  wrapClassModule =
+    {
+      module,
+      ctx,
+      aspectPolicy,
+      globalPolicy,
+    }:
+    if !builtins.isFunction module then
+      {
+        inherit module;
+        wrapped = false;
+      }
+    else
+      let
+        allArgs = builtins.functionArgs module;
+        argNames = builtins.attrNames allArgs;
+        denArgNames = builtins.filter (k: ctx ? ${k}) argNames;
+        # Only warn for args matching known schema kinds that have no default.
+        # Avoids false warnings on module-system args (config, pkgs, etc.).
+        schemaKinds = builtins.attrNames (den.schema or { });
+        missingDenArgNames = builtins.filter (k: builtins.elem k schemaKinds && !(allArgs.${k} or false)) (
+          builtins.filter (k: !(ctx ? ${k})) argNames
+        );
+      in
+      if denArgNames == [ ] then
+        let
+          warned = builtins.foldl' (
+            mod: k: lib.warn "den: class module requests '${k}' but no ${k} context is available" mod
+          ) module missingDenArgNames;
+        in
+        {
+          module = warned;
+          wrapped = false;
+        }
+      else
+        let
+          denArgs = lib.genAttrs denArgNames (k: ctx.${k});
+          remainingArgs = removeAttrs allArgs denArgNames;
+          wrapper =
+            moduleArgs:
+            let
+              collisions = builtins.intersectAttrs moduleArgs denArgs;
+              resolvePolicy =
+                name:
+                if aspectPolicy != null then
+                  aspectPolicy
+                else if
+                  builtins.isAttrs (ctx.${name} or null)
+                  && (ctx.${name} ? collisionPolicy)
+                  && ctx.${name}.collisionPolicy != null
+                then
+                  ctx.${name}.collisionPolicy
+                else
+                  globalPolicy;
+              kept = lib.filterAttrs (
+                name: _:
+                let
+                  policy = resolvePolicy name;
+                in
+                if !(collisions ? ${name}) then
+                  true
+                else if policy == "error" then
+                  throw "den: class module arg '${name}' collides with module-system arg — set collisionPolicy to resolve"
+                else if policy == "class-wins" then
+                  lib.warn "den: class module arg '${name}' collision — class-wins, den value dropped" false
+                else
+                  lib.warn "den: class module arg '${name}' collision — den-wins, module-system value shadowed" true
+              ) denArgs;
+            in
+            module (moduleArgs // kept);
+        in
+        {
+          module = lib.setFunctionArgs wrapper remainingArgs;
+          wrapped = true;
+        };
+
   emitClasses =
     aspect: classKeys: nodeIdentity:
+    let
+      ctx = aspect.__ctx or { };
+      aspectPolicy = aspect.meta.collisionPolicy or null;
+      globalPolicy = den.config.classModuleCollisionPolicy or "error";
+    in
     fx.seq (
       map (
         k:
+        let
+          result = wrapClassModule {
+            module = aspect.${k};
+            inherit ctx aspectPolicy globalPolicy;
+          };
+        in
         fx.send "emit-class" {
           class = k;
           identity = nodeIdentity;
-          module = aspect.${k};
+          inherit (result) module;
           isContextDependent =
-            (aspect.__parametricResolved or false) || (aspect.meta.contextDependent or false);
+            result.wrapped || (aspect.__parametricResolved or false) || (aspect.meta.contextDependent or false);
         }
       ) classKeys
     );
@@ -420,5 +507,6 @@ in
     emitTransitions
     emitSelfProvide
     structuralKeysSet
+    wrapClassModule
     ;
 }
