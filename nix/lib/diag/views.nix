@@ -75,37 +75,21 @@ let
     # --- Entity-agnostic core views ---
     #
     # Shared foundation for every entity kind (host, user, home, …).
+    # Default views: the essential set for understanding resolution.
     core =
       {
         render,
         renderDense,
         mmdSourceToSvg,
-        pumlSourceToSvg,
         ...
       }:
       [
-        (mkView {
-          view = "ctx";
-          title = "Context Hierarchy";
-          altText = "Context hierarchy";
-          fmt = mmd mmdSourceToSvg;
-          compute = g: renderDense.toMermaid (graph.contextOnly g);
-        })
-
         (mkView {
           view = "aspects";
           title = "Aspect Hierarchy";
           altText = "Aspect hierarchy";
           fmt = mmd mmdSourceToSvg;
           compute = g: renderDense.toMermaid (graph.aspectsOnly g);
-        })
-
-        (mkView {
-          view = "simple";
-          title = "Simplified View";
-          altText = "Simplified";
-          fmt = mmd mmdSourceToSvg;
-          compute = g: renderDense.toMermaid (graph.simplified g);
         })
 
         (mkView {
@@ -133,19 +117,53 @@ let
         })
 
         (mkView {
-          view = "stage-edges";
-          title = "Stage Topology";
-          altText = "Stage edges";
-          fmt = mmd mmdSourceToSvg;
-          compute = g: render.toStageEdgesMermaid g;
-        })
-
-        (mkView {
           view = "providers";
           title = "Provider Tree";
           altText = "Providers";
           fmt = mmd mmdSourceToSvg;
           compute = g: renderDense.toMermaid (graph.providersOnly g);
+        })
+
+        (mkView {
+          view = "ir";
+          title = "Graph IR (JSON)";
+          altText = "IR JSON";
+          fmt = json;
+          compute = g: toJSON g;
+        })
+      ];
+
+    # Extended views: available for opt-in but not in the default set.
+    extended =
+      {
+        render,
+        renderDense,
+        mmdSourceToSvg,
+        ...
+      }:
+      [
+        (mkView {
+          view = "ctx";
+          title = "Context Hierarchy";
+          altText = "Context hierarchy";
+          fmt = mmd mmdSourceToSvg;
+          compute = g: renderDense.toMermaid (graph.contextOnly g);
+        })
+
+        (mkView {
+          view = "simple";
+          title = "Simplified View";
+          altText = "Simplified";
+          fmt = mmd mmdSourceToSvg;
+          compute = g: renderDense.toMermaid (graph.simplified g);
+        })
+
+        (mkView {
+          view = "stage-edges";
+          title = "Stage Topology";
+          altText = "Stage edges";
+          fmt = mmd mmdSourceToSvg;
+          compute = g: render.toStageEdgesMermaid g;
         })
 
         (mkView {
@@ -181,11 +199,11 @@ let
         })
 
         (mkView {
-          view = "ir";
-          title = "Graph IR (JSON)";
-          altText = "IR JSON";
-          fmt = json;
-          compute = g: toJSON g;
+          view = "diff-classes";
+          title = "Class Diff";
+          altText = "Class diff";
+          fmt = mmd mmdSourceToSvg;
+          compute = g: renderDense.toMermaid (graph.diffClasses g);
         })
       ];
 
@@ -211,40 +229,8 @@ let
         }
       ) classes;
 
-    # --- Per-entity views (host): core + host-specific ---
-    host =
-      rc@{
-        render,
-        renderDense,
-        mmdSourceToSvg,
-        pumlSourceToSvg,
-        ...
-      }:
-      (self.core rc)
-      ++ [
-        (mkView {
-          view = "diff-classes";
-          title = "Class Diff (nixos vs homeManager)";
-          altText = "Class diff";
-          fmt = mmd mmdSourceToSvg;
-          compute =
-            g:
-            renderDense.toMermaid (
-              graph.diff {
-                a = graph.classSlice "nixos" g;
-                b = graph.classSlice "homeManager" g;
-              }
-            );
-        })
-
-        (mkView {
-          view = "c4component";
-          title = "C4 Component View";
-          altText = "C4 Component";
-          fmt = puml pumlSourceToSvg;
-          compute = g: render.toC4Component (graph.aspectsOnly g);
-        })
-      ];
+    # --- Per-entity views (host): core + class views ---
+    host = rc: self.core rc;
 
     # --- Per-entity views (user): core only ---
     user = rc: self.core rc;

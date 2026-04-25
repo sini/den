@@ -198,6 +198,39 @@ in
         }
       ) allHosts;
 
+      userGalleries = map (
+        u:
+        let
+          dir = "users/${u.name}";
+        in
+        {
+          path = "diagrams/users/${u.name}.md";
+          drv = mkGallery pkgs {
+            name = u.name;
+            inherit dir;
+            title = "Gallery: ${u.name}";
+            entries = everyEntry;
+          };
+        }
+      ) filteredUsers;
+
+      homeGalleries = map (
+        h:
+        let
+          safeName = lib.replaceStrings [ "@" ] [ "-at-" ] h.key;
+          dir = "homes/${safeName}";
+        in
+        {
+          path = "diagrams/homes/${safeName}.md";
+          drv = mkGallery pkgs {
+            name = "home-${safeName}";
+            inherit dir;
+            title = "Gallery: ${safeName}";
+            entries = everyEntry;
+          };
+        }
+      ) filteredHomes;
+
       fleetGallery = {
         path = "diagrams/fleet.md";
         drv = mkGallery pkgs {
@@ -208,7 +241,7 @@ in
         };
       };
 
-      galleries = hostGalleries ++ [ fleetGallery ];
+      galleries = hostGalleries ++ userGalleries ++ homeGalleries ++ [ fleetGallery ];
 
       readmeDrv = pkgs.writeText "README.md" ''
         # Diag Demo

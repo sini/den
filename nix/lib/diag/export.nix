@@ -94,45 +94,23 @@ let
     pkgs:
     {
       renderDense,
-      render,
       mmdSourceToSvg,
-      dotSourceToSvg,
-      pumlSourceToSvg,
       ...
     }:
     dir: entityName: graph:
     let
       mmdSrc = renderDense.toMermaid graph;
-      dotSrc = render.toDot graph;
-      pumlSrc = render.toPlantUML graph;
       base = "${entityName}-dag";
-      mdDrv = pkgs.writeText "${base}.md" ''
-        # Full DAG: ${entityName}
-
-        ## Mermaid
-
-        ![Mermaid render](./dag.mmd.svg)
-
-        ```mermaid
-        ${mmdSrc}
-        ```
-
-        ## Graphviz DOT
-
-        ![DOT render](./dag.dot.svg)
-
-        ```dot
-        ${dotSrc}
-        ```
-
-        ## PlantUML
-
-        ![PlantUML render](./dag.puml.svg)
-
-        ```plantuml
-        ${pumlSrc}
-        ```
-      '';
+      mdDrv = mkViewMd pkgs {
+        inherit base;
+        viewName = "dag";
+        title = "Full DAG";
+        inherit entityName;
+        altText = "DAG";
+        svgInfix = "mmd";
+        mdLang = "mermaid";
+        source = mmdSrc;
+      };
       mkEntry = ext: tool: drv: {
         name = entityName;
         view = "dag";
@@ -147,8 +125,6 @@ let
     [
       (mkEntry "md" null mdDrv)
       (mkEntry "svg" "mmd" (mmdSourceToSvg base mmdSrc))
-      (mkEntry "svg" "dot" (dotSourceToSvg base dotSrc))
-      (mkEntry "svg" "puml" (pumlSourceToSvg base pumlSrc))
     ];
 
   # Fleet view → [md entry, svg entry]

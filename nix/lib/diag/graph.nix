@@ -458,10 +458,16 @@ let
 
       phantomStubEntries = map stubEntry phantomProviderNames;
       rawNodes = map mkNode (lib.sort (a: b: a.name < b.name) (nodes ++ phantomStubEntries));
-      # Tag default-style leaf nodes (no children) as terminal for distinct
-      # visual styling. Excluded/replaced/adapter/policy leaves keep their style.
+      # Tag resolution artifact leaves as terminal — these are parametric
+      # resolution outputs (e.g., user/resolve(alice,devbox)) that have no
+      # children. Regular leaf aspects (networking, demo-shell) keep default style.
+      isResolutionArtifact = n: builtins.match ".*/resolve\\(.*" n.label != null;
       finalNodes = map (
-        n: if isLeafNode n && n.style == "default" then n // { style = "terminal"; } else n
+        n:
+        if isLeafNode n && n.style == "default" && isResolutionArtifact n then
+          n // { style = "terminal"; }
+        else
+          n
       ) rawNodes;
     in
     {
