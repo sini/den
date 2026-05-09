@@ -260,6 +260,113 @@
       }
     );
 
+    # policy.for — list of entities matches any
+    test-for-entity-list = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.h.users.u = { };
+        expr =
+          let
+            p = {
+              __isPolicy = true;
+              name = "multi-target";
+              fn = _: [ "matched" ];
+            };
+            wrapped = den.lib.policy.for [
+              { id_hash = "aaa"; }
+              { id_hash = "bbb"; }
+            ] p;
+            ctxFirst = {
+              __entityKind = "host";
+              host.id_hash = "aaa";
+            };
+            ctxSecond = {
+              __entityKind = "host";
+              host.id_hash = "bbb";
+            };
+            ctxNeither = {
+              __entityKind = "host";
+              host.id_hash = "ccc";
+            };
+          in
+          {
+            matchFirst = wrapped.fn ctxFirst;
+            matchSecond = wrapped.fn ctxSecond;
+            matchNeither = wrapped.fn ctxNeither;
+            name = wrapped.name;
+          };
+        expected = {
+          matchFirst = [ "matched" ];
+          matchSecond = [ "matched" ];
+          matchNeither = [ ];
+          name = "multi-target";
+        };
+      }
+    );
+
+    # policy.for — list with mixed id_hash presence
+    test-for-mixed-hash-list = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.h.users.u = { };
+        expr =
+          let
+            p = {
+              __isPolicy = true;
+              name = "mixed";
+              fn = _: [ "hit" ];
+            };
+            wrapped = den.lib.policy.for [
+              { id_hash = "aaa"; }
+              { name = "no-hash"; }
+            ] p;
+            ctxMatch = {
+              __entityKind = "host";
+              host.id_hash = "aaa";
+            };
+            ctxNoHash = {
+              __entityKind = "host";
+              host = {
+                name = "no-hash";
+              };
+            };
+          in
+          {
+            matchesFirst = wrapped.fn ctxMatch;
+            noHashNeverMatches = wrapped.fn ctxNoHash;
+          };
+        expected = {
+          matchesFirst = [ "hit" ];
+          noHashNeverMatches = [ ];
+        };
+      }
+    );
+
+    # policy.for — entity without id_hash never matches
+    test-for-no-id-hash = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.h.users.u = { };
+        expr =
+          let
+            p = {
+              __isPolicy = true;
+              name = "no-hash";
+              fn = _: [ "should-not-fire" ];
+            };
+            wrapped = den.lib.policy.for { name = "bare"; } p;
+            ctx = {
+              __entityKind = "host";
+              host = {
+                name = "bare";
+              };
+            };
+          in
+          wrapped.fn ctx;
+        expected = [ ];
+      }
+    );
+
     # Raw function input — unwrapped fn gets name = "<inline>"
     test-raw-function-input = denTest (
       { den, ... }:

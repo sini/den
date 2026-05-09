@@ -102,8 +102,11 @@ let
                 default =
                   let
                     isPrimitive =
-                      _: opt:
-                      (opt ? type) && builtins.elem (opt.type.name or "") primitiveTypeNames && !(opt.internal or false);
+                      name: opt:
+                      !(lib.hasPrefix "_" name)
+                      && (opt ? type)
+                      && builtins.elem (opt.type.name or "") primitiveTypeNames
+                      && !(opt.internal or false);
                     identityKeys = lib.sort (a: b: a < b) (builtins.attrNames (lib.filterAttrs isPrimitive options));
                     encode =
                       k:
