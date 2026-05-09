@@ -149,11 +149,14 @@
         collisionPolicy = "class-wins";
       };
 
-  # Wrap a policy (or list of policies) to only fire for a specific entity.
+  # Wrap a policy (or list of policies) to only fire for specific entities.
+  # Accepts a single entity or a list of entities as the first argument.
   # Uses id_hash for robust identity matching.
   for =
-    entity: policiesOrSingle:
+    entityOrEntities: policiesOrSingle:
     let
+      entities = if builtins.isList entityOrEntities then entityOrEntities else [ entityOrEntities ];
+      entityHashes = builtins.filter (h: h != null) (map (e: e.id_hash or null) entities);
       policies = if builtins.isList policiesOrSingle then policiesOrSingle else [ policiesOrSingle ];
       wrap =
         p:
@@ -176,11 +179,9 @@
             let
               entityKind = ctx.__entityKind or null;
               ctxEntity = if entityKind != null then ctx.${entityKind} or null else null;
+              ctxHash = if ctxEntity != null then ctxEntity.id_hash or null else null;
             in
-            if ctxEntity != null && (ctxEntity.id_hash or null) == (entity.id_hash or null) then
-              inner.fn ctx
-            else
-              [ ];
+            if ctxHash != null && builtins.elem ctxHash entityHashes then inner.fn ctx else [ ];
         };
     in
     if builtins.isList policiesOrSingle then map wrap policies else wrap policiesOrSingle;
