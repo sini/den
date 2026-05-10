@@ -274,6 +274,11 @@ let
   # Multi-site definitions are preserved as a list with file attribution.
   # Already-wrapped values (from cross-submodule propagation) are flattened
   # to prevent double-wrapping.
+  #
+  # Attrset definition values are shallow-merged onto the wrapper so that
+  # nested attribute access works (e.g. `gloom.apps.polybar.razermon`).
+  # Pipeline consumers use __contentValues for processing; the forwarded
+  # attributes are a convenience for direct config access and includes.
   aspectContentType =
     typeCfg:
     lib.types.mkOptionType {
@@ -293,8 +298,13 @@ let
             else
               [ { inherit (d) value file; } ]
           ) defs;
+          # Shallow-merge attrset definition values so sub-keys are directly
+          # accessible on the wrapper (enables bare nested aspect access).
+          attrVals = builtins.filter builtins.isAttrs (map (d: d.value) flatDefs);
+          forwarded = builtins.foldl' (a: b: a // b) { } attrVals;
         in
-        {
+        forwarded
+        // {
           __contentValues = flatDefs;
           __provider = (typeCfg.providerPrefix or [ ]) ++ [ keyName ];
         };
