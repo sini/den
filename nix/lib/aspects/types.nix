@@ -204,6 +204,12 @@ let
           # through aspectSubmodule and the function is buried as a freeform
           # key.  Extract the function so existing dispatch handles it.
           isContentWrapper = d: builtins.isAttrs d.value && d.value ? __contentValues && !(d.value ? __fn);
+          nameFromProvider =
+            v:
+            let
+              prov = v.__provider or [ ];
+            in
+            if prov != [ ] then lib.last prov else null;
           unwrapContent =
             d:
             let
@@ -217,8 +223,23 @@ let
                   args != { } && !(args ? config) && !(args ? options)
                 )
               ) d.value.__contentValues;
+              provName = nameFromProvider d.value;
             in
-            if builtins.length fns == 1 then d // { value = (builtins.head fns).value; } else d;
+            if builtins.length fns == 1 then
+              d // { value = (builtins.head fns).value; }
+            else if provName != null then
+              # Preserve identity: inject name and provider chain from
+              # __provider so aspectSubmodule.merge produces a meaningful
+              # identity instead of an anonymous include index.
+              d
+              // {
+                value = d.value // {
+                  name = provName;
+                  meta.provider = lib.init d.value.__provider;
+                };
+              }
+            else
+              d;
           defs' = map (d: if isContentWrapper d then unwrapContent d else d) defs;
           listDefs = builtins.filter (d: builtins.isList d.value) defs';
           policyDefs = builtins.filter (d: builtins.isAttrs d.value && d.value.__isPolicy or false) defs';
@@ -395,7 +416,14 @@ let
     lib.types.submodule (
       { name, config, ... }:
       {
-        freeformType = lib.types.lazyAttrsOf (aspectKeyType typeCfg);
+        freeformType = lib.types.lazyAttrsOf (
+          aspectKeyType (
+            typeCfg
+            // {
+              providerPrefix = (typeCfg.providerPrefix or [ ]) ++ [ config.name ];
+            }
+          )
+        );
         imports = [
           (lib.mkAliasOptionModule [ "_" ] [ "provides" ])
           (den.schema.aspect or { })

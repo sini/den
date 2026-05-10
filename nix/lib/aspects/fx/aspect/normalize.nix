@@ -65,6 +65,34 @@ let
         wrapFunctorChild child
       else
         wrapBareFn child
+    # Content wrapper from aspectContentType (has __contentValues but no name
+    # yet).  Inject identity from __provider and extract parametric functions
+    # into includes so the pipeline resolves them.  listOf doesn't call
+    # providerType.merge per-element, so inner wrappers in includes lists
+    # arrive here unprocessed.
+    else if builtins.isAttrs child && child ? __contentValues && !(child ? name) then
+      let
+        prov = child.__provider or [ ];
+        provName = if prov != [ ] then lib.last prov else null;
+        fns = builtins.filter (
+          d:
+          lib.isFunction d.value
+          && (
+            let
+              args = builtins.functionArgs d.value;
+            in
+            args != { } && !(args ? config) && !(args ? options)
+          )
+        ) child.__contentValues;
+      in
+      child
+      // lib.optionalAttrs (provName != null) {
+        name = provName;
+        meta.provider = lib.init prov;
+      }
+      // lib.optionalAttrs (fns != [ ]) {
+        includes = (child.includes or [ ]) ++ map (d: d.value) fns;
+      }
     else
       child;
 in
