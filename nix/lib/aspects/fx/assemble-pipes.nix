@@ -641,16 +641,8 @@ let
           pipeData = lib.genAttrs pipeNames (
             pipeName:
             let
-              rawEntries = scopeImports.${pipeName} or [ ];
-              baseValues = flattenAndExtract rawEntries;
-              # Resolve local pipeline-parametric values eagerly, then mark
-              # config-dependent thunks for deferred resolution inside evalModules.
-              resolvedBase = builtins.concatMap (resolveLocalParametric scopeCtx) baseValues;
-              markedBase = markConfigThunks resolvedBase;
-              # Merge exposed data from children (also mark any thunks).
+              combinedBase = mkCombinedBase pipeName;
               exposedValues = exposedForScope.${pipeName} or [ ];
-              markedExposed = markConfigThunks exposedValues;
-              combinedBase = markedBase ++ markedExposed;
               relevantEffects = builtins.filter (e: e.pipeName == pipeName) scopeEffects;
               # Validate no pipe.as self-targeting in this scope.
               _asCheck = builtins.deepSeq (map (
@@ -695,7 +687,7 @@ let
 
               normalResult =
                 if untargetedEffects == [ ] && relevantEffects == [ ] && exposedValues == [ ] then
-                  markedBase
+                  combinedBase
                 else if untargetedEffects == [ ] then
                   # All effects are targeted, expose, or pipe.as — scope-wide data is base values unchanged.
                   combinedBase
@@ -719,13 +711,7 @@ let
               perPipe = lib.genAttrs pipeNames (
                 pipeName:
                 let
-                  rawEntries = scopeImports.${pipeName} or [ ];
-                  baseValues = flattenAndExtract rawEntries;
-                  resolvedBase = builtins.concatMap (resolveLocalParametric scopeCtx) baseValues;
-                  markedBase = markConfigThunks resolvedBase;
-                  exposedValues = exposedForScope.${pipeName} or [ ];
-                  markedExposed = markConfigThunks exposedValues;
-                  combinedBase = markedBase ++ markedExposed;
+                  combinedBase = mkCombinedBase pipeName;
                   relevantEffects = builtins.filter (e: e.pipeName == pipeName) scopeEffects;
                   # Targeted effects on this pipe WITHOUT pipe.as (they stay under this pipeName).
                   targetedEffects = builtins.filter (e: hasToStage e && !hasAsStage e) relevantEffects;

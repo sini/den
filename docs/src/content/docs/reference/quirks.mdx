@@ -171,8 +171,26 @@ pipe.for (vals: lib.reverseList vals)
 
 ## Routing stages
 
-Routing stages control where data flows. They are terminal — no transform
-stages should follow them.
+Routing stages control where data flows. They are declarative directives —
+transform stages should appear before them, not after.
+
+### `pipe.as targetPipeName`
+
+Rename pipe output. Data from the source pipe is delivered under
+`targetPipeName` instead. The target must be a different pipe than the
+source -- self-targeting throws an error.
+
+```nix
+pipe.from "http-backends" [
+  (pipe.collect ({ host, ... }: true))
+  (pipe.transform (b: "${b.addr}:${toString b.port}"))
+  (pipe.as "monitoring-targets")
+]
+```
+
+Consumers of `monitoring-targets` receive the transformed data.
+Consumers of `http-backends` are unaffected. Composes with `pipe.to`
+for aspect-targeted delivery under the renamed name.
 
 ### `pipe.expose`
 
@@ -270,7 +288,8 @@ wrapping. The sequence:
    - Merge exposed data from children
    - Mark local config thunks
    - Apply untargeted pipe effects
-   - Build targeted data (`pipe.to`)
+   - Route inbound `pipe.as` effects from other pipes
+   - Build targeted data (`pipe.to`, `pipe.as` + `pipe.to`)
 3. **Inject into scope contexts** — pipe data becomes available as
    function args in `wrapClassModule`
 
