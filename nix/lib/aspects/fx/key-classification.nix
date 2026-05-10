@@ -36,11 +36,25 @@ let
   # wrapped as class modules by wrapCollectedClasses.
   pipeRegistry = den.quirks or { };
 
+  # Check whether a value looks like class content (a module or config attrset)
+  # rather than plain data.  Rejects flat-scalar attrsets like { name = "…"; }
+  # that happen to sit under a key matching a registered class name.
+  looksLikeClassContent =
+    v:
+    lib.isFunction v
+    || (builtins.isAttrs v && v ? __contentValues)
+    || (
+      builtins.isAttrs v
+      && builtins.any (k: builtins.isAttrs v.${k} || lib.isFunction v.${k}) (builtins.attrNames v)
+    );
+
   hasRecognizedSubKeys =
     depth: val:
     builtins.isAttrs val
     && builtins.any (
-      sk: classRegistry ? ${sk} || (depth > 0 && hasRecognizedSubKeys (depth - 1) val.${sk})
+      sk:
+      (classRegistry ? ${sk} && looksLikeClassContent val.${sk})
+      || (depth > 0 && builtins.isAttrs (val.${sk} or null) && hasRecognizedSubKeys (depth - 1) val.${sk})
     ) (builtins.attrNames val);
 
   isNestedKey =

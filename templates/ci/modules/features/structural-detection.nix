@@ -360,6 +360,60 @@
       }
     );
 
+    # Freeform data key whose sub-key name collides with a registered class
+    # must NOT be treated as a nested aspect.  Regression test: git.user data
+    # was misclassified because "user" matched den.classes.user.
+    test-class-name-collision-not-nested = denTest (
+      { den, ... }:
+      let
+        fx = den.lib.fx;
+        aspect = {
+          name = "dev";
+          meta = { };
+          nixos = {
+            networking.hostName = "test";
+          };
+          # "git" is not a class; its child "user" collides with den.classes.user
+          # but the value is flat data, not a module — must be ignored.
+          git = {
+            user = {
+              name = "Alice";
+              email = "alice@example.com";
+            };
+          };
+          includes = [ ];
+        };
+        comp = fx.send "resolve" {
+          inherit aspect;
+          identity = den.lib.aspects.fx.identity.key aspect;
+          ctx = { };
+        };
+        result = fx.handle {
+          handlers = den.lib.aspects.fx.pipeline.defaultHandlers {
+            class = "nixos";
+            ctx = { };
+          };
+          state = den.lib.aspects.fx.pipeline.defaultState;
+        } comp;
+      in
+      {
+        den.classes.nixos.description = "NixOS";
+        den.classes.user.description = "User environment";
+
+        # Only nixos produces an import; git.user data is not dispatched as user class
+        expr = builtins.length (
+          (builtins.foldl' (
+            acc: sd:
+            lib.zipAttrsWith (_: builtins.concatLists) [
+              acc
+              sd
+            ]
+          ) { } (builtins.attrValues (result.state.scopedClassImports null))).nixos or [ ]
+        );
+        expected = 1;
+      }
+    );
+
     # funnyNames helper works with funny class registered in provider.
     test-funny-class-registered = denTest (
       { den, funnyNames, ... }:
