@@ -88,12 +88,19 @@ let
           }
         ]
       );
+      # Forward provides children onto the merged aspect so
+      # aspect.docker resolves to aspect.provides.docker.
+      # provides-first so direct freeform keys on merged take priority.
+      # __providesForwarded tells the pipeline to skip these during classification.
+      providesChildren = builtins.removeAttrs (merged.provides or { }) [ "_module" ];
     in
     # __functor makes merged aspects callable (aspect { host = ...; }).
     # Explicit functors (e.g. den.batteries.forward) take priority.
-    merged
+    providesChildren
+    // merged
     // {
       __functor = if originalFunctor != null then originalFunctor else resolveAspectWith;
+      __providesForwarded = builtins.attrNames providesChildren;
     };
 
   aspectMeta =

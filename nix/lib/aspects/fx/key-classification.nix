@@ -25,6 +25,7 @@ let
     "__parametricResolvedArgs"
     "__contentValues"
     "__provider"
+    "__providesForwarded"
     "_module"
     "_"
   ] (_: true);
@@ -68,7 +69,10 @@ let
   classifyKeys =
     targetClass: aspect:
     let
-      allKeys = builtins.filter (k: !(structuralKeysSet ? ${k})) (builtins.attrNames aspect);
+      forwardedSet = lib.genAttrs (aspect.__providesForwarded or [ ]) (_: true);
+      allKeys = builtins.filter (k: !(structuralKeysSet ? ${k}) && !(forwardedSet ? ${k})) (
+        builtins.attrNames aspect
+      );
     in
     if classRegistry == { } && pipeRegistry == { } then
       {
