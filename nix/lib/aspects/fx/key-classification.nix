@@ -23,6 +23,8 @@ let
     "__ctxId"
     "__entityKind"
     "__parametricResolvedArgs"
+    "__contentValues"
+    "__provider"
     "_module"
     "_"
   ] (_: true);
