@@ -624,6 +624,19 @@ let
           scopeEffects = scopedPipeEffects.${scopeId} or [ ];
           exposedForScope = allExposed.${scopeId} or { };
 
+          # Resolve and mark a pipe's base values (imports + exposed), used by pipe.as routing.
+          mkCombinedBase =
+            pn:
+            let
+              rawEntries = scopeImports.${pn} or [ ];
+              baseValues = flattenAndExtract rawEntries;
+              resolvedBase = builtins.concatMap (resolveLocalParametric scopeCtx) baseValues;
+              markedBase = markConfigThunks resolvedBase;
+              exposedValues = exposedForScope.${pn} or [ ];
+              markedExposed = markConfigThunks exposedValues;
+            in
+            markedBase ++ markedExposed;
+
           # For each pipe, separate untargeted and targeted effects.
           pipeData = lib.genAttrs pipeNames (
             pipeName:
@@ -665,13 +678,7 @@ let
               asResults = lib.concatMap (
                 e:
                 let
-                  srcEntries = scopeImports.${e.pipeName} or [ ];
-                  srcBase = flattenAndExtract srcEntries;
-                  resolvedSrc = builtins.concatMap (resolveLocalParametric scopeCtx) srcBase;
-                  markedSrc = markConfigThunks resolvedSrc;
-                  srcExposed = exposedForScope.${e.pipeName} or [ ];
-                  markedSrcExposed = markConfigThunks srcExposed;
-                  combinedSrc = markedSrc ++ markedSrcExposed;
+                  combinedSrc = mkCombinedBase e.pipeName;
                 in
                 applyEffectStages {
                   inherit
@@ -690,6 +697,7 @@ let
                 if untargetedEffects == [ ] && relevantEffects == [ ] && exposedValues == [ ] then
                   markedBase
                 else if untargetedEffects == [ ] then
+                  # All effects are targeted, expose, or pipe.as — scope-wide data is base values unchanged.
                   combinedBase
                 else
                   applyPipeEffects {
@@ -753,14 +761,7 @@ let
                   asTargetedResults = lib.foldl' (
                     acc: e:
                     let
-                      srcEntries = scopeImports.${e.pipeName} or [ ];
-                      srcBase = flattenAndExtract srcEntries;
-                      resolvedSrc = builtins.concatMap (resolveLocalParametric scopeCtx) srcBase;
-                      markedSrc = markConfigThunks resolvedSrc;
-                      srcExposed = exposedForScope.${e.pipeName} or [ ];
-                      markedSrcExposed = markConfigThunks srcExposed;
-                      combinedSrc = markedSrc ++ markedSrcExposed;
-                      # Strip pipe.as from stages before applying (it's routing, not transform).
+                      combinedSrc = mkCombinedBase e.pipeName;
                       result = buildTargetedData {
                         inherit
                           scopeContexts
