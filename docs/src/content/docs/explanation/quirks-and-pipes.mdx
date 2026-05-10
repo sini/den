@@ -172,6 +172,25 @@ den.policies.expose-prefs = { host, user, ... }:
   [ (pipe.from "prefs" [ pipe.expose ]) ];
 ```
 
+### Renaming with `pipe.as`
+
+`pipe.as` delivers data under a different quirk name. This creates
+**derived quirks** — quirks with no native emitters, populated entirely
+from other pipes via collect + transform + rename:
+
+```nix
+den.policies.derive-targets = { host, ... }:
+  let inherit (den.lib.policy) pipe; in
+  [ (pipe.from "backends" [
+      (pipe.transform (b: "${b.addr}:${toString b.port}"))
+      (pipe.as "monitoring-targets")
+    ])
+  ];
+```
+
+Consumers of `monitoring-targets` receive the transformed data. Consumers
+of `backends` are unaffected. Composes with `pipe.to` and `pipe.collect`.
+
 ### Cross-scope with `pipe.collect`
 
 `pipe.collect` harvests data from sibling scopes matching a predicate.

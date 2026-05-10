@@ -328,6 +328,79 @@ den.aspects.postgres = {
 This pattern works because `pipe.for` replaces the list with the fold
 result, and `pipe.to` delivers only to the named aspect.
 
+## Derived quirks with `pipe.as`
+
+`pipe.as` renames pipe output, delivering data under a different quirk name.
+This lets you create **derived quirks** — quirks with no native emitters,
+populated entirely from other pipes:
+
+```nix
+den.quirks.backends = { description = "Backend addresses"; };
+den.quirks.monitoring-targets = { description = "Monitoring targets"; };
+
+den.aspects.web = {
+  backends = [
+    { addr = "10.0.0.1"; port = 80; }
+    { addr = "10.0.0.2"; port = 443; }
+  ];
+};
+
+den.aspects.monitor = {
+  nixos = { monitoring-targets, lib, ... }: {
+    networking.hostName =
+      lib.concatStringsSep "," monitoring-targets;
+  };
+};
+
+den.policies.backends-to-monitoring = { host, ... }:
+  let inherit (den.lib.policy) pipe; in
+  [ (pipe.from "backends" [
+      (pipe.transform (b: "${b.addr}:${toString b.port}"))
+      (pipe.as "monitoring-targets")
+    ])
+  ];
+```
+
+The `monitor` aspect consumes `monitoring-targets` which has no native
+emitters — it's entirely populated via `pipe.as` from `backends`. The
+`web` aspect's data is transformed and renamed, while any direct consumers
+of `backends` see the original data unmodified.
+
+### Combining `pipe.as` with `pipe.collect`
+
+Collect data across hosts, transform it, and deliver under a new name:
+
+```nix
+den.policies.collect-as-urls = { host, ... }:
+  let inherit (den.lib.policy) pipe; in
+  [ (pipe.from "http-addrs" [
+      (pipe.collect ({ host, ... }: true))
+      (pipe.transform (a: "http://${a.addr}:${toString a.port}"))
+      (pipe.as "peer-urls")
+    ])
+  ];
+```
+
+### Combining `pipe.as` with `pipe.to`
+
+Target specific aspects with renamed data:
+
+```nix
+den.policies.targeted-derived = { host, ... }:
+  let inherit (den.lib.policy) pipe; in
+  [ (pipe.from "raw-data" [
+      (pipe.transform (v: "d-${v}"))
+      (pipe.as "derived-data")
+      (pipe.to [ den.aspects.targeted-consumer ])
+    ])
+  ];
+```
+
+<Aside type="caution">
+`pipe.as` must target a different quirk than its source. Self-targeting
+(`pipe.as "same-pipe"`) throws an error.
+</Aside>
+
 ## Config-dependent thunks
 
 Quirk values can depend on a host's NixOS `config`. Declare a function

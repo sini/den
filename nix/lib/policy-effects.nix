@@ -125,6 +125,10 @@
       __pipeStage = "to";
       inherit aspects;
     };
+    as = targetPipeName: {
+      __pipeStage = "as";
+      inherit targetPipeName;
+    };
     expose = {
       __pipeStage = "expose";
     };

@@ -350,6 +350,31 @@ let
     in
     map (a: den.lib.aspects.fx.identity.key a) toStage.aspects;
 
+  # Check whether a pipe effect has a pipe.as renaming stage.
+  hasAsStage = e: builtins.any (s: (s.__pipeStage or "") == "as") (e.stages or [ ]);
+
+  # Extract target pipe name from a pipe.as stage.
+  getAsTarget =
+    e:
+    let
+      asStage = lib.findFirst (s: (s.__pipeStage or "") == "as") null (e.stages or [ ]);
+    in
+    if asStage == null then null else asStage.targetPipeName;
+
+  # Filter out pipe.as stage from a stage list (it's a routing directive, not a transform).
+  stripAsStage = stages: builtins.filter (s: (s.__pipeStage or "") != "as") stages;
+
+  # Validate pipe.as does not target its own source pipe (would silently drop data).
+  assertNoSelfAs =
+    effect:
+    let
+      target = getAsTarget effect;
+    in
+    if target != null && target == effect.pipeName then
+      throw "den: pipe.as targets its own pipe '${effect.pipeName}' — this is a no-op that silently drops data. Remove the pipe.as stage or target a different pipe."
+    else
+      true;
+
   # Choose the right stage processor for an effect's stages.
   # Uses processStagesWithCollect when collect or withProvenance stages are present.
   applyEffectStages =
@@ -599,39 +624,85 @@ let
           scopeEffects = scopedPipeEffects.${scopeId} or [ ];
           exposedForScope = allExposed.${scopeId} or { };
 
+          # Resolve and mark a pipe's base values (imports + exposed), used by pipe.as routing.
+          mkCombinedBase =
+            pn:
+            let
+              rawEntries = scopeImports.${pn} or [ ];
+              baseValues = flattenAndExtract rawEntries;
+              resolvedBase = builtins.concatMap (resolveLocalParametric scopeCtx) baseValues;
+              markedBase = markConfigThunks resolvedBase;
+              exposedValues = exposedForScope.${pn} or [ ];
+              markedExposed = markConfigThunks exposedValues;
+            in
+            markedBase ++ markedExposed;
+
           # For each pipe, separate untargeted and targeted effects.
           pipeData = lib.genAttrs pipeNames (
             pipeName:
             let
-              rawEntries = scopeImports.${pipeName} or [ ];
-              baseValues = flattenAndExtract rawEntries;
-              # Resolve local pipeline-parametric values eagerly, then mark
-              # config-dependent thunks for deferred resolution inside evalModules.
-              resolvedBase = builtins.concatMap (resolveLocalParametric scopeCtx) baseValues;
-              markedBase = markConfigThunks resolvedBase;
-              # Merge exposed data from children (also mark any thunks).
+              combinedBase = mkCombinedBase pipeName;
               exposedValues = exposedForScope.${pipeName} or [ ];
-              markedExposed = markConfigThunks exposedValues;
-              combinedBase = markedBase ++ markedExposed;
               relevantEffects = builtins.filter (e: e.pipeName == pipeName) scopeEffects;
-              # Exclude expose effects from untargeted processing — they route upward, not locally.
-              untargetedEffects = builtins.filter (e: !hasToStage e && !hasExposeStage e) relevantEffects;
+              # Validate no pipe.as self-targeting in this scope.
+              _asCheck = builtins.deepSeq (map (
+                e:
+                assert assertNoSelfAs e;
+                null
+              ) (builtins.filter hasAsStage relevantEffects)) null;
+              # Exclude expose, targeted, and pipe.as effects from untargeted processing.
+              untargetedEffects = builtins.seq _asCheck (
+                builtins.filter (e: !hasToStage e && !hasExposeStage e && !hasAsStage e) relevantEffects
+              );
+
+              # Find pipe.as effects from OTHER pipes that target this pipeName (untargeted only).
+              # Exclude pipe.expose effects — they route upward, not laterally.
+              asInbound = builtins.filter (
+                e:
+                hasAsStage e
+                && !hasToStage e
+                && !hasExposeStage e
+                && getAsTarget e == pipeName
+                && e.pipeName != pipeName
+              ) scopeEffects;
+
+              # Process each inbound pipe.as effect against its SOURCE pipe's base values.
+              asResults = lib.concatMap (
+                e:
+                let
+                  combinedSrc = mkCombinedBase e.pipeName;
+                in
+                applyEffectStages {
+                  inherit
+                    scopeContexts
+                    scopeParent
+                    scopeEntityKind
+                    scopedClassImports
+                    hostConfigs
+                    ;
+                  currentScopeId = scopeId;
+                  pipeName = e.pipeName;
+                } combinedSrc (stripAsStage (e.stages or [ ]))
+              ) asInbound;
+
+              normalResult =
+                if untargetedEffects == [ ] && relevantEffects == [ ] && exposedValues == [ ] then
+                  combinedBase
+                else if untargetedEffects == [ ] then
+                  # All effects are targeted, expose, or pipe.as — scope-wide data is base values unchanged.
+                  combinedBase
+                else
+                  applyPipeEffects {
+                    inherit
+                      scopeContexts
+                      scopeParent
+                      scopeEntityKind
+                      scopedClassImports
+                      hostConfigs
+                      ;
+                  } pipeName scopeId combinedBase untargetedEffects;
             in
-            if untargetedEffects == [ ] && relevantEffects == [ ] && exposedValues == [ ] then
-              markedBase
-            else if untargetedEffects == [ ] then
-              # All effects are targeted/expose — scope-wide data is combined base values.
-              combinedBase
-            else
-              applyPipeEffects {
-                inherit
-                  scopeContexts
-                  scopeParent
-                  scopeEntityKind
-                  scopedClassImports
-                  hostConfigs
-                  ;
-              } pipeName scopeId combinedBase untargetedEffects
+            normalResult ++ asResults
           );
 
           # Build __pipeTargeted: { aspectName → { pipeName → values } }
@@ -640,29 +711,66 @@ let
               perPipe = lib.genAttrs pipeNames (
                 pipeName:
                 let
-                  rawEntries = scopeImports.${pipeName} or [ ];
-                  baseValues = flattenAndExtract rawEntries;
-                  resolvedBase = builtins.concatMap (resolveLocalParametric scopeCtx) baseValues;
-                  markedBase = markConfigThunks resolvedBase;
-                  exposedValues = exposedForScope.${pipeName} or [ ];
-                  markedExposed = markConfigThunks exposedValues;
-                  combinedBase = markedBase ++ markedExposed;
+                  combinedBase = mkCombinedBase pipeName;
                   relevantEffects = builtins.filter (e: e.pipeName == pipeName) scopeEffects;
-                  targetedEffects = builtins.filter hasToStage relevantEffects;
+                  # Targeted effects on this pipe WITHOUT pipe.as (they stay under this pipeName).
+                  targetedEffects = builtins.filter (e: hasToStage e && !hasAsStage e) relevantEffects;
+
+                  # Targeted pipe.as effects from OTHER pipes that rename to this pipeName.
+                  # Exclude pipe.expose effects — they route upward, not laterally.
+                  asTargetedInbound = builtins.filter (
+                    e:
+                    hasAsStage e
+                    && hasToStage e
+                    && !hasExposeStage e
+                    && getAsTarget e == pipeName
+                    && e.pipeName != pipeName
+                  ) scopeEffects;
+
+                  # Build targeted data from native targeted effects.
+                  nativeTargeted =
+                    if targetedEffects == [ ] then
+                      { }
+                    else
+                      buildTargetedData {
+                        inherit
+                          scopeContexts
+                          scopeParent
+                          scopeEntityKind
+                          scopedClassImports
+                          hostConfigs
+                          ;
+                        currentScopeId = scopeId;
+                      } combinedBase targetedEffects;
+
+                  # Build targeted data from inbound pipe.as effects (using source pipe's base).
+                  asTargetedResults = lib.foldl' (
+                    acc: e:
+                    let
+                      combinedSrc = mkCombinedBase e.pipeName;
+                      result = buildTargetedData {
+                        inherit
+                          scopeContexts
+                          scopeParent
+                          scopeEntityKind
+                          scopedClassImports
+                          hostConfigs
+                          ;
+                        currentScopeId = scopeId;
+                      } combinedSrc [ (e // { stages = stripAsStage (e.stages or [ ]); }) ];
+                    in
+                    # Merge: concatenate values per aspect name.
+                    lib.foldl' (
+                      a: aspectName: a // { ${aspectName} = (a.${aspectName} or [ ]) ++ result.${aspectName}; }
+                    ) acc (builtins.attrNames result)
+                  ) { } asTargetedInbound;
+
                 in
-                if targetedEffects == [ ] then
-                  { }
-                else
-                  buildTargetedData {
-                    inherit
-                      scopeContexts
-                      scopeParent
-                      scopeEntityKind
-                      scopedClassImports
-                      hostConfigs
-                      ;
-                    currentScopeId = scopeId;
-                  } combinedBase targetedEffects
+                # Merge native targeted + inbound pipe.as targeted.
+                lib.foldl' (
+                  acc: aspectName:
+                  acc // { ${aspectName} = (acc.${aspectName} or [ ]) ++ (asTargetedResults.${aspectName} or [ ]); }
+                ) nativeTargeted (builtins.attrNames asTargetedResults)
               );
               # Invert: { pipeName → { aspectName → vals } } → { aspectName → { pipeName → vals } }
               allAspectNames = lib.unique (
