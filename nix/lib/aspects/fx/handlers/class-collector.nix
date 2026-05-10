@@ -31,10 +31,10 @@ let
         alreadyEmitted = scopeLocs ? ${loc};
       in
       {
-        resume = null;
+        resume = builtins.trace "EMIT: class=${param.class} loc=${loc} scope=${scope} dup=${builtins.toJSON alreadyEmitted}" null;
         state =
           if alreadyEmitted then
-            state
+            builtins.trace "DEDUP: pruned ${loc} in scope ${scope}" state
           else
             state
             // {
