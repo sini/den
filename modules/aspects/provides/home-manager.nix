@@ -43,9 +43,9 @@ in
   den.schema.host.includes = [
     result.battery
   ]
-  ++ lib.optional (hmHostSchemaIncludes != [ ]) {
-    includes = [ hmHostBridge ];
-  };
+  ++ lib.optionals (hmHostSchemaIncludes != [ ]) [
+    { includes = [ hmHostBridge ]; }
+  ];
 
   den.classes.homeManager.description = "Home Manager user environment";
 }
