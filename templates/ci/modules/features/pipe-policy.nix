@@ -731,5 +731,351 @@
         expected = "443";
       }
     );
+
+    # pipe.as renames pipe output to a different quirk name.
+    test-pipe-as-basic = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.quirks.source = {
+          description = "Source pipe";
+        };
+        den.quirks.target = {
+          description = "Target pipe (no native emitters)";
+        };
+
+        den.aspects.igloo = {
+          includes = [
+            den.aspects.producer
+            den.aspects.consumer
+          ];
+        };
+
+        den.aspects.producer = {
+          source = [
+            { name = "a"; }
+            { name = "b"; }
+          ];
+        };
+
+        den.aspects.consumer = {
+          nixos =
+            { target, ... }:
+            {
+              networking.hostName = lib.concatMapStringsSep "-" (i: i.name) target;
+            };
+        };
+
+        den.policies.rename-pipe =
+          { host, ... }:
+          let
+            inherit (den.lib.policy) pipe;
+          in
+          [
+            (pipe.from "source" [
+              (pipe.as "target")
+            ])
+          ];
+
+        den.default.includes = [ den.policies.rename-pipe ];
+
+        expr = igloo.networking.hostName;
+        expected = "a-b";
+      }
+    );
+
+    # pipe.as with transform: data reshaped before renaming.
+    test-pipe-as-with-transform = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.quirks.raw-ports = {
+          description = "Raw port data";
+        };
+        den.quirks.firewall-rules = {
+          description = "Derived firewall rules";
+        };
+
+        den.aspects.igloo = {
+          includes = [
+            den.aspects.producer
+            den.aspects.consumer
+          ];
+        };
+
+        den.aspects.producer = {
+          raw-ports = [
+            {
+              port = 80;
+              proto = "tcp";
+            }
+            {
+              port = 443;
+              proto = "tcp";
+            }
+          ];
+        };
+
+        den.aspects.consumer = {
+          nixos =
+            { firewall-rules, ... }:
+            {
+              networking.domain = lib.concatStringsSep "-" firewall-rules;
+            };
+        };
+
+        den.policies.derive-rules =
+          { host, ... }:
+          let
+            inherit (den.lib.policy) pipe;
+          in
+          [
+            (pipe.from "raw-ports" [
+              (pipe.transform (p: "${p.proto}:${toString p.port}"))
+              (pipe.as "firewall-rules")
+            ])
+          ];
+
+        den.default.includes = [ den.policies.derive-rules ];
+
+        expr = igloo.networking.domain;
+        expected = "tcp:80-tcp:443";
+      }
+    );
+
+    # pipe.as + pipe.collect: cross-host collection delivered under target name.
+    test-pipe-as-with-collect = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.hosts.x86_64-linux.iceberg.users.alice = { };
+
+        den.quirks.http-addrs = {
+          description = "HTTP addresses";
+        };
+        den.quirks.peer-urls = {
+          description = "Derived peer URLs (no native emitters)";
+        };
+
+        den.policies.collect-as-urls =
+          { host, ... }:
+          let
+            inherit (den.lib.policy) pipe;
+          in
+          [
+            (pipe.from "http-addrs" [
+              (pipe.collect ({ host, ... }: true))
+              (pipe.transform (a: "http://${a.addr}:${toString a.port}"))
+              (pipe.as "peer-urls")
+            ])
+          ];
+
+        den.schema.host.includes = [ den.policies.collect-as-urls ];
+
+        den.aspects.iceberg = {
+          http-addrs = {
+            addr = "10.0.0.2";
+            port = 80;
+          };
+        };
+
+        den.aspects.igloo = {
+          includes = [ den.aspects.url-consumer ];
+          http-addrs = {
+            addr = "10.0.0.1";
+            port = 80;
+          };
+        };
+
+        den.aspects.url-consumer = {
+          nixos =
+            { peer-urls, lib, ... }:
+            {
+              networking.hostName = toString (builtins.length peer-urls);
+              networking.domain = lib.concatStringsSep "," (lib.sort (a: b: a < b) peer-urls);
+            };
+        };
+
+        expr = {
+          count = igloo.networking.hostName;
+          urls = igloo.networking.domain;
+        };
+        expected = {
+          count = "2";
+          urls = "http://10.0.0.1:80,http://10.0.0.2:80";
+        };
+      }
+    );
+
+    # pipe.as + pipe.to: aspect-targeted delivery under renamed pipe.
+    test-pipe-as-with-to = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.quirks.raw-data = {
+          description = "Raw data";
+        };
+        den.quirks.derived-data = {
+          description = "Derived data (no native emitters)";
+        };
+
+        den.aspects.igloo = {
+          includes = [
+            den.aspects.producer
+            den.aspects.targeted-consumer
+            den.aspects.normal-consumer
+          ];
+        };
+
+        den.aspects.producer = {
+          raw-data = [
+            "x"
+            "y"
+          ];
+        };
+
+        # This aspect gets derived-data via pipe.as + pipe.to.
+        den.aspects.targeted-consumer = {
+          nixos =
+            { derived-data, ... }:
+            {
+              networking.hostName = lib.concatStringsSep "-" derived-data;
+            };
+        };
+
+        # This aspect reads raw-data normally (unaffected by pipe.as).
+        den.aspects.normal-consumer = {
+          nixos =
+            { raw-data, ... }:
+            {
+              networking.domain = lib.concatStringsSep "-" raw-data;
+            };
+        };
+
+        den.policies.as-and-to =
+          { host, ... }:
+          let
+            inherit (den.lib.policy) pipe;
+          in
+          [
+            (pipe.from "raw-data" [
+              (pipe.transform (v: "d-${v}"))
+              (pipe.as "derived-data")
+              (pipe.to [ den.aspects.targeted-consumer ])
+            ])
+          ];
+
+        den.default.includes = [ den.policies.as-and-to ];
+
+        expr = {
+          targeted = igloo.networking.hostName;
+          normal = igloo.networking.domain;
+        };
+        expected = {
+          # targeted-consumer gets derived-data via pipe.as + pipe.to
+          targeted = "d-x-d-y";
+          # normal-consumer gets raw-data unmodified
+          normal = "x-y";
+        };
+      }
+    );
+
+    # No-emitter quirk: entirely populated by pipe.as from another pipe.
+    test-pipe-as-no-emitter-quirk = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.quirks.backends = {
+          description = "Backend addresses";
+        };
+        den.quirks.monitoring-targets = {
+          description = "Monitoring targets (no native emitters)";
+        };
+
+        den.aspects.igloo = {
+          includes = [
+            den.aspects.web
+            den.aspects.monitor
+          ];
+        };
+
+        # web emits backends, never mentions monitoring-targets.
+        den.aspects.web = {
+          backends = [
+            {
+              addr = "10.0.0.1";
+              port = 80;
+            }
+            {
+              addr = "10.0.0.2";
+              port = 443;
+            }
+          ];
+        };
+
+        # monitor consumes monitoring-targets — which has no native emitters.
+        den.aspects.monitor = {
+          nixos =
+            { monitoring-targets, lib, ... }:
+            {
+              networking.domain = lib.concatStringsSep "," (lib.sort (a: b: a < b) monitoring-targets);
+            };
+        };
+
+        # Policy derives monitoring-targets from backends via pipe.as.
+        den.policies.backends-to-monitoring =
+          { host, ... }:
+          let
+            inherit (den.lib.policy) pipe;
+          in
+          [
+            (pipe.from "backends" [
+              (pipe.transform (b: "${b.addr}:${toString b.port}"))
+              (pipe.as "monitoring-targets")
+            ])
+          ];
+
+        den.default.includes = [ den.policies.backends-to-monitoring ];
+
+        expr = igloo.networking.domain;
+        expected = "10.0.0.1:80,10.0.0.2:443";
+      }
+    );
+
+    # pipe.as targeting own pipe throws an error.
+    test-pipe-as-self-error = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.quirks.items = {
+          description = "Items";
+        };
+
+        den.aspects.igloo = {
+          items = [ "a" ];
+          nixos =
+            { items, ... }:
+            {
+              networking.hostName = lib.concatStringsSep "-" items;
+            };
+        };
+
+        den.policies.self-as =
+          { host, ... }:
+          let
+            inherit (den.lib.policy) pipe;
+          in
+          [
+            (pipe.from "items" [
+              (pipe.as "items")
+            ])
+          ];
+
+        den.default.includes = [ den.policies.self-as ];
+
+        expr = !(builtins.tryEval (builtins.seq igloo.networking.hostName null)).success;
+        expected = true;
+      }
+    );
   };
 }

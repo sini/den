@@ -653,7 +653,7 @@ let
               combinedBase = markedBase ++ markedExposed;
               relevantEffects = builtins.filter (e: e.pipeName == pipeName) scopeEffects;
               # Validate no pipe.as self-targeting in this scope.
-              _asCheck = builtins.seq (map (
+              _asCheck = builtins.deepSeq (map (
                 e:
                 assert assertNoSelfAs e;
                 null
