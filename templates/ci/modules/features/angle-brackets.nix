@@ -95,6 +95,98 @@
       }
     );
 
+    # Regression: parametric function as direct freeform child of a namespace
+    # aspect must resolve via angle-brackets identically to provides path.
+    test-namespace-parametric-direct-child = denTest (
+      {
+        den,
+        __findFile,
+        ns,
+        igloo,
+        ...
+      }:
+      {
+        _module.args.__findFile = den.lib.__findFile;
+
+        imports = [ (inputs.den.namespace "ns" false) ];
+
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        ns.apps.helix =
+          { host, ... }:
+          {
+            nixos.networking.hostName = "${host.name}-helix";
+          };
+
+        den.aspects.igloo.includes = [ <ns/apps/helix> ];
+
+        expr = igloo.networking.hostName;
+        expected = "igloo-helix";
+      }
+    );
+
+    # homeManager class via direct parametric freeform child + intermediate aspect
+    # included at user scope (matching the real pattern: user aspect → everywhere → helix).
+    test-namespace-parametric-hm-via-user-aspect = denTest (
+      {
+        den,
+        __findFile,
+        ns,
+        tuxHm,
+        ...
+      }:
+      {
+        _module.args.__findFile = den.lib.__findFile;
+
+        imports = [ (inputs.den.namespace "ns" false) ];
+
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        ns.apps.helix =
+          { host, ... }:
+          {
+            homeManager = _: {
+              programs.helix.enable = true;
+            };
+          };
+
+        ns.everywhere.includes = [ <ns/apps/helix> ];
+        den.aspects.tux.includes = [ ns.everywhere ];
+
+        expr = tuxHm.programs.helix.enable;
+        expected = true;
+      }
+    );
+
+    # Same as above but with provides path (should already work).
+    test-namespace-parametric-provides-child = denTest (
+      {
+        den,
+        __findFile,
+        ns,
+        igloo,
+        ...
+      }:
+      {
+        _module.args.__findFile = den.lib.__findFile;
+
+        imports = [ (inputs.den.namespace "ns" false) ];
+
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        ns.apps.provides.helix =
+          { host, ... }:
+          {
+            nixos.networking.hostName = "${host.name}-helix";
+          };
+
+        den.aspects.igloo.includes = [ <ns/apps/helix> ];
+
+        expr = igloo.networking.hostName;
+        expected = "igloo-helix";
+      }
+    );
+
   };
 
 }
