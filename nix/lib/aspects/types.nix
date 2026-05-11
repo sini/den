@@ -210,7 +210,11 @@ let
           # contain parametric functions.  Without this, the wrapper merges
           # through aspectSubmodule and the function is buried as a freeform
           # key.  Extract the function so existing dispatch handles it.
-          isContentWrapper = d: builtins.isAttrs d.value && d.value ? __contentValues && !(d.value ? __fn);
+          isContentWrapper =
+            d:
+            builtins.isAttrs d.value
+            && (d.value ? __contentValues || d.value ? __provider)
+            && !(d.value ? __fn);
           nameFromProvider =
             v:
             let
@@ -220,16 +224,20 @@ let
           unwrapContent =
             d:
             let
-              fns = builtins.filter (
-                cv:
-                lib.isFunction cv.value
-                && (
-                  let
-                    args = builtins.functionArgs cv.value;
-                  in
-                  args != { } && !(args ? config) && !(args ? options)
-                )
-              ) d.value.__contentValues;
+              fns =
+                if d.value ? __contentValues then
+                  builtins.filter (
+                    cv:
+                    lib.isFunction cv.value
+                    && (
+                      let
+                        args = builtins.functionArgs cv.value;
+                      in
+                      args != { } && !(args ? config) && !(args ? options)
+                    )
+                  ) d.value.__contentValues
+                else
+                  [ ];
               provName = nameFromProvider d.value;
             in
             if builtins.length fns == 1 then

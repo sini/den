@@ -26,6 +26,17 @@ let
     in
     if tail == [ ] then resolved else resolveWithProvidesFallback resolved tail;
 
+  # Ensure bare attrset results from bracket resolution carry __provider
+  # so the pipeline can compute stable identity.  Forwarded attrs from
+  # content wrappers are bare attrsets that lack __provider — without
+  # this, they get anonymous identities and dedup fails.
+  tagProvider =
+    path: result:
+    if builtins.isAttrs result && !(result ? __provider) && !(result ? __fn) then
+      result // { __provider = path; }
+    else
+      result;
+
   findAspect =
     path:
     let
@@ -44,14 +55,14 @@ let
           provider = config.den.batteries.${firstTail};
           rest = lib.tail tail;
         in
-        if rest == [ ] then provider else resolveWithProvidesFallback provider rest
+        if rest == [ ] then provider else tagProvider path (resolveWithProvidesFallback provider rest)
       else
         lib.getAttrFromPath ([ "den" ] ++ tail) config
     else if builtins.hasAttr head config.den.aspects then
       let
         aspect = config.den.aspects.${head};
       in
-      if tail == [ ] then aspect else resolveWithProvidesFallback aspect tail
+      if tail == [ ] then aspect else tagProvider path (resolveWithProvidesFallback aspect tail)
     else if lib.hasAttrByPath [ "ful" head ] config.den then
       let
         ns = config.den.ful.${head};
@@ -70,7 +81,7 @@ let
         else if rest == [ ] then
           nsAspect
         else
-          resolveWithProvidesFallback nsAspect rest
+          tagProvider path (resolveWithProvidesFallback nsAspect rest)
     else
       throw "Aspect not found: ${lib.concatStringsSep "." path}";
 in
