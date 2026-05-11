@@ -1,5 +1,6 @@
 {
   inputs,
+  lib,
   den,
   ...
 }:
@@ -59,23 +60,29 @@
       you are also free to create your own auto-imports layout following the implementation of these.
   '';
 
-  den.batteries.import-tree.__functor = _: root: {
-    name = "import-tree(${baseNameOf (toString root)})";
-    meta.provider = [
-      "den"
-      "provides"
-    ];
-    __fn =
-      { class, ... }:
-      let
-        path = "${toString root}/_${class}";
-        aspect.${class}.imports = [ (inputs.import-tree path) ];
-      in
-      if builtins.pathExists path then aspect else { };
-    __args = {
-      class = true;
-    };
-  };
+  den.batteries.import-tree.__functor =
+    _: root:
+    let
+      # Scan for _<class> directories under root and emit per-class imports.
+      # This avoids depending on the scope's `class` argument, which the
+      # fx-pipeline only provides once per scope (not once per class).
+      rootStr = toString root;
+      exists = builtins.pathExists rootStr;
+      entries = if exists then builtins.readDir rootStr else { };
+      classEntries = lib.filterAttrs (name: type: type == "directory" && lib.hasPrefix "_" name) entries;
+      aspect = lib.mapAttrs' (dirName: _: {
+        name = lib.removePrefix "_" dirName;
+        value.imports = [ (inputs.import-tree "${rootStr}/${dirName}") ];
+      }) classEntries;
+    in
+    {
+      name = "import-tree(${baseNameOf rootStr})";
+      meta.provider = [
+        "den"
+        "batteries"
+      ];
+    }
+    // aspect;
 
   den.batteries.import-tree.provides = {
     host = root: { host, ... }: den.batteries.import-tree "${toString root}/${host.name}";

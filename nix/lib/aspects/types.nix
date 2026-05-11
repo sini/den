@@ -154,7 +154,13 @@ let
         fn = (builtins.head paramFns).value;
       in
       if builtins.isAttrs fn then
-        fn
+        # Attrset with __functor (e.g. batteries like import-tree, forward).
+        # Forward provides children and add _ alias so aspect._.child and
+        # aspect.child both work, matching mergeWithAspectMeta behavior.
+        let
+          providesChildren = builtins.removeAttrs (fn.provides or { }) [ "_module" ];
+        in
+        providesChildren // fn // { _ = fn.provides or { }; }
       else
         let
           args = lib.functionArgs fn;
