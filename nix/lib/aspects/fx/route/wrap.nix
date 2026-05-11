@@ -92,7 +92,7 @@ let
   collectClassMods =
     cls: aspect:
     let
-      own = if aspect ? ${cls} then [ aspect.${cls} ] else [ ];
+      own = lib.optional (aspect ? ${cls}) aspect.${cls};
       nested = builtins.concatMap (collectClassMods cls) (aspect.includes or [ ]);
     in
     own ++ nested;

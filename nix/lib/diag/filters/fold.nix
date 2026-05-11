@@ -128,15 +128,10 @@ in
           let
             pid = parentIdOf n;
           in
-          if pid != null then
-            [
-              {
-                name = n.id;
-                value = pid;
-              }
-            ]
-          else
-            [ ]
+          lib.optional (pid != null) {
+            name = n.id;
+            value = pid;
+          }
         else
           [ ]
       ) graph.nodes;

@@ -58,13 +58,10 @@ in
       host,
       ...
     }:
-    if host.class == "nixos" && (host.wsl or { }).enable or false then
-      [
-        (den.lib.policy.resolve.to "wsl-host" { inherit host; })
-        (den.lib.policy.include wsl-host-aspect)
-      ]
-    else
-      [ ];
+    lib.optionals (host.class == "nixos" && (host.wsl or { }).enable or false) [
+      (den.lib.policy.resolve.to "wsl-host" { inherit host; })
+      (den.lib.policy.include wsl-host-aspect)
+    ];
 
   den.schema.host.includes = [ den.policies.host-to-wsl-host ];
 

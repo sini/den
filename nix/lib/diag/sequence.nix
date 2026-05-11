@@ -140,11 +140,8 @@ let
           staticLabels = map (n: n.label) static;
           staticNote = wrapLabels staticLabels;
         in
-        (
-          if parametricLines != [ ] then
-            [ "    activate ${alias}" ] ++ parametricLines ++ [ "    deactivate ${alias}" ]
-          else
-            [ ]
+        lib.optionals (parametricLines != [ ]) (
+          [ "    activate ${alias}" ] ++ parametricLines ++ [ "    deactivate ${alias}" ]
         )
         ++ lib.optional (staticNote != "") "    Note over ${alias}: ${staticNote}";
     in
@@ -168,7 +165,7 @@ let
           map participantDecl ordered
           ++ [ "" ]
           ++ map messageDecl nonSelfEntityEdges
-          ++ (if policyMessages != [ ] then [ "" ] ++ policyMessages else [ ])
+          ++ lib.optionals (policyMessages != [ ]) ([ "" ] ++ policyMessages)
           ++ lib.concatMap (s: [ "" ] ++ entityBlock s) ordered
         );
 
@@ -289,11 +286,11 @@ let
         ]
         ++ parametricLines
         ++ lib.optional (staticNote != "") "    Note over ${alias}: ${staticNote}"
-        ++ (if bridgesFromHere != [ ] then [ "" ] else [ ])
+        ++ lib.optional (bridgesFromHere != [ ]) ""
         ++ map bridgeLine bridgesFromHere
-        ++ (if policyLines != [ ] then [ "" ] else [ ])
+        ++ lib.optional (policyLines != [ ]) ""
         ++ policyLines
-        ++ (if outgoing != [ ] then [ "" ] else [ ])
+        ++ lib.optional (outgoing != [ ]) ""
         ++ map transitionLine outgoing;
     in
     if entityKinds == [ ] then
@@ -354,7 +351,7 @@ let
       renderMermaid {
         inherit theme mermaidConfig;
         diagramKind = "graph LR";
-      } (map nodeDecl ordered ++ (if edgeLines != [ ] then [ "" ] ++ edgeLines else [ ]));
+      } (map nodeDecl ordered ++ lib.optionals (edgeLines != [ ]) ([ "" ] ++ edgeLines));
 
   toScopeEdgesMermaid = toScopeEdgesMermaidWith { };
 

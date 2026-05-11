@@ -342,10 +342,8 @@ let
             modules =
               if preWalkedModules != null then
                 preWalkedModules
-              else if spec ? mainModule then
-                [ spec.mainModule ]
               else
-                [ ];
+                lib.optional (spec ? mainModule) spec.mainModule;
             instantiateArgs =
               if spec ? pkgs then
                 {
@@ -479,10 +477,8 @@ let
             modules =
               if preWalkedModules != null then
                 preWalkedModules
-              else if spec ? mainModule then
-                [ spec.mainModule ]
               else
-                [ ];
+                lib.optional (spec ? mainModule) spec.mainModule;
             instantiateArgs =
               if spec ? pkgs then
                 {
