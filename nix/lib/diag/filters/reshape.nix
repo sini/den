@@ -85,17 +85,12 @@ in
           parentFull = lib.concatStringsSep "/" n.providerPath;
           parent = byFull.${parentFull} or null;
         in
-        if parent != null then
-          [
-            {
-              from = parent.id;
-              to = n.id;
-              style = "normal";
-              label = null;
-            }
-          ]
-        else
-          [ ];
+        lib.optional (parent != null) {
+          from = parent.id;
+          to = n.id;
+          style = "normal";
+          label = null;
+        };
       treeEdges = lib.concatMap edgeFor providerNodes;
       keptIds = lib.listToAttrs (
         map
@@ -146,7 +141,7 @@ in
               pc = n.perClass.${className} or { };
               from = pc.excludedFrom or null;
             in
-            if pc.excluded or false && from != null then [ from ] else [ ]
+            lib.optional (pc.excluded or false && from != null) from
           ) (builtins.attrNames (n.perClass or { }))
         ) filtered.nodes
       );
@@ -209,13 +204,10 @@ in
       # Also include the provider source (via provide-edges pointing to it).
       provideEdgeTargets = lib.concatMap (
         e:
-        if (e.style or "normal") == "provide" then
-          [
-            e.from
-            e.to
-          ]
-        else
-          [ ]
+        lib.optionals ((e.style or "normal") == "provide") [
+          e.from
+          e.to
+        ]
       ) filtered.edges;
 
       keepIds = lib.unique (providerIds ++ lib.concatMap childIdsOf providerIds ++ provideEdgeTargets);

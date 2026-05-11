@@ -26,13 +26,9 @@ let
 
   aliasModule = lib.mkAliasOptionModule [ name ] [ "den" "ful" name ];
 
-  outputModule =
-    if isOutput then
-      {
-        config.flake.denful.${name} = config.den.ful.${name};
-      }
-    else
-      { };
+  outputModule = lib.optionalAttrs isOutput {
+    config.flake.denful.${name} = config.den.ful.${name};
+  };
 
   # Merge external source classes into den.classes.
   # Local namespace classes are collected by aspect-schema.nix.

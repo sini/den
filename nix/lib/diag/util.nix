@@ -347,18 +347,13 @@ let
             else
               null;
         in
-        if dstKind != null && (n.entityKind or null) != null then
-          [
-            {
-              src = n.entityKind;
-              dst = dstKind;
-              aspect = n.label;
-              kind = "bridge";
-              node = n;
-            }
-          ]
-        else
-          [ ]
+        lib.optional (dstKind != null && (n.entityKind or null) != null) {
+          src = n.entityKind;
+          dst = dstKind;
+          aspect = n.label;
+          kind = "bridge";
+          node = n;
+        }
       ) nodes;
     in
     provideWrappers ++ entityBridges;

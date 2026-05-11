@@ -155,23 +155,20 @@ let
       adapterMod = route.adapterModule or null;
       modulesWithAdapter = if adapterMod == null then sourceModules else sourceModules ++ [ adapterMod ];
       ensureEntry =
-        if
-          !isFlakeRoute
-          && route.adaptArgs or null != null
-          && route.path or [ ] != [ ]
-          && modulesWithAdapter == [ ]
-        then
-          [
-            (_: {
-              config = lib.setAttrByPath route.path (_: {
-                imports = [ ];
-              });
-            })
-          ]
-        else
-          [ ];
+        lib.optional
+          (
+            !isFlakeRoute
+            && route.adaptArgs or null != null
+            && route.path or [ ] != [ ]
+            && modulesWithAdapter == [ ]
+          )
+          (_: {
+            config = lib.setAttrByPath route.path (_: {
+              imports = [ ];
+            });
+          });
       isAdapterRoute = route.adapterKey or null != null;
-      adapterWrapped = if !isAdapterRoute then [ ] else [ (mkAdapterFunctor route sourceModules) ];
+      adapterWrapped = lib.optional isAdapterRoute (mkAdapterFunctor route sourceModules);
       # Route with instantiate: collect modules, call instantiate function,
       # place the result (a derivation) at the target path.
       instantiateWrapped =

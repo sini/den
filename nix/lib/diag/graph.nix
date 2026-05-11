@@ -537,10 +537,9 @@ let
             prov = entry.provider or [ ];
             providerName = if prov != [ ] then builtins.head prov else null;
           in
-          if providerName != null && providerName != "den" && !(topLevelEntryByName ? ${providerName}) then
-            [ providerName ]
-          else
-            [ ]
+          lib.optional (
+            providerName != null && providerName != "den" && !(topLevelEntryByName ? ${providerName})
+          ) providerName
         ) nodes
       );
 

@@ -2,6 +2,7 @@
 # Probes scope handlers for required args, calls compileFn or defers.
 {
   den,
+  lib,
   ...
 }:
 let
@@ -30,7 +31,7 @@ in
               ctxs = (state.scopeContexts or (_: { })) null;
               entityCls = ((state.scopeEntityClass or (_: { })) null).${currentScope} or null;
             in
-            (ctxs.${currentScope} or { }) // (if entityCls != null then { class = entityCls; } else { })
+            (ctxs.${currentScope} or { }) // lib.optionalAttrs (entityCls != null) { class = entityCls; }
           else
             { };
         keysAfterStateFallback = builtins.filter (k: !(scopeCtx ? ${k})) keysToProbe;

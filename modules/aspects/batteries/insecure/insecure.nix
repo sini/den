@@ -1,3 +1,4 @@
+{ lib, ... }:
 let
   description = ''
     A class generic aspect that enables insecure packages by name and version.
@@ -29,23 +30,17 @@ let
           "darwin"
           "homeManager"
         ];
-        classModule =
-          if builtins.elem class validClasses then
-            { ${class}.permittedInsecurePackages.packages = allowed-names; }
-          else
-            { };
+        classModule = lib.optionalAttrs (builtins.elem class validClasses) {
+          ${class}.permittedInsecurePackages.packages = allowed-names;
+        };
         # When resolving for homeManager or a non-module-system class (e.g.
         # "user"), also emit to the host's OS class so
         # nixpkgs.config.permittedInsecurePackages covers these packages.
-        hostModule =
-          if
-            (class == "homeManager" || !builtins.elem class validClasses)
-            && host != null
-            && builtins.elem host.class validClasses
-          then
-            { ${host.class}.permittedInsecurePackages.packages = allowed-names; }
-          else
-            { };
+        hostModule = lib.optionalAttrs (
+          (class == "homeManager" || !builtins.elem class validClasses)
+          && host != null
+          && builtins.elem host.class validClasses
+        ) { ${host.class}.permittedInsecurePackages.packages = allowed-names; };
       in
       classModule // hostModule;
     __args = {
