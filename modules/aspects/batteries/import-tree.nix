@@ -67,8 +67,7 @@
       # This avoids depending on the scope's `class` argument, which the
       # fx-pipeline only provides once per scope (not once per class).
       rootStr = toString root;
-      exists = builtins.pathExists rootStr;
-      entries = if exists then builtins.readDir rootStr else { };
+      entries = lib.optionalAttrs (builtins.pathExists rootStr) (builtins.readDir rootStr);
       classEntries = lib.filterAttrs (name: type: type == "directory" && lib.hasPrefix "_" name) entries;
       aspect = lib.mapAttrs' (dirName: _: {
         name = lib.removePrefix "_" dirName;
