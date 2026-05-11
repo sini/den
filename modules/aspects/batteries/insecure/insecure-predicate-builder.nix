@@ -47,6 +47,8 @@ let
     { home }:
     {
       name = "insecure-predicate/home";
+    }
+    // lib.optionalAttrs (home ? class) {
       ${home.class}.imports = [ insecureModule ];
     };
 

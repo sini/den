@@ -1,4 +1,4 @@
-{ withSystem, ... }:
+{ lib, withSystem, ... }:
 let
   description = ''
     Provides the `flake-parts` `self'` (the flake's `self` with system pre-selected)
@@ -56,7 +56,7 @@ let
     {
       name = "self'/home";
     }
-    // mkAspect home.class home.system;
+    // lib.optionalAttrs (home ? class) (mkAspect home.class home.system);
 in
 {
   den.batteries.self' = {

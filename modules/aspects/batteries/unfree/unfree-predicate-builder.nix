@@ -47,6 +47,8 @@ let
     { home }:
     {
       name = "unfree-predicate/home";
+    }
+    // lib.optionalAttrs (home ? class) {
       ${home.class}.imports = [ unfreeModule ];
     };
 
