@@ -24,10 +24,55 @@ let
     "__parametricResolvedArgs"
   ];
 
+  # Merge multiple attrset content values per sub-key so class keys
+  # collect all definitions instead of last-win overwrite.
+  mergeContentValuesPerKey =
+    rawValue:
+    let
+      cvs = rawValue.__contentValues;
+      vals = map (d: d.value) cvs;
+      attrVals = builtins.filter builtins.isAttrs vals;
+    in
+    if builtins.length attrVals <= 1 then
+      unwrapContentValuesRaw rawValue
+    else
+      let
+        allKeys = lib.unique (lib.concatMap builtins.attrNames attrVals);
+        collectKey =
+          key:
+          let
+            defsForKey = lib.concatMap (
+              cv:
+              if builtins.isAttrs cv.value && cv.value ? ${key} then
+                [
+                  {
+                    inherit (cv) file;
+                    value = cv.value.${key};
+                  }
+                ]
+              else
+                [ ]
+            ) cvs;
+          in
+          if builtins.length defsForKey == 1 then
+            (builtins.head defsForKey).value
+          else
+            {
+              __contentValues = defsForKey;
+              __provider = (rawValue.__provider or [ ]) ++ [ key ];
+            };
+      in
+      lib.genAttrs allKeys collectKey;
+
   emitNestedAspect =
     aspect: ctx: k:
     let
-      innerValue = unwrapContentValuesRaw aspect.${k};
+      rawValue = aspect.${k};
+      innerValue =
+        if builtins.isAttrs rawValue && rawValue ? __contentValues then
+          mergeContentValuesPerKey rawValue
+        else
+          rawValue;
       subAspect =
         (if builtins.isAttrs innerValue then innerValue else { })
         // {
