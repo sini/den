@@ -1,7 +1,6 @@
 ---
-name: den-debugging
-description: Systematic debugging workflow for den/nix issues. Use when encountering bug reports, test failures, regressions, or unexpected behavior in den's aspect pipeline, type system, or fx handlers. Also use when a user shares an error or describes broken behavior in their den config. Trigger on phrases like "bug report", "regression", "broken", "doesn't work", "used to work", "last-win", "not merging", "not included", "wrong behavior".
----
+
+## name: den-debugging description: Systematic debugging workflow for den/nix issues. Use when encountering bug reports, test failures, regressions, or unexpected behavior in den's aspect pipeline, type system, or fx handlers. Also use when a user shares an error or describes broken behavior in their den config. Trigger on phrases like "bug report", "regression", "broken", "doesn't work", "used to work", "last-win", "not merging", "not included", "wrong behavior".
 
 # Den Debugging Workflow
 
@@ -13,10 +12,10 @@ This workflow exists because den's fx pipeline has layered abstractions (content
 
 Before reading any code, extract the concrete claims from the report:
 
-1. **What the user did** — the nix expressions they wrote, the API surface they used
-2. **What they expected** — the behavior they consider correct
-3. **What actually happened** — the observed result (error, wrong value, missing config)
-4. **What works** — any workaround or alternative path that succeeds (this narrows the search)
+- **What the user did** — the nix expressions they wrote, the API surface they used
+- **What they expected** — the behavior they consider correct
+- **What actually happened** — the observed result (error, wrong value, missing config)
+- **What works** — any workaround or alternative path that succeeds (this narrows the search)
 
 If the report contrasts two API paths (e.g., old syntax works but new syntax doesn't), that contrast is your most valuable clue — it tells you exactly where the code paths diverge.
 
@@ -24,20 +23,7 @@ If the report contrasts two API paths (e.g., old syntax works but new syntax doe
 
 Read the relevant source files to understand the mechanism. Don't guess — follow the actual code path from the user's nix expression to the pipeline output.
 
-**Common entry points by symptom:**
-
-| Symptom | Start reading at |
-|---------|-----------------|
-| Values not merging / last-win | `nix/lib/aspects/types.nix` — `aspectContentType.merge`, `providerType.merge` |
-| Wrong keys classified | `nix/lib/aspects/fx/key-classification.nix` — `classifyKeys`, `hasRecognizedSubKeys` |
-| Nested aspects not resolving | `nix/lib/aspects/fx/handlers/compile-static.nix` — `emitNestedAspect` |
-| Includes pulling wrong things | `nix/lib/aspects/fx/aspect/children.nix` — `emitIncludes`, `processInclude` |
-| Parametric not binding | `nix/lib/aspects/fx/handlers/bind.nix` |
-| Class modules missing | `nix/lib/aspects/fx/handlers/emit-classes.nix`, `nix/lib/aspects/fx/content-util.nix` |
-| Scope/context issues | `nix/lib/aspects/fx/handlers/compile-static.nix` — scope handler propagation |
-| Entity resolution | `nix/lib/resolve-entity.nix` |
-| Forward/routing | `nix/lib/aspects/fx/handlers/compile-forward.nix` |
-| Gate/dedup | `nix/lib/aspects/fx/handlers/gate-tag.nix` |
+Refer to the entry point table in `CLAUDE.md`'s "Debugging and tracing" section for a mapping of symptoms to source files and specific tracing points in the pipeline handlers.
 
 Use the Explore agent for broad searches when you're unsure which files are involved. Use direct Grep/Read for targeted lookups when you know the function name.
 
@@ -107,13 +93,13 @@ Confirm the test fails with the expected symptom before proceeding.
 Now that you have a failing test anchoring the expected behavior:
 
 1. **Make the minimal change** that addresses the root cause. Resist the urge to refactor surrounding code.
-2. **Run your regression test** to confirm it passes.
-3. **Run the existing related tests** to check you haven't broken anything:
+1. **Run your regression test** to confirm it passes.
+1. **Run the existing related tests** to check you haven't broken anything:
    ```bash
    # Run a related test suite
    nix develop -c nix-unit --override-input den . --flake ./templates/ci#.tests.<related-suite>
    ```
-4. **If existing tests break**, isolate which part of your change caused it. A useful technique: revert parts of the fix independently and rerun to identify the problematic change.
+1. **If existing tests break**, isolate which part of your change caused it. A useful technique: revert parts of the fix independently and rerun to identify the problematic change.
 
 ## Phase 5: Validate
 
@@ -144,8 +130,8 @@ CI will reject unformatted code.
 Don't revert everything. Isolate which specific change broke which test:
 
 1. Keep the test files, revert only implementation changes
-2. Re-apply changes one at a time, running the broken test after each
-3. Once you identify the problematic change, understand *why* it breaks the other case before trying a different approach
+1. Re-apply changes one at a time, running the broken test after each
+1. Once you identify the problematic change, understand _why_ it breaks the other case before trying a different approach
 
 ### When the root cause isn't obvious
 
@@ -165,4 +151,21 @@ Add `builtins.trace` calls temporarily to see what values flow through the pipel
 innerValue = builtins.trace "innerValue keys: ${builtins.toJSON (builtins.attrNames innerValue)}" innerValue;
 ```
 
-Remove traces before committing.
+Remove traces before committing. See `CLAUDE.md`'s "Debugging and tracing" section for the most useful tracing points in the pipeline handlers.
+
+### Structured tracing in tests
+
+The `denTest` harness provides a `trace` helper that resolves an aspect tree and returns its structure. Use it to inspect what the pipeline produces without modifying pipeline code:
+
+```nix
+test-trace-example = denTest (
+  { den, trace, ... }:
+  let t = trace "myAspect" den.aspects.myAspect;
+  in {
+    expr = builtins.length t.imports > 0;
+    expected = true;
+  }
+);
+```
+
+This is useful in Phase 3 when you want to verify what the pipeline emits for a given aspect configuration.
