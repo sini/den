@@ -365,8 +365,29 @@ let
           # accessible on the wrapper (enables bare nested aspect access).
           attrVals = builtins.filter builtins.isAttrs (map (d: d.value) flatDefs);
           forwarded = builtins.foldl' (a: b: a // b) { } attrVals;
+          # The shallow merge is last-win per key, which silently drops
+          # earlier list values.  Collect all list-valued keys across
+          # definitions and concatenate them so every module's contribution
+          # is preserved (e.g., multiple modules each adding to includes).
+          allListKeys =
+            let
+              collect =
+                d:
+                if builtins.isAttrs d.value then
+                  builtins.filter (k: builtins.isList d.value.${k}) (builtins.attrNames d.value)
+                else
+                  [ ];
+            in
+            lib.unique (lib.concatMap collect flatDefs);
+          mergedLists = lib.genAttrs allListKeys (
+            k:
+            lib.concatMap (
+              d: if builtins.isAttrs d.value && builtins.isList (d.value.${k} or null) then d.value.${k} else [ ]
+            ) flatDefs
+          );
         in
         forwarded
+        // mergedLists
         // {
           __contentValues = flatDefs;
           __provider = (typeCfg.providerPrefix or [ ]) ++ [ keyName ];

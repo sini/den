@@ -53,9 +53,12 @@ let
               else
                 [ ]
             ) cvs;
+            allList = builtins.all (d: builtins.isList d.value) defsForKey;
           in
           if builtins.length defsForKey == 1 then
             (builtins.head defsForKey).value
+          else if allList then
+            lib.concatLists (map (d: d.value) defsForKey)
           else
             {
               __contentValues = defsForKey;
