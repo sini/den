@@ -73,20 +73,32 @@ Tests live in `templates/ci/modules/features/`. Bug regression tests go in `dead
 
 - **`denTest` args**: `den` (the den module), `igloo` (nixosConfigurations.igloo.config), `tuxHm` (igloo.home-manager.users.tux) are the main ones.
 - **Multi-file definitions**: Use `imports` with inline modules to simulate multiple files defining the same path — you can't have duplicate keys in a single nix file.
+- **Namespace setup**: Users with namespaces (e.g., `den.namespace "gloom"`) must be tested using `imports = [ (inputs.den.namespace "ns" false) ]` in denTest.  Access the namespace via the module arg (`{ ns, ... }:`), not `den.aspects`.
 - **Attribute existence checks**: Use `? attrName` to test presence without crashing on missing attrs.
 - **Stage new files**: Run `git add <file>` before nix can evaluate new test files.
 
 ### Run the test
 
 ```bash
-# Single test suite
-nix develop -c nix-unit --override-input den . --flake ./templates/ci#.tests.deadbugs.my-bug-name
+# Single test with trace (preferred — use just ci with dotted path)
+nix develop -c just ci deadbugs.my-bug-name.test-specific-case
 
-# With full trace on failure
-nix develop -c nix-unit --override-input den . --flake ./templates/ci#.tests.deadbugs.my-bug-name --show-trace
+# Whole suite
+nix develop -c just ci deadbugs.my-bug-name
+
+# Suite with full nix-unit output
+nix develop -c just ci-deep deadbugs.my-bug-name
 ```
 
 Confirm the test fails with the expected symptom before proceeding.
+
+### Working with user configs
+
+When a user reports a bug from their own den config, **don't try to build their flake directly** — it will have unresolvable inputs, hardware-specific modules, and secrets. Instead:
+
+1. Read the user's modules to extract the **pattern** — how they define aspects, which module args they use, how includes are structured.
+2. Write a regression test in den's CI suite that mirrors that pattern.
+3. For npins users: they can't use `--override-input`, and `follows.nix` local overrides (e.g., `builtins.pathExists ./den-local`) don't work in flake evaluation context because the store copy strips symlinks. Don't waste time making their flake build — the regression test is what matters.
 
 ## Phase 4: Implement the Fix
 
@@ -134,6 +146,8 @@ Don't revert everything. Isolate which specific change broke which test:
 1. Once you identify the problematic change, understand _why_ it breaks the other case before trying a different approach
 
 ### When the root cause isn't obvious
+
+When a bug involves content wrappers, check whether the forwarded (shallow-merged) attributes match the `__contentValues`.  `aspectContentType.merge` uses `foldl' //` to build forwarded attrs — this is last-win per key.  Structural list keys (`includes`, `excludes`) are explicitly concatenated, but other overlapping keys from different modules will silently overwrite.  The pipeline uses `__contentValues` for class emission but forwarded attrs for structural keys and direct attribute access.
 
 Look for structural markers that distinguish the working path from the broken path. In den's pipeline, common differentiators:
 
