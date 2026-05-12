@@ -118,6 +118,16 @@ in
                   })
                   (
                     classified:
+                    let
+                      # Content wrappers from aspectContentType (included via
+                      # den.aspects.X.Y in an includes list) carry __contentValues
+                      # at the top level.  Their nested sub-keys are independent
+                      # sub-aspects that should be included explicitly, not
+                      # auto-walked.  Sub-aspects from emitNestedAspect and full
+                      # aspects from aspectSubmodule do NOT have __contentValues
+                      # at the top level, so their nested keys auto-walk normally.
+                      nestedToWalk = lib.optionals (!(tagged ? __contentValues)) classified.nestedKeys;
+                    in
                     fx.bind
                       (fx.seq (
                         [
@@ -129,7 +139,7 @@ in
                           })
                           (registerConstraints tagged)
                         ]
-                        ++ map (emitNestedAspect tagged (param.ctx or { })) classified.nestedKeys
+                        ++ map (emitNestedAspect tagged (param.ctx or { })) nestedToWalk
                       ))
                       (
                         _:
