@@ -39,17 +39,37 @@ let
       };
     };
 
-  # Registry entry type — imports den.schema.user so entries are proper user entities.
+  # Registry entry type — mirrors the standard user entity shape from
+  # nix/lib/entities/host.nix so that pipeline self-provide, define-user,
+  # and other batteries find the expected attributes (userName, aspect, classes).
   registryUserType = lib.types.submodule (
     { name, config, ... }:
     {
       freeformType = lib.types.attrsOf lib.types.anything;
       imports = [ den.schema.user ];
       config._module.args.user = config;
-      options.name = lib.mkOption {
-        type = lib.types.str;
-        default = name;
-        description = "User name (from attrset key)";
+      options = {
+        name = lib.mkOption {
+          type = lib.types.str;
+          default = name;
+          description = "User name (from attrset key)";
+        };
+        userName = lib.mkOption {
+          type = lib.types.str;
+          default = name;
+          description = "User account name";
+        };
+        classes = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ "user" ];
+          description = "Home management nix classes";
+        };
+        aspect = lib.mkOption {
+          type = lib.types.raw;
+          default = if den.aspects ? ${name} then den.aspects.${name} else { };
+          defaultText = "den.aspects.<name>";
+          description = "Aspect that configures this user";
+        };
       };
     }
   );

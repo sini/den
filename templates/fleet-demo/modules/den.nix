@@ -1,16 +1,19 @@
-# Fleet topology: two environments, four hosts, haproxy + web backends.
+# Fleet topology: two environments, four hosts, policy-driven user access.
 #
 # Scope tree:
 #   flake
-#   +-- flake-system (x86_64-linux)
-#   |   +-- [packages, checks, devShells — kept]
 #   +-- fleet
 #       +-- environment:prod
 #       |   +-- host:lb-prod
+#       |   |   +-- user:alice  (via prod/admin)
 #       |   +-- host:web-prod-1
+#       |   |   +-- user:alice  (via prod/admin)
 #       |   +-- host:web-prod-2
+#       |       +-- user:alice  (via prod/admin)
 #       +-- environment:staging
 #           +-- host:web-staging
+#               +-- user:alice  (via staging/admin)
+#               +-- user:bob    (via staging/deploy)
 { lib, den, ... }:
 {
   den.schema.user.classes = lib.mkDefault [ "homeManager" ];
@@ -26,22 +29,18 @@
     lb-prod = {
       environment = "prod";
       addr = "10.0.1.1";
-      users.deploy = { };
     };
     web-prod-1 = {
       environment = "prod";
       addr = "10.0.1.10";
-      users.deploy = { };
     };
     web-prod-2 = {
       environment = "prod";
       addr = "10.0.1.11";
-      users.deploy = { };
     };
     web-staging = {
       environment = "staging";
       addr = "10.0.2.10";
-      users.deploy = { };
     };
   };
 
@@ -53,6 +52,7 @@
   den.default.includes = [
     den.batteries.define-user
     den.batteries.hostname
+    den.aspects.ssh-keys
   ];
 
   den.systems = [ "x86_64-linux" ];

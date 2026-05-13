@@ -53,39 +53,89 @@ let
   # `accentPool` is the list of 8 hues the per-node color hash selects
   # from. Keeping to base16's accent slots means every diagram's nodes
   # stay faithful to the chosen scheme.
-  themeFromPalette = palette: {
-    inherit palette;
-    background = palette.base00;
-    foreground = palette.base05;
-    mutedForeground = palette.base04;
-    nodeBg = palette.base01;
-    nodeBorder = palette.base04;
-    nodeText = palette.base05;
-    clusterBg = palette.base01;
-    clusterBorder = palette.base03;
-    edgeColor = palette.base04;
-    edgeText = palette.base05;
-    labelBg = palette.base00;
-    rootFill = palette.base0D;
-    rootStroke = palette.base0D;
-    rootText = palette.base00;
-    excludedFill = palette.base08;
-    excludedStroke = palette.base08;
-    excludedText = palette.base00;
-    replacedFill = palette.base09;
-    replacedStroke = palette.base09;
-    replacedText = palette.base00;
-    accentPool = [
-      palette.base08
-      palette.base09
-      palette.base0A
-      palette.base0B
-      palette.base0C
-      palette.base0D
-      palette.base0E
-      palette.base0F
-    ];
-  };
+  # Detect whether a palette is "light" (light base00 background) by
+  # comparing the first hex digit of base00 vs base05. In base16:
+  #   - Dark schemes: base00 is dark (low hex), base05 is light (high hex)
+  #   - Light schemes: base00 is light (high hex), base05 is dark (low hex)
+  isLightPalette =
+    palette:
+    let
+      bg = builtins.substring 1 1 palette.base00; # first hex digit after #
+      fg = builtins.substring 1 1 palette.base05;
+    in
+    (hexToInt bg) > (hexToInt fg);
+
+  # Hex digit lookup (reused from colors.nix pattern)
+  hexToInt =
+    c:
+    {
+      "0" = 0;
+      "1" = 1;
+      "2" = 2;
+      "3" = 3;
+      "4" = 4;
+      "5" = 5;
+      "6" = 6;
+      "7" = 7;
+      "8" = 8;
+      "9" = 9;
+      "a" = 10;
+      "b" = 11;
+      "c" = 12;
+      "d" = 13;
+      "e" = 14;
+      "f" = 15;
+      "A" = 10;
+      "B" = 11;
+      "C" = 12;
+      "D" = 13;
+      "E" = 14;
+      "F" = 15;
+    }
+    .${c} or 0;
+
+  themeFromPalette =
+    palette:
+    let
+      light = isLightPalette palette;
+      # Text on accent fills: need maximum contrast against vivid mid-tones.
+      # Dark themes: base00 (dark background) on bright fills.
+      # Light themes: base07 (dark foreground end) on bright fills.
+      contrastText = if light then palette.base07 else palette.base00;
+    in
+    {
+      inherit palette;
+      background = palette.base00;
+      foreground = palette.base05;
+      mutedForeground = palette.base04;
+      nodeBg = palette.base01;
+      nodeBorder = palette.base04;
+      nodeText = palette.base05;
+      clusterBg = palette.base01;
+      clusterBorder = palette.base03;
+      edgeColor = palette.base04;
+      edgeText = palette.base05;
+      labelBg = palette.base00;
+      rootFill = palette.base0D;
+      rootStroke = palette.base0D;
+      rootText = contrastText;
+      excludedFill = palette.base08;
+      excludedStroke = palette.base08;
+      excludedText = contrastText;
+      replacedFill = palette.base09;
+      replacedStroke = palette.base09;
+      replacedText = contrastText;
+      accentPool = [
+        palette.base08
+        palette.base09
+        palette.base0A
+        palette.base0B
+        palette.base0C
+        palette.base0D
+        palette.base0E
+        palette.base0F
+      ];
+    };
 
   # One-shot helper: scheme name → theme record.
   themeFromBase16 =

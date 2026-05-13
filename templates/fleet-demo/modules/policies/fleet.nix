@@ -15,9 +15,18 @@
 let
   inherit (den.lib.policy) resolve;
 
+  # Capture module-level config for use inside policies.
+  # Policy functions receive entity context (host, user, etc.), NOT module args.
+  # Destructuring `config` in the policy signature would fail resolveArgsSatisfied
+  # since `config` is not an entity binding in the resolve context.
+  registry = config.den.users.registry;
+  accessByEnv = config.fleet.user-access.by-environment;
+  accessByHost = config.fleet.user-access.by-host;
+  environments = config.fleet.environments;
+
   # Filter registry user names whose groups intersect the granted set.
   matchRegistryUsers =
-    grantedGroups: registry:
+    grantedGroups:
     lib.filter (name: builtins.any (g: lib.elem g grantedGroups) registry.${name}.groups) (
       builtins.attrNames registry
     );
@@ -40,7 +49,7 @@ in
       resolve.to "environment" {
         environment = env;
       }
-    ) config.fleet.environments;
+    ) environments;
 
   # environment -> hosts: walk hosts whose environment matches.
   # Guard: only fire at environment scope (not at host scopes which inherit environment).
@@ -62,21 +71,21 @@ in
 
   # host -> users (by environment): resolve registry users whose groups match.
   den.policies.env-users =
-    { host, config, ... }:
+    { host, ... }:
     let
-      grant = config.fleet.user-access.by-environment.${host.environment} or { groups = [ ]; };
-      matched = matchRegistryUsers grant.groups config.den.users.registry;
+      grant = accessByEnv.${host.environment} or { groups = [ ]; };
+      matched = matchRegistryUsers grant.groups;
     in
-    map (name: resolve.to "user" { user = config.den.users.registry.${name}; }) matched;
+    map (name: resolve.to "user" { user = registry.${name}; }) matched;
 
   # host -> users (by host): resolve registry users by host-specific group match.
   den.policies.host-users =
-    { host, config, ... }:
+    { host, ... }:
     let
-      grant = config.fleet.user-access.by-host.${host.name} or { groups = [ ]; };
-      matched = matchRegistryUsers grant.groups config.den.users.registry;
+      grant = accessByHost.${host.name} or { groups = [ ]; };
+      matched = matchRegistryUsers grant.groups;
     in
-    map (name: resolve.to "user" { user = config.den.users.registry.${name}; }) matched;
+    map (name: resolve.to "user" { user = registry.${name}; }) matched;
 
   den.schema.flake.includes = [ den.policies.to-fleet ];
   den.schema.fleet.includes = [ den.policies.fleet-to-envs ];

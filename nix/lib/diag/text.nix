@@ -63,13 +63,16 @@ let
       policyNames = lib.unique (map (e: e.name) policyEntries);
 
       # Pipe data.
-      classKeys = [
+      # Keys that are NOT user-declared pipes — class keys plus framework-
+      # internal structural keys that appear in scopedClassImports.
+      nonPipeKeys = [
         "nixos"
         "homeManager"
         "user"
         "darwin"
+        "excludes"
       ];
-      isPipeKey = k: !builtins.elem k classKeys;
+      isPipeKey = k: !builtins.elem k nonPipeKeys;
 
       pipesByHost = map (
         hScope:

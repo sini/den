@@ -18,6 +18,17 @@ let
 
   sanitize = makeIdSanitizer "h";
 
+  # Index into theme.accentPool by position. The pool is a list of 8 accent
+  # colors from the base16 palette; indexing respects the user's chosen scheme.
+  accent =
+    theme: i:
+    let
+      pool = theme.accentPool;
+      len = builtins.length pool;
+    in
+    assert len > 0;
+    builtins.elemAt pool (lib.mod i len);
+
   # Extract host name from a scope ID like "environment=prod,fleet=fleet,host=lb-prod"
   hostNameFromScope =
     scopeId:
@@ -175,26 +186,47 @@ let
       flows = buildPipeFlows fleetCapture;
 
       # Unique pipe names for color assignment.
+      # Spread pipe colors across the accent pool using coprime stepping
+      # (step 3 over 8 slots) so adjacent pipes get visually distinct hues
+      # rather than neighboring palette entries.
       pipeNames = lib.unique (map (e: e.pipe) flows.flowEdges);
-      pipeColors = [
-        theme.accent0 or "#f38ba8"
-        theme.accent1 or "#fab387"
-        theme.accent2 or "#f9e2af"
-        theme.accent3 or "#a6e3a1"
-        theme.accent4 or "#94e2d5"
-        theme.accent5 or "#89b4fa"
-        theme.accent6 or "#cba6f7"
-        theme.accent7 or "#f2cdcd"
-      ];
       pipeColorOf =
         pipeName:
         let
           idx = lib.lists.findFirstIndex (p: p == pipeName) 0 pipeNames;
         in
-        builtins.elemAt pipeColors (lib.mod idx (builtins.length pipeColors));
+        accent theme (idx * 3);
 
-      # All unique host names for node declarations.
-      allHostNames = lib.unique (lib.concatMap (env: map (h: h.name) env.hosts) flows.environments);
+      # All hosts flattened with their role (producer, consumer, both).
+      allHosts = lib.concatMap (env: env.hosts) flows.environments;
+      allHostNames = lib.unique (map (h: h.name) allHosts);
+
+      # Classify host role for node shape and color.
+      hostRole =
+        h:
+        let
+          isProducer = h.produces != [ ];
+          isCollector = h.collects != [ ];
+        in
+        if isProducer && isCollector then
+          "both"
+        else if isCollector then
+          "consumer"
+        else
+          "producer";
+
+      # Node shapes: producers are boxes, consumers are rounded, both are stadium.
+      hostShape =
+        h:
+        let
+          role = hostRole h;
+        in
+        if role == "consumer" then
+          "([\"${h.name}\"])"
+        else if role == "both" then
+          "([\"${h.name}\"])"
+        else
+          "[\"${h.name}\"]";
 
       # Environment subgraphs.
       envSubgraph =
@@ -214,8 +246,11 @@ let
                 else
                   h.produces;
               annotation = if aspectPipes != [ ] then " (${lib.concatStringsSep ", " aspectPipes})" else "";
+              shape = hostShape h;
             in
-            "    ${sanitize h.name}([\"${h.name}${annotation}\"])"
+            "    ${sanitize h.name}${
+                  if annotation != "" then lib.replaceStrings [ h.name ] [ "${h.name}${annotation}" ] shape else shape
+                }"
           ) env.hosts;
         in
         "  subgraph ${sanitize "env_${env.name}"}[\"${env.name}\"]\n"
@@ -227,6 +262,7 @@ let
         pipeName:
         let
           edges = builtins.filter (e: e.pipe == pipeName) flows.flowEdges;
+          color = pipeColorOf pipeName;
           edgeDecl = e: "  ${sanitize e.from} -->|${e.pipe}| ${sanitize e.to}";
         in
         map edgeDecl edges;
@@ -235,7 +271,6 @@ let
       linkStyles =
         let
           allEdgeLines = lib.concatMap edgesForPipe pipeNames;
-          edgeIndices = lib.genList (i: i) (builtins.length allEdgeLines);
         in
         lib.imap0 (
           i: _:
@@ -254,10 +289,22 @@ let
                     go (remaining - builtins.elemAt edgeCounts pIdx) (pIdx + 1);
               in
               go i 0;
-            color = builtins.elemAt pipeColors (lib.mod pipeIdx (builtins.length pipeColors));
+            color = pipeColorOf (builtins.elemAt pipeNames pipeIdx);
           in
           "  linkStyle ${toString i} stroke:${color},stroke-width:2px"
         ) allEdgeLines;
+
+      # Per-host node styles: consistent entity-kind coloring matching
+      # scope topology and policy resolution views. Pipe colors are on
+      # edges only — node color shows what the entity IS, edge color
+      # shows what data FLOWS.
+      hostColor = accent theme 3; # same index as kindColors.host in other views
+      hostNodeStyles = lib.concatMap (
+        env:
+        map (
+          h: "  style ${sanitize h.name} fill:${hostColor},stroke:${hostColor},color:${theme.rootText}"
+        ) env.hosts
+      ) flows.environments;
     in
     if flows.flowEdges == [ ] then
       renderMermaid {
@@ -276,15 +323,11 @@ let
           ++ lib.concatMap edgesForPipe pipeNames
           ++ [ "" ]
           ++ linkStyles
-          ++ [
-            ""
-            "  classDef default fill:${theme.nodeBg or "#313244"},stroke:${theme.nodeBorder or "#a6adc8"},color:${theme.nodeText or "#cdd6f4"}"
-          ]
+          ++ [ "" ]
+          ++ hostNodeStyles
           ++ map (
             env:
-            "  style ${sanitize "env_${env.name}"} fill:${theme.clusterBg or "#313244"},stroke:${
-                theme.clusterBorder or "#6c7086"
-              },stroke-width:2px"
+            "  style ${sanitize "env_${env.name}"} fill:transparent,stroke:${theme.clusterBorder},stroke-width:1px"
           ) flows.environments
         );
 
@@ -352,18 +395,18 @@ let
 
       # Color nodes by entity kind.
       kindColors = {
-        fleet = theme.accent5 or "#89b4fa";
-        environment = theme.accent6 or "#cba6f7";
-        host = theme.accent3 or "#a6e3a1";
-        user = theme.accent1 or "#fab387";
-        "flake-system" = theme.accent4 or "#94e2d5";
+        fleet = accent theme 5;
+        environment = accent theme 6;
+        host = accent theme 3;
+        user = accent theme 1;
+        "flake-system" = accent theme 4;
       };
       nodeStyle =
         scopeId:
         let
           kind = scopeEntityKind.${scopeId} or null;
-          color = kindColors.${kind} or (theme.nodeBg or "#313244");
-          text = theme.rootText or "#1e1e2e";
+          color = kindColors.${kind} or theme.nodeBg;
+          text = theme.rootText;
         in
         "  style ${sanitize scopeId} fill:${color},stroke:${color},color:${text}";
     in
@@ -455,18 +498,8 @@ let
         aspectName:
         let
           idx = lib.lists.findFirstIndex (a: a == aspectName) 0 allAspects;
-          colors = [
-            (theme.accent0 or "#f38ba8")
-            (theme.accent1 or "#fab387")
-            (theme.accent2 or "#f9e2af")
-            (theme.accent3 or "#a6e3a1")
-            (theme.accent4 or "#94e2d5")
-            (theme.accent5 or "#89b4fa")
-            (theme.accent6 or "#cba6f7")
-            (theme.accent7 or "#f2cdcd")
-          ];
         in
-        builtins.elemAt colors (lib.mod idx (builtins.length colors));
+        accent theme idx;
 
       nodeStyles = lib.concatMap (
         h:
@@ -474,7 +507,7 @@ let
           a:
           let
             color = aspectColor a;
-            text = theme.rootText or "#1e1e2e";
+            text = theme.rootText;
           in
           "  style ${sanitize "${h.name}_${a}"} fill:${color},stroke:${color},color:${text}"
         ) (builtins.filter (a: builtins.elem a h.aspects) allAspects)
@@ -482,9 +515,7 @@ let
 
       hostStyles = map (
         h:
-        "  style ${sanitize "host_${h.name}"} fill:${theme.clusterBg or "#313244"},stroke:${
-            theme.clusterBorder or "#6c7086"
-          },stroke-width:2px"
+        "  style ${sanitize "host_${h.name}"} fill:${theme.clusterBg},stroke:${theme.clusterBorder},stroke-width:2px"
       ) hostAspects;
 
       # Link same aspects across hosts with dotted edges for visual grouping.
@@ -586,18 +617,18 @@ let
 
       # Color by entity kind.
       kindColors = {
-        fleet = theme.accent5 or "#89b4fa";
-        environment = theme.accent6 or "#cba6f7";
-        host = theme.accent3 or "#a6e3a1";
-        user = theme.accent1 or "#fab387";
-        "flake-system" = theme.accent4 or "#94e2d5";
+        fleet = accent theme 5;
+        environment = accent theme 6;
+        host = accent theme 3;
+        user = accent theme 1;
+        "flake-system" = accent theme 4;
       };
       nodeStyle =
         scopeId:
         let
           kind = scopeEntityKind.${scopeId} or null;
-          color = kindColors.${kind} or (theme.nodeBg or "#313244");
-          text = theme.rootText or "#1e1e2e";
+          color = kindColors.${kind} or theme.nodeBg;
+          text = theme.rootText;
         in
         "  style ${sanitize scopeId} fill:${color},stroke:${color},color:${text}";
     in
@@ -802,15 +833,13 @@ let
         env:
         map (
           h:
-          "  style ${sanitize "host_${h.name}"} fill:${theme.nodeBg or "#313244"},stroke:${theme.nodeBorder or "#a6adc8"},stroke-width:1px"
+          "  style ${sanitize "host_${h.name}"} fill:${theme.nodeBg},stroke:${theme.nodeBorder},stroke-width:1px"
         ) env.hosts
       ) flows.environments;
 
       envStyles = map (
         env:
-        "  style ${sanitize "env_${env.name}"} fill:${theme.clusterBg or "#313244"},stroke:${
-            theme.clusterBorder or "#6c7086"
-          },stroke-width:2px"
+        "  style ${sanitize "env_${env.name}"} fill:${theme.clusterBg},stroke:${theme.clusterBorder},stroke-width:2px"
       ) flows.environments;
     in
     renderMermaid

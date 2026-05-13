@@ -110,7 +110,11 @@ let
       isTerminal = node.style == "terminal";
       isPolicy = node.style == "policy";
       isDefault = !(isExcluded || isReplaced || isAdapter || isTerminal || isPolicy);
-      accent = nodeColorFor theme (node.entityKind or null) node.label;
+      # colorKey overrides the name used for per-node hashing. When set,
+      # all nodes with the same entityKind AND colorKey get the same color
+      # (no per-name perturbation). Used by namespace graphs where color
+      # means structural role, not individual identity.
+      accent = nodeColorFor theme (node.entityKind or null) (node.colorKey or node.label);
     in
     {
       inherit

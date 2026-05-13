@@ -47,6 +47,7 @@ let
           hasFunctorInclude = lib.any (i: !builtins.isAttrs i) incs;
           hasConstraint = (value.meta.handleWith or null) != null;
           hasProvides = (value.provides or { }) != { };
+          hasIncludes = incs != [ ];
           providerChain = value.meta.provider or [ ];
         in
         graphLib.emptyNode
@@ -64,6 +65,12 @@ let
           style = if hasConstraint then "adapter" else "default";
           providerPath = providerChain;
           hasClass = true;
+          # Structural role for consistent coloring: host aspects that
+          # include others vs shared leaf aspects that are included.
+          entityKind = if hasIncludes then "host" else "shared";
+          # colorKey makes all nodes of the same role hash to the same
+          # accent color (no per-name perturbation from nodeColorFor).
+          colorKey = if hasIncludes then "host" else "shared";
         };
 
       mkEdges =
