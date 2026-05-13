@@ -388,7 +388,7 @@ let
               (builtins.head defsForKey).value
             else if allList then
               lib.concatLists (map (d: d.value) defsForKey)
-            else if builtins.length defsForKey > 1 then
+            else
               {
                 __contentValues = defsForKey;
                 __provider = (typeCfg.providerPrefix or [ ]) ++ [
@@ -396,8 +396,6 @@ let
                   k
                 ];
               }
-            else
-              (builtins.head defsForKey).value
           );
           # Single-function content wrappers need __functor so the wrapper is
           # callable (e.g. `den.aspects.wm.gnome-autologin "benjamin"`).

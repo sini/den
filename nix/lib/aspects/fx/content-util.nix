@@ -1,17 +1,5 @@
 { lib, ... }:
 let
-  # Unwrap without filtering empty attrsets — preserves original semantics
-  # for emitNestedAspect which did not filter empties.
-  unwrapContentValuesRaw =
-    rawValue:
-    if builtins.isAttrs rawValue && rawValue ? __contentValues then
-      let
-        vals = map (d: d.value) rawValue.__contentValues;
-      in
-      if builtins.length vals == 1 then builtins.head vals else { imports = vals; }
-    else
-      rawValue;
-
   # Unwrap to a list of values, with empty-set fallback to [{}].
   # Used by aspect emitClassModules which needs per-element processing.
   # Matches source order: list check first, then __contentValues, then singleton.
@@ -70,7 +58,6 @@ let
 in
 {
   inherit
-    unwrapContentValuesRaw
     unwrapContentValuesList
     unwrapContentValuesForClassification
     applyProvide
