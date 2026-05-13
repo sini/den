@@ -385,12 +385,20 @@ let
               d: if builtins.isAttrs d.value && builtins.isList (d.value.${k} or null) then d.value.${k} else [ ]
             ) flatDefs
           );
+          # Single-function content wrappers need __functor so the wrapper is
+          # callable (e.g. `den.aspects.wm.gnome-autologin "benjamin"`).
+          # Without provides, aspectContentType handles the merge, but the
+          # wrapper must still be invocable like the providerType path.
+          singleFn = builtins.length flatDefs == 1 && lib.isFunction (builtins.head flatDefs).value;
         in
         forwarded
         // mergedLists
         // {
           __contentValues = flatDefs;
           __provider = (typeCfg.providerPrefix or [ ]) ++ [ keyName ];
+        }
+        // lib.optionalAttrs singleFn {
+          __functor = _self: (builtins.head flatDefs).value;
         };
     };
 

@@ -129,7 +129,31 @@ in
                       # auto-walked.  Sub-aspects from emitNestedAspect and full
                       # aspects from aspectSubmodule do NOT have __contentValues
                       # at the top level, so their nested keys auto-walk normally.
-                      nestedToWalk = lib.optionals (!(tagged ? __contentValues)) classified.nestedKeys;
+                      #
+                      # When the aspect's includes list references its own nested
+                      # sub-keys (detected via __provider matching aspect name),
+                      # the user is taking explicit control over which sub-aspects
+                      # are active — suppress auto-walk, matching provides behavior.
+                      includesRefsOwnNested =
+                        let
+                          incs = tagged.includes or [ ];
+                          aspectName = tagged.name or "";
+                          nestedKeySet = lib.genAttrs classified.nestedKeys (_: true);
+                        in
+                        builtins.any (
+                          inc:
+                          builtins.isAttrs inc
+                          && nestedKeySet ? ${inc.name or ""}
+                          && (
+                            let
+                              prov = inc.meta.provider or [ ];
+                            in
+                            prov != [ ] && lib.last prov == aspectName
+                          )
+                        ) incs;
+                      nestedToWalk = lib.optionals (
+                        !(tagged ? __contentValues) && !includesRefsOwnNested
+                      ) classified.nestedKeys;
                     in
                     fx.bind
                       (fx.seq (
