@@ -1,7 +1,6 @@
-# Bug: direct nested sub-aspects auto-walk even when includes explicitly scopes
-# which sub-aspects should be active.  With provides, forwarded keys are excluded
-# from classification (via __providesForwarded).  Direct nesting should behave
-# the same: when includes references own nested sub-keys, suppress auto-walk.
+# Nested sub-aspects are never auto-walked — they require explicit includes.
+# This is the fix for the original bug where including den.aspects.root.a
+# still auto-walked sibling b.
 {
   denTest,
   lib,
@@ -10,7 +9,7 @@
 {
   flake.tests.deadbugs.nested-includes-scoping = {
 
-    # includes references den.aspects.root.a -> only a should be walked, not b
+    # Only explicitly included sub-aspects emit
     test-nested-includes-scoping = denTest (
       { den, igloo, ... }:
       {
@@ -36,7 +35,7 @@
       }
     );
 
-    # Verify provides equivalent still works
+    # Provides equivalent still works
     test-provides-includes-scoping = denTest (
       { den, igloo, ... }:
       {
@@ -62,8 +61,8 @@
       }
     );
 
-    # No includes -> all nested keys auto-walk as before
-    test-nested-auto-walk-no-includes = denTest (
+    # Without includes, nested keys do NOT auto-walk
+    test-nested-no-auto-walk = denTest (
       { den, igloo, ... }:
       {
         den.hosts.x86_64-linux.igloo.users.tux = { };
@@ -80,14 +79,14 @@
           hasB = igloo.environment.variables ? FROM_B;
         };
         expected = {
-          hasA = true;
-          hasB = true;
+          hasA = false;
+          hasB = false;
         };
       }
     );
 
-    # includes with only external refs -> nested keys still auto-walk
-    test-nested-auto-walk-external-includes = denTest (
+    # External includes don't activate nested keys
+    test-external-includes-no-auto-walk = denTest (
       { den, igloo, ... }:
       {
         den.hosts.x86_64-linux.igloo.users.tux = { };
@@ -109,38 +108,9 @@
           hasExt = igloo.environment.variables ? FROM_EXT;
         };
         expected = {
-          hasA = true;
-          hasB = true;
+          hasA = false;
+          hasB = false;
           hasExt = true;
-        };
-      }
-    );
-
-    # External include whose leaf name collides with a nested key name
-    # must NOT suppress auto-walk (no false positive from name collision)
-    test-cross-aspect-name-collision = denTest (
-      { den, igloo, ... }:
-      {
-        den.hosts.x86_64-linux.igloo.users.tux = { };
-        den.aspects.igloo.includes = [ den.aspects.root ];
-
-        den.aspects.other.root.a.nixos.environment.variables.FROM_OTHER = "yes";
-
-        den.aspects.root = {
-          includes = [ den.aspects.other.root.a ];
-          a.nixos.environment.variables.FROM_A = "yes";
-          b.nixos.environment.variables.FROM_B = "yes";
-        };
-
-        expr = {
-          hasA = igloo.environment.variables ? FROM_A;
-          hasB = igloo.environment.variables ? FROM_B;
-          hasOther = igloo.environment.variables ? FROM_OTHER;
-        };
-        expected = {
-          hasA = true;
-          hasB = true;
-          hasOther = true;
         };
       }
     );

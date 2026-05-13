@@ -96,8 +96,8 @@
       }
     );
 
-    # Nested aspect detection: unknown key with class sub-keys recurses.
-    test-nested-aspect-detection = denTest (
+    # Nested keys are classified but not auto-walked — require explicit includes.
+    test-nested-aspect-not-auto-emitted = denTest (
       { den, ... }:
       let
         fx = den.lib.fx;
@@ -128,18 +128,17 @@
       {
         den.classes.nixos.description = "NixOS";
 
-        # The nested "servers" aspect should recurse and emit its "nixos" sub-key as a class
-        expr =
-          builtins.length (
-            (builtins.foldl' (
-              acc: sd:
-              lib.zipAttrsWith (_: builtins.concatLists) [
-                acc
-                sd
-              ]
-            ) { } (builtins.attrValues (result.state.scopedClassImports null))).nixos or [ ]
-          ) > 0;
-        expected = true;
+        # Nested "servers" is NOT auto-emitted — 0 class imports from it
+        expr = builtins.length (
+          (builtins.foldl' (
+            acc: sd:
+            lib.zipAttrsWith (_: builtins.concatLists) [
+              acc
+              sd
+            ]
+          ) { } (builtins.attrValues (result.state.scopedClassImports null))).nixos or [ ]
+        );
+        expected = 0;
       }
     );
 

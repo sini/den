@@ -21,6 +21,7 @@
         ];
 
         den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.aspects.igloo.includes = [ den.aspects.igloo.base ];
 
         expr = {
           hasA = igloo.environment.variables ? FROM_A;

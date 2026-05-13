@@ -20,6 +20,7 @@
 
         den.hosts.x86_64-linux.igloo.users.tux = { };
         den.aspects.igloo.includes = [ den.aspects.system ];
+        den.aspects.system.includes = [ den.aspects.system.base ];
 
         expr = {
           hasKeyMap = igloo.console.keyMap == "fr";
@@ -48,6 +49,7 @@
 
         den.hosts.x86_64-linux.igloo.users.tux = { };
         den.aspects.igloo.includes = [ den.aspects.system ];
+        den.aspects.system.includes = [ den.aspects.system.base ];
 
         expr = {
           hasKeyMap = igloo.console.keyMap == "fr";

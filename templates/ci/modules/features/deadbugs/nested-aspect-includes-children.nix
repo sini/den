@@ -72,8 +72,8 @@
       }
     );
 
-    # Control: same thing but with auto-walk (polybar nested, not included)
-    test-auto-walk-resolves-all = denTest (
+    # Explicit include path: polybar must be explicitly included
+    test-explicit-include-resolves-all = denTest (
       {
         den,
         igloo,
@@ -113,8 +113,8 @@
           )
         ];
 
-        # Use auto-walk path: include gloom.apps, which auto-walks polybar
-        den.aspects.igloo.includes = [ gloom.apps ];
+        # polybar must be explicitly included — no auto-walk
+        den.aspects.igloo.includes = [ gloom.apps.polybar ];
 
         expr = {
           hasPolybar = igloo.environment.variables ? POLYBAR;
