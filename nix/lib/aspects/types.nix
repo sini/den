@@ -366,37 +366,44 @@ let
           # wrapper so downstream consumers (emit-classes) collect all
           # definitions.  List-valued keys are concatenated.
           attrVals = builtins.filter builtins.isAttrs (map (d: d.value) flatDefs);
-          allKeys = lib.unique (lib.concatMap builtins.attrNames attrVals);
-          merged = lib.genAttrs allKeys (
-            k:
-            let
-              defsForKey = lib.concatMap (
-                cv:
-                if builtins.isAttrs cv.value && cv.value ? ${k} then
-                  [
-                    {
-                      inherit (cv) file;
-                      value = cv.value.${k};
-                    }
-                  ]
-                else
-                  [ ]
-              ) flatDefs;
-              allList = builtins.all (d: builtins.isList d.value) defsForKey;
-            in
-            if builtins.length defsForKey == 1 then
-              (builtins.head defsForKey).value
-            else if allList then
-              lib.concatLists (map (d: d.value) defsForKey)
+          # Fast path: single attrset def — forward directly, skip per-key merge.
+          merged =
+            if builtins.length attrVals <= 1 then
+              if attrVals == [ ] then { } else builtins.head attrVals
             else
-              {
-                __contentValues = defsForKey;
-                __provider = (typeCfg.providerPrefix or [ ]) ++ [
-                  keyName
-                  k
-                ];
-              }
-          );
+              let
+                allKeys = lib.unique (lib.concatMap builtins.attrNames attrVals);
+              in
+              lib.genAttrs allKeys (
+                k:
+                let
+                  defsForKey = lib.concatMap (
+                    cv:
+                    if builtins.isAttrs cv.value && cv.value ? ${k} then
+                      [
+                        {
+                          inherit (cv) file;
+                          value = cv.value.${k};
+                        }
+                      ]
+                    else
+                      [ ]
+                  ) flatDefs;
+                  allList = builtins.all (d: builtins.isList d.value) defsForKey;
+                in
+                if builtins.length defsForKey == 1 then
+                  (builtins.head defsForKey).value
+                else if allList then
+                  lib.concatLists (map (d: d.value) defsForKey)
+                else
+                  {
+                    __contentValues = defsForKey;
+                    __provider = (typeCfg.providerPrefix or [ ]) ++ [
+                      keyName
+                      k
+                    ];
+                  }
+              );
           # Single-function content wrappers need __functor so the wrapper is
           # callable (e.g. `den.aspects.wm.gnome-autologin "benjamin"`).
           # Without provides, aspectContentType handles the merge, but the

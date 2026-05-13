@@ -8,28 +8,26 @@
 { lib, den, ... }:
 let
   inherit (den.lib.policy) resolve include;
-
-  # Look up an entity-named nested key on an aspect, excluding keys
-  # already handled by provides (forwarded via __providesForwarded).
-  entityAspectChild =
-    aspect: name:
-    let
-      forwarded = lib.genAttrs (aspect.__providesForwarded or [ ]) (_: true);
-    in
-    lib.optional (builtins.isAttrs aspect && aspect ? ${name} && !(forwarded ? ${name})) aspect.${name};
 in
 {
   # Host → users: fan-out to each declared user.
-  # If the host aspect has a nested key matching the user name,
-  # include it in the user scope (entity-named sub-aspect).
+  # If the host aspect has a freeform key matching the user name
+  # (not from provides — those are handled by mkCrossPolicy),
+  # include it in the user scope as an entity-named sub-aspect.
   den.policies.host-to-users =
     {
       host,
       ...
     }:
+    let
+      aspect = host.aspect;
+      forwarded = lib.genAttrs (aspect.__providesForwarded or [ ]) (_: true);
+      hasChild = name: builtins.isAttrs aspect && aspect ? ${name} && !(forwarded ? ${name});
+    in
     lib.concatMap (
       user:
-      [ (resolve.shared { inherit user; }) ] ++ map include (entityAspectChild host.aspect user.name)
+      [ (resolve.shared { inherit user; }) ]
+      ++ lib.optional (hasChild user.name) (include aspect.${user.name})
     ) (lib.attrValues host.users);
 
   den.schema.host.includes = [ den.policies.host-to-users ];
