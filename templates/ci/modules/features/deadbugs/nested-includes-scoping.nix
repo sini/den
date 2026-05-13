@@ -115,5 +115,34 @@
         };
       }
     );
+
+    # External include whose leaf name collides with a nested key name
+    # must NOT suppress auto-walk (no false positive from name collision)
+    test-cross-aspect-name-collision = denTest (
+      { den, igloo, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.aspects.igloo.includes = [ den.aspects.root ];
+
+        den.aspects.other.root.a.nixos.environment.variables.FROM_OTHER = "yes";
+
+        den.aspects.root = {
+          includes = [ den.aspects.other.root.a ];
+          a.nixos.environment.variables.FROM_A = "yes";
+          b.nixos.environment.variables.FROM_B = "yes";
+        };
+
+        expr = {
+          hasA = igloo.environment.variables ? FROM_A;
+          hasB = igloo.environment.variables ? FROM_B;
+          hasOther = igloo.environment.variables ? FROM_OTHER;
+        };
+        expected = {
+          hasA = true;
+          hasB = true;
+          hasOther = true;
+        };
+      }
+    );
   };
 }
