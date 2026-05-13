@@ -396,7 +396,14 @@ let
                 else if allList then
                   lib.concatLists (map (d: d.value) defsForKey)
                 else
-                  {
+                  let
+                    # Forward sub-keys from attrset defs so deeper nested access works
+                    # (e.g., den.aspects.root.sub1.sub2.a where sub2 has multi-def).
+                    subAttrVals = builtins.filter builtins.isAttrs (map (d: d.value) defsForKey);
+                    subForwarded = builtins.foldl' (a: b: a // b) { } subAttrVals;
+                  in
+                  subForwarded
+                  // {
                     __contentValues = defsForKey;
                     __provider = (typeCfg.providerPrefix or [ ]) ++ [
                       keyName
