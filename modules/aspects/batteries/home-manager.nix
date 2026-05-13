@@ -47,5 +47,7 @@ in
     { includes = [ hmHostBridge ]; }
   ];
 
+  den.schema.user.includes = [ result.userDetect ];
+
   den.classes.homeManager.description = "Home Manager user environment";
 }

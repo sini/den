@@ -94,6 +94,14 @@ let
           fromAspect = _: den.lib.resolveEntity "user" { inherit host user; };
         };
 
+      # Includes shared by both host-scope and user-scope detection.
+      classIncludes = [
+        (den.lib.policy.include hostModule)
+      ]
+      ++ lib.optional (den.aspects ? os-user-class-fwd) (
+        den.lib.policy.include den.aspects.os-user-class-fwd
+      );
+
       policyFn =
         { host, ... }:
         let
@@ -109,14 +117,25 @@ let
             resolves = map (
               pair: den.lib.policy.resolve.withIncludes [ userForward ] { user = pair.user; }
             ) pairs;
-            rootIncludes = [
-              (den.lib.policy.include hostModule)
-            ]
-            ++ lib.optional (den.aspects ? os-user-class-fwd) (
-              den.lib.policy.include den.aspects.os-user-class-fwd
-            );
           in
-          resolves ++ rootIncludes;
+          resolves ++ classIncludes;
+
+      # Complements the host-scope battery which only sees users
+      # declared on host.users, not registry or policy-resolved users.
+      userDetectFn =
+        { host, user, ... }:
+        let
+          isOsSupported = builtins.elem host.class supportedOses;
+          hasClass = lib.elem className user.classes;
+        in
+        lib.optionals (isOsSupported && hasClass) (
+          [
+            (den.lib.policy.include (userForward {
+              inherit host user;
+            }))
+          ]
+          ++ classIncludes
+        );
     in
     {
       battery = {
@@ -126,6 +145,18 @@ let
             __isPolicy = true;
             name = "host-to-${ctxName}-users";
             fn = policyFn;
+          }
+        ];
+      };
+
+      # User-scope policy for user schema includes.
+      userDetect = {
+        policies."${ctxName}-user-detect" = userDetectFn;
+        includes = [
+          {
+            __isPolicy = true;
+            name = "${ctxName}-user-detect";
+            fn = userDetectFn;
           }
         ];
       };

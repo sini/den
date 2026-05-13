@@ -7,6 +7,10 @@
 # All functions return plain strings (not derivations).
 { lib }:
 let
+  # entityInstance is explicitly null in some graph constructors;
+  # Nix `or` only catches missing attrs, not null values.
+  instOf = default: e: if e.entityInstance or null == null then default else e.entityInstance;
+
   # --- Table helpers ---
 
   # Render a markdown table from headers and rows.
@@ -182,7 +186,7 @@ let
       aspectsByHost = lib.foldl' (
         acc: e:
         let
-          inst = e.entityInstance or "";
+          inst = instOf "" e;
           parts = lib.splitString ":" inst;
           kind = builtins.head parts;
           name = if builtins.length parts > 1 then lib.concatStringsSep ":" (lib.tail parts) else "";
@@ -278,7 +282,7 @@ let
       instanceGroups = lib.foldl' (
         acc: n:
         let
-          inst = n.entityInstance or "unscoped";
+          inst = instOf "unscoped" n;
         in
         acc // { ${inst} = (acc.${inst} or [ ]) ++ [ n ]; }
       ) { } userAspects;
@@ -299,7 +303,7 @@ let
         (
           if n.isParametric or false then "yes (${lib.concatStringsSep ", " (n.fnArgNames or [ ])})" else "no"
         )
-        (n.entityInstance or "—")
+        (instOf "—" n)
       ]) (lib.sort (a: b: a.label < b.label) userAspects);
 
       # Class breakdown.
