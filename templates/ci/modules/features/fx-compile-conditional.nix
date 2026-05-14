@@ -92,7 +92,8 @@
             // handlers.chainHandler
             // identity.pathSetHandler
             // identity.collectPathsHandler
-            // stubs;
+            // stubs
+            // fx.effects.state.handler;
           inherit state;
         } comp;
       in
@@ -147,7 +148,8 @@
             // handlers.deferConditionalHandler
             // handlers.drainConditionalsHandler
             // identity.pathSetHandler
-            // stubs;
+            // stubs
+            // fx.effects.state.handler;
           inherit state;
         } comp;
         tombstones = result.value;
@@ -203,7 +205,8 @@
             // handlers.deferConditionalHandler
             // handlers.drainConditionalsHandler
             // identity.pathSetHandler
-            // stubs;
+            // stubs
+            // fx.effects.state.handler;
           inherit state;
         } comp;
       in
@@ -308,7 +311,8 @@
             // handlers.chainHandler
             // identity.pathSetHandler
             // identity.collectPathsHandler
-            // stubs;
+            // stubs
+            // fx.effects.state.handler;
           inherit state;
         } comp;
         child = builtins.head result.value;
