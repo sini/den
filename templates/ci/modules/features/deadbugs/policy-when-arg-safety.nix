@@ -47,5 +47,51 @@
       }
     );
 
+    # Optional args in the predicate should not trigger the safety check —
+    # the policy should still fire when the optional arg is absent.
+    test-when-optional-args-still-fire = denTest (
+      {
+        den,
+        igloo,
+        config,
+        ...
+      }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.homes.x86_64-linux.tux = { };
+        den.default.homeManager.home.stateVersion = "25.11";
+
+        den.schema.host.includes = [
+          {
+            includes = [
+              (den.lib.policy.when
+                (
+                  {
+                    host ? null,
+                    ...
+                  }:
+                  host != null
+                )
+                (
+                  den.lib.policy.mkPolicy "optional-arg-policy" (_: [
+                    (den.lib.policy.include { nixos.services.openssh.enable = true; })
+                  ])
+                )
+              )
+            ];
+          }
+        ];
+
+        expr = {
+          host-gets-policy = igloo.services.openssh.enable;
+          home-resolves = config.flake.homeConfigurations ? tux;
+        };
+        expected = {
+          host-gets-policy = true;
+          home-resolves = true;
+        };
+      }
+    );
+
   };
 }
