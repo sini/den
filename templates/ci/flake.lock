@@ -35,6 +35,26 @@
         "type": "github"
       }
     },
+    "den-schema": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1779316549,
+        "narHash": "sha256-Ez1W0qTzMzyC+x2mjis5oh5L3q7cOMe/xJVdhSP6sJo=",
+        "owner": "sini",
+        "repo": "den-schema",
+        "rev": "1028d249a82d1184752c51168a0b397ea0bafa12",
+        "type": "github"
+      },
+      "original": {
+        "owner": "sini",
+        "repo": "den-schema",
+        "type": "github"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -198,6 +218,7 @@
       "inputs": {
         "darwin": "darwin",
         "den": "den",
+        "den-schema": "den-schema",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
         "nix-effects": "nix-effects",
