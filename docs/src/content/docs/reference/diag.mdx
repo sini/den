@@ -1,44 +1,45 @@
 ---
-title: den.lib.diag
-description: Diagram library for visualizing aspect resolution graphs.
+title: den.lib.capture & den-diagram
+description: Trace capture and diagram rendering for aspect resolution graphs.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 <Aside title="Source" icon="github">
-[`nix/lib/diag/`](https://github.com/denful/den/blob/main/nix/lib/diag/)
+Capture: [`nix/lib/diag/capture.nix`](https://github.com/denful/den/blob/main/nix/lib/diag/capture.nix)
+Rendering: [`denful/den-diagram`](https://github.com/denful/den-diagram)
 </Aside>
 
-The diagramming library provides a composable pipeline for rendering aspect-resolution
-graphs: **trace capture** collects structured trace entries from resolved aspects,
-**graph construction** builds a format-agnostic IR, **filters** prune and reshape the IR,
-and **renderers** emit Mermaid, DOT, PlantUML, or JSON strings.
+Diagram rendering is split across two packages:
+
+- **`den.lib.capture`** (in den) — runs the fx pipeline with tracing handlers, produces structured trace entries
+- **`den-diagram`** (separate repo) — graph IR, filters, renderers. Pure library, depends only on `nixpkgs.lib`
 
 See [Diagrams explanation](/explanation/diagrams/) for concepts and usage patterns.
 
-## Convenience wrappers
+## Two-step pattern
 
-High-level entry points that resolve an entity and return a graph IR in one call.
-
-### `hostContext { host, classes?, direction? }`
-
-Build a host-scoped graph. When `classes` is omitted, auto-discovers from `[ "nixos" "homeManager" "user" ]` plus each user's declared classes. Returns the graph IR plus `rootAspect`, `pathSets`, and `classes`.
-
-### `userContext { host, user, classes?, direction? }`
-
-Build a user-scoped graph. Defaults to `[ "homeManager" "user" ]` plus the user's own classes.
-
-### `homeContext { home, classes?, direction? }`
-
-Build a home-scoped graph. Defaults to `[ "homeManager" ]` plus the home's own classes.
-
-### `context { root, name, classes, direction? }`
-
-Generic entry point for any entity kind. `root` is a resolved stage (from `den.lib.resolveStage`), `name` is used as the graph root label, and `classes` lists the aspect classes to trace. `direction` defaults to `"LR"`.
+Capture in den, render in den-diagram:
 
 ```nix
-root = den.lib.resolveStage "user" { inherit host user; };
-g = diag.context { inherit root; name = user.name; classes = [ "homeManager" ]; };
+gram = inputs.den-diagram.lib;
+
+# 1. Capture
+captured = den.lib.capture.captureWithPathsWith {
+  classes = [ "nixos" "homeManager" ];
+  root = den.lib.resolveEntity "host" { inherit host; };
+  ctx = { inherit host; };
+};
+
+# 2. Build graph IR
+g = gram.context {
+  entries = captured.entries;
+  ctxTrace = captured.ctxTrace;
+  name = host.name;
+};
+
+# 3. Render
+gram.toMermaid g
 ```
 
 ## Graph construction
@@ -57,7 +58,7 @@ Static namespace graph built from `den.aspects` declarations (no host resolution
 
 ## Filters
 
-All filters are available on the `graph` attrset (e.g., `diag.graph.aspectsOnly`). Each takes a graph IR and returns a new graph IR.
+All filters are available on the `graph` attrset (e.g., `gram.graph.aspectsOnly`). Each takes a graph IR and returns a new graph IR.
 
 ### Predicate filters
 
@@ -188,7 +189,7 @@ Hard-coded github-light palette. No `pkgs` required -- the library is usable wit
 Build a theme from a [base16](https://github.com/tinted-theming/schemes) palette. Converts the YAML scheme to JSON via `yj` at build time.
 
 ```nix
-theme = diag.themeFromBase16 { inherit pkgs; scheme = "catppuccin-mocha"; };
+theme = gram.themeFromBase16 { inherit pkgs; scheme = "catppuccin-mocha"; };
 ```
 
 ### `themeFromPalette palette`
@@ -205,9 +206,9 @@ A theme record contains: `palette`, `background`, `foreground`, `mutedForeground
 
 ## Fleet
 
-### `fleet.of { hosts?, flakeName? }`
+### `fleet.of { hosts, flakeName? }`
 
-Build fleet-wide data from the host registry. `hosts` defaults to `den.hosts`; `flakeName` defaults to `"den flake"`.
+Build fleet-wide data from a host registry. `hosts` is required (pass `den.hosts`); `flakeName` defaults to `"den flake"`.
 
 Returns:
 
@@ -217,7 +218,7 @@ Returns:
 | `hosts` | `[{ name, description }]` | Host records (description is the system string) |
 | `users` | `[{ name }]` | Deduplicated user records across all hosts |
 | `relations` | `[{ from, to, label }]` | User-to-host edges labeled with class names |
-| `providerSubAspects` | `[{ provider, subAspect, hostName }]` | Lazily evaluated provider sub-aspects per host |
+| `providerSubAspects` | `[{ provider, subAspect, hostName }]` | Optional — callers pre-compute via `den.lib.capture` and pass in |
 
 ## Render context
 
@@ -237,15 +238,15 @@ Returns:
 | `pumlSourceToSvg` | `base -> source -> derivation` -- PlantUML source to SVG |
 
 ```nix
-rc = diag.renderContext { inherit pkgs; mermaidConfig = { layout = "elk"; }; };
+rc = gram.renderContext { inherit pkgs; mermaidConfig = { layout = "elk"; }; };
 rendered = rc.render.toMermaid myGraph;
 ```
 
 ## Export helpers
 
-Utilities for turning view definitions into derivations, packages, and write scripts. Available under `diag.export`.
+Utilities for turning view definitions into derivations, packages, and write scripts. Available under `gram.export`.
 
-### `entityEntries { pkgs, rc, diag } { entity, name, dir, viewDefs, galleryDrv? }`
+### `entityEntries { pkgs, rc } { entity, name, dir, viewDefs, galleryDrv? }`
 
 Generate all derivation entries (markdown + SVG) for a single entity. `entity` must be a pre-computed graph.
 
@@ -295,7 +296,7 @@ Dynamic per-class views. Generates a class-slice view for each class name in the
 
 ## Trace capture
 
-Low-level capture functions used internally by the convenience wrappers. Available at the top level of `den.lib.diag`.
+Capture functions that run the fx pipeline with tracing handlers. Available at `den.lib.capture`.
 
 ### `capture class root`
 

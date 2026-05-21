@@ -178,7 +178,7 @@ export default defineConfig({
 						{ label: 'den.policies', slug: 'reference/policies' },
 						{ label: 'den.lib', slug: 'reference/lib' },
 						{ label: 'den.lib', slug: 'reference/lib-deprecated', badge: { text: 'legacy', variant: 'note' } },
-						{ label: 'den.lib.diag', slug: 'reference/diag' },
+						{ label: 'den.lib.capture & den-diagram', slug: 'reference/diag' },
 						{ label: 'flake.*', slug: 'reference/output' },
 						{ label: 'Glossary', slug: 'reference/glossary' },
 					],
