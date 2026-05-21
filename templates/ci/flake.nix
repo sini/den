@@ -30,7 +30,7 @@
     nix-effects.inputs.nixpkgs.follows = "nixpkgs";
     nix-effects.inputs.nix-unit.follows = "nix-unit";
 
-    den-schema.url = "github:sini/den-schema";
-    den-schema.inputs.nixpkgs.follows = "nixpkgs";
+    gen-schema.url = "github:sini/gen-schema";
+    gen-schema.inputs.nixpkgs.follows = "nixpkgs";
   };
 }
