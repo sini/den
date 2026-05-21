@@ -17,7 +17,7 @@ nix/                       — all library and flake-module code
         aspect/            — children, normalize, provide
         policy/            — policy dispatch and effects
     entities/              — host.nix, home.nix entity kind definitions
-    diag/capture.nix       — trace capture (graph/rendering moved to sini/den-diagram)
+    diag/capture.nix       — trace capture (graph/rendering moved to denful/den-diagram)
   nixModule/               — den.aspects, den.policies, den.lib option declarations
 modules/                   — NixOS-module-style option declarations and batteries
   options.nix              — den.hosts, den.homes, den.schema, den.classes, den.quirks
@@ -131,7 +131,7 @@ New test files must be `git add`'d before nix can evaluate them. Use `--override
 
 ## Diagrams (den-diagram)
 
-Diagram rendering lives in a separate repo: [sini/den-diagram](https://github.com/sini/den-diagram). Den keeps only the capture layer (`nix/lib/diag/capture.nix`) which runs the fx pipeline with tracing handlers.
+Diagram rendering lives in a separate repo: [denful/den-diagram](https://github.com/denful/den-diagram). Den keeps only the capture layer (`nix/lib/diag/capture.nix`) which runs the fx pipeline with tracing handlers.
 
 **Capture** stays in den — `den.lib.capture.*`:
 
