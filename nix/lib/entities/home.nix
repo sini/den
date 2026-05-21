@@ -11,12 +11,40 @@ let
     lookupAspect
     mainModuleOption
     resolvedCtxModule
+    reservedSystems
+    preprocessHosts
     ;
+
+  # Recursive merge without forcing leaf values.
+  # Unlike lib.types.anything, this does not inspect values deeply (no
+  # mapAttrsRecursiveCond), avoiding infinite recursion when values
+  # reference other options (e.g. den.aspects).
+  deepMergeAttrs = lib.mkOptionType {
+    name = "deepMergeAttrs";
+    description = "recursively merged attribute set";
+    check = builtins.isAttrs;
+    merge = _loc: defs: builtins.foldl' (acc: def: lib.recursiveUpdate acc def.value) { } defs;
+  };
+
+  innerType = lib.types.attrsOf homeSystemType;
 
   homesOption = lib.mkOption {
     description = "den standalone home-manager configurations";
     default = { };
-    type = lib.types.attrsOf homeSystemType;
+    type = lib.types.attrsOf (lib.types.submodule { freeformType = deepMergeAttrs; });
+    apply =
+      raw:
+      let
+        normalized = preprocessHosts raw;
+      in
+      innerType.merge
+        [ "den" "homes" ]
+        [
+          {
+            file = "<den.homes>";
+            value = normalized;
+          }
+        ];
   };
 
   homeSystemType = lib.types.submodule (
