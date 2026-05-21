@@ -31,7 +31,7 @@ let
     policy = ./policy-effects.nix;
     resolveEntity = ./resolve-entity.nix;
     strict = ./strict.nix;
-    diag = ./diag;
+    capture = ./diag/capture.nix;
     policyInspect = ./policy-inspect.nix;
     schemaUtil = ./schema-util.nix;
     synthesizePolicies = ./synthesize-policies.nix;
