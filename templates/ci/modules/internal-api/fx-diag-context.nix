@@ -8,7 +8,10 @@
   flake.tests.fx-diag-context = {
 
     test-host-context = denTest (
-      { den, ... }:
+      { den, inputs, ... }:
+      let
+        gram = inputs.den-gram.lib;
+      in
       {
         den.hosts.x86_64-linux.testhost.users.tux = { };
         den.aspects.testhost.nixos =
@@ -19,7 +22,19 @@
         expr =
           let
             host = lib.head (builtins.attrValues den.hosts.x86_64-linux);
-            graph = den.lib.diag.hostContext { inherit host; };
+            captured = den.lib.capture.captureWithPathsWith {
+              classes = [
+                "nixos"
+                "homeManager"
+                "user"
+              ];
+              root = den.lib.resolveEntity "host" { inherit host; };
+              ctx = { inherit host; };
+            };
+            graph = gram.context {
+              inherit (captured) entries ctxTrace;
+              name = host.name;
+            };
           in
           {
             hasNodes = (graph.nodes or [ ]) != [ ];
@@ -55,7 +70,7 @@
           let
             host = lib.head (builtins.attrValues den.hosts.x86_64-linux);
             root = den.lib.resolveEntity "host" { inherit host; };
-            result = den.lib.diag.captureWithPaths [ "nixos" ] root;
+            result = den.lib.capture.captureWithPaths [ "nixos" ] root;
           in
           {
             hasEntries = (builtins.length result.entries) > 0;
@@ -69,7 +84,10 @@
     );
 
     test-handleWith-exclude-in-aspect = denTest (
-      { den, ... }:
+      { den, inputs, ... }:
+      let
+        gram = inputs.den-gram.lib;
+      in
       {
         den.hosts.x86_64-linux.testhost.users.tux = { };
         den.aspects.testhost = {
@@ -97,7 +115,19 @@
         expr =
           let
             host = lib.head (builtins.attrValues den.hosts.x86_64-linux);
-            graph = den.lib.diag.hostContext { inherit host; };
+            captured = den.lib.capture.captureWithPathsWith {
+              classes = [
+                "nixos"
+                "homeManager"
+                "user"
+              ];
+              root = den.lib.resolveEntity "host" { inherit host; };
+              ctx = { inherit host; };
+            };
+            graph = gram.context {
+              inherit (captured) entries ctxTrace;
+              name = host.name;
+            };
           in
           {
             hasNodes = (graph.nodes or [ ]) != [ ];
