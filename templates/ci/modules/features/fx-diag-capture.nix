@@ -28,7 +28,7 @@
             }
           ];
         };
-        result = den.lib.diag.captureWithPaths [ "nixos" ] root;
+        result = den.lib.capture.captureWithPaths [ "nixos" ] root;
       in
       {
         expr = {
@@ -79,7 +79,7 @@
             }
           ];
         };
-        result = den.lib.diag.captureWithPaths [ "nixos" ] root;
+        result = den.lib.capture.captureWithPaths [ "nixos" ] root;
         excludedEntries = builtins.filter (e: e.excluded or false) result.entries;
       in
       {
@@ -108,7 +108,7 @@
             }
           ];
         };
-        result = den.lib.diag.captureWithPaths [ "nixos" ] root;
+        result = den.lib.capture.captureWithPaths [ "nixos" ] root;
         childEntry = lib.findFirst (e: e.name == "child") null result.entries;
       in
       {
@@ -137,7 +137,7 @@
             }
           ];
         };
-        result = den.lib.diag.captureWithPaths [ "nixos" ] root;
+        result = den.lib.capture.captureWithPaths [ "nixos" ] root;
         gcEntry = lib.findFirst (e: e.name == "grandchild") null result.entries;
       in
       {
@@ -172,7 +172,7 @@
             }
           ];
         };
-        result = den.lib.diag.captureWithPaths [ "nixos" ] root;
+        result = den.lib.capture.captureWithPaths [ "nixos" ] root;
         pathCount = builtins.length (builtins.attrNames (result.pathsByClass.nixos or { }));
       in
       {
@@ -196,7 +196,7 @@
           };
           includes = [ ];
         };
-        result = den.lib.diag.captureWithPaths [
+        result = den.lib.capture.captureWithPaths [
           "nixos"
           "homeManager"
         ] root;
@@ -230,7 +230,7 @@
           };
           includes = [ ];
         };
-        result = den.lib.diag.captureWithPaths [ "nixos" ] root;
+        result = den.lib.capture.captureWithPaths [ "nixos" ] root;
         rootEntry = lib.findFirst (e: e.name == "root") null result.entries;
       in
       {
