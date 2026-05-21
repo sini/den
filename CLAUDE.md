@@ -17,7 +17,7 @@ nix/                       — all library and flake-module code
         aspect/            — children, normalize, provide
         policy/            — policy dispatch and effects
     entities/              — host.nix, home.nix entity kind definitions
-    diag/                  — diagram generation (c4, mermaid, dot, fleet views)
+    diag/capture.nix       — trace capture (graph/rendering moved to sini/den-diagram)
   nixModule/               — den.aspects, den.policies, den.lib option declarations
 modules/                   — NixOS-module-style option declarations and batteries
   options.nix              — den.hosts, den.homes, den.schema, den.classes, den.quirks
@@ -128,6 +128,34 @@ New test files must be `git add`'d before nix can evaluate them. Use `--override
 ## Claude Code skills
 
 - **den-debugging** (`.claude/skills/den-debugging.md`) — structured workflow for reproducing, isolating, and fixing bugs. Guides through: understand report → trace code path → write failing test → fix → validate. Includes an entry point table mapping symptoms to source files.
+
+## Diagrams (den-diagram)
+
+Diagram rendering lives in a separate repo: [sini/den-diagram](https://github.com/sini/den-diagram). Den keeps only the capture layer (`nix/lib/diag/capture.nix`) which runs the fx pipeline with tracing handlers.
+
+**Capture** stays in den — `den.lib.capture.*`:
+- `capture`, `captureAll`, `captureWithPaths`, `captureWithPathsWith`, `captureFleet`
+
+**Rendering** lives in den-diagram — added as `inputs.den-diagram` in templates that need it:
+
+```nix
+gram = inputs.den-diagram.lib;
+
+# Two-step: capture in den, render in den-diagram
+captured = den.lib.capture.captureWithPathsWith {
+  classes = [ "nixos" "homeManager" ];
+  root = den.lib.resolveEntity "host" { inherit host; };
+  ctx = { inherit host; };
+};
+g = gram.context {
+  entries = captured.entries;
+  ctxTrace = captured.ctxTrace;
+  name = host.name;
+};
+rendered = gram.toMermaid g;
+```
+
+Templates using den-diagram: `diagram-demo`, `fleet-demo`. Den's core flake and CI have no den-diagram dependency.
 
 ## Debugging and tracing
 
