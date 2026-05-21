@@ -33,7 +33,7 @@ args=($@)
 
 # When a specific test is requested, delegate to nix-unit for traces
 if test -n "$testFilter"; then
-  nix_unit_output=$(nix-unit --override-input den . --override-input den-gram path:../den-gram --flake "./templates/ci#.tests.${suite}" "${args[@]}" 2>&1) || true
+  nix_unit_output=$(nix-unit --override-input den . --flake "./templates/ci#.tests.${suite}" "${args[@]}" 2>&1) || true
   # Show only the matching test's output (with surrounding trace context)
   echo "$nix_unit_output" | grep -v '^[✅❌🎉😢]' | grep -v 'successful$' >&2 || true
   if echo "$nix_unit_output" | grep -q "^✅ ${testFilter}$"; then
@@ -57,7 +57,7 @@ workers=$(( $(nproc) < max_workers ? $(nproc) : max_workers ))
 
 nix-eval-jobs \
   --flake ./templates/ci#tests${preSuite} \
-  --override-input den . --override-input den-gram path:../den-gram \
+  --override-input den . \
   --workers "$workers" \
   --max-memory-size "$mem_per_worker" \
   --force-recurse \

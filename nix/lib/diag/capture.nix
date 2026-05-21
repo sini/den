@@ -2,9 +2,9 @@
 # via the fx pipeline's tracingHandler.
 #
 # Usage:
-#   entries = diag.capture "nixos" rootAspect;
-#   entries = diag.captureAll [ "nixos" "homeManager" ] rootAspect;
-#   { entries, pathsByClass, ctxTrace } = diag.captureWithPaths classes rootAspect;
+#   entries = den.lib.capture.capture "nixos" rootAspect;
+#   entries = den.lib.capture.captureAll [ "nixos" "homeManager" ] rootAspect;
+#   { entries, pathsByClass, ctxTrace } = den.lib.capture.captureWithPaths classes rootAspect;
 {
   den,
   lib,
