@@ -6,6 +6,7 @@
     "docs/*"
     "Justfile"
     "AGENT*.md"
+    "CLAUDE.md"
     "*.txt"
     "*.svg"
     "ci.bash"
