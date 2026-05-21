@@ -18,7 +18,7 @@
   ...
 }:
 let
-  gram = inputs.den-diagram.lib;
+  diagram = inputs.den-diagram.lib;
 
   allHosts = lib.concatMap builtins.attrValues (builtins.attrValues den.hosts);
 
@@ -30,7 +30,7 @@ in
   perSystem =
     { pkgs, ... }:
     let
-      theme = gram.themeFromBase16 {
+      theme = diagram.themeFromBase16 {
         inherit pkgs;
         scheme = themeScheme;
       };
@@ -55,7 +55,7 @@ in
         '';
       });
 
-      rc = gram.renderContext {
+      rc = diagram.renderContext {
         inherit pkgs theme;
         mermaidCli = mermaidCliPatched;
         mermaidConfig = {
@@ -70,7 +70,7 @@ in
         };
       };
 
-      fleetData = gram.fleet.of {
+      fleetData = diagram.fleet.of {
         hosts = den.hosts;
         flakeName = "diagram-demo";
       };
@@ -90,7 +90,7 @@ in
 
       # --- Helpers ---
 
-      inherit (gram.export)
+      inherit (diagram.export)
         entityEntries
         filterByRender
         mkGallery
@@ -119,7 +119,7 @@ in
             ctx = { inherit host; };
           };
         in
-        gram.context {
+        diagram.context {
           inherit (captured) entries ctxTrace pathsByClass;
           name = host.name;
         };
@@ -139,7 +139,7 @@ in
             ctx = { inherit (u) host user; };
           };
         in
-        gram.context {
+        diagram.context {
           inherit (captured) entries ctxTrace pathsByClass;
           name = u.userName;
         };
@@ -155,7 +155,7 @@ in
             };
           };
         in
-        gram.context {
+        diagram.context {
           inherit (captured) entries ctxTrace pathsByClass;
           name = h.home.name;
         };
@@ -232,7 +232,7 @@ in
 
       # --- Fleet entries ---
 
-      fleetEntriesList = gram.export.fleetEntries { inherit pkgs; } {
+      fleetEntriesList = diagram.export.fleetEntries { inherit pkgs; } {
         inherit fleetData;
         viewDefs = fleetViewDefs;
       };
@@ -260,7 +260,7 @@ in
         };
 
       # --- Text summaries ---
-      fleetSummaryText = gram.text.fleetSummary fleetCapture;
+      fleetSummaryText = diagram.text.fleetSummary fleetCapture;
       fleetSummaryDrv = pkgs.writeText "fleet-summary.md" fleetSummaryText;
 
       hostSummaryDrvs = lib.listToAttrs (
@@ -268,7 +268,7 @@ in
           host:
           let
             entity = mkHostEntity host;
-            text = gram.text.hostSummary {
+            text = diagram.text.hostSummary {
               graph = entity;
               inherit host fleetCapture;
             };
@@ -288,7 +288,7 @@ in
           rc.render.toPolicyResolutionMapMermaid;
       pipeSeqView = mkFleetView "pipe-sequence" "Pipe Sequence" rc.render.toPipeSequenceMermaid;
       fleetDagSource = rc.render.toFleetDagMermaid { inherit fleetCapture hostGraphs; };
-      fleetIrJson = gram.fleetGraph.toJSON { inherit fleetCapture hostGraphs; };
+      fleetIrJson = diagram.fleetGraph.toJSON { inherit fleetCapture hostGraphs; };
       fleetIrDrv = pkgs.runCommand "fleet-ir.json" { nativeBuildInputs = [ pkgs.jq ]; } ''
         echo ${lib.escapeShellArg fleetIrJson} | jq . > $out
       '';
@@ -298,7 +298,7 @@ in
       };
 
       # --- Namespace view (explicit, not part of fleet views) ---
-      namespaceGraph = gram.graph.ofNamespace { aspects = den.aspects or { }; };
+      namespaceGraph = diagram.graph.ofNamespace { aspects = den.aspects or { }; };
       namespaceSource = rc.renderDense.toMermaid namespaceGraph;
       namespaceView = {
         md = pkgs.writeText "namespace.md" "# Namespace\n\n![Namespace](./namespace.mmd.svg)\n\n```mermaid\n${namespaceSource}\n```\n";
