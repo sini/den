@@ -58,15 +58,21 @@ This returns a set of matching policies with their targets, routing type, and so
 
 ## Trace Aspect Includes
 
-The resolution pipeline includes built-in tracing via the `diag` library.
-Use `den.lib.diag.hostContext` to capture a full trace of which aspects are
-included and how they resolve. See [Diagrams](/explanation/diagrams/) for details.
+The resolution pipeline includes built-in tracing via `den.lib.capture` and the
+[den-diagram](https://github.com/denful/den-diagram) library. Capture trace data
+in den, then render with den-diagram. See [Diagrams](/explanation/diagrams/) for details.
 
 ```nix
-# In a REPL:
-diag = den.lib.diag
-g = diag.hostContext { host = den.hosts.x86_64-linux.laptop; }
-diag.toMermaid g  # renders the full aspect graph
+# In a REPL (with den-diagram available as `gram`):
+gram = inputs.den-diagram.lib;
+host = den.hosts.x86_64-linux.laptop;
+captured = den.lib.capture.captureWithPathsWith {
+  classes = [ "nixos" "homeManager" ];
+  root = den.lib.resolveEntity "host" { inherit host; };
+  ctx = { inherit host; };
+};
+g = gram.context { entries = captured.entries; name = host.name; };
+gram.toMermaid g  # renders the full aspect graph
 ```
 
 ## Trace Context
