@@ -14,7 +14,7 @@ let
       config
       ;
   };
-  schemaLib = inputs.den-schema.lib;
+  schemaLib = inputs.gen-schema.lib;
 
   classSchemaType = lib.types.submodule (
     { ... }:
