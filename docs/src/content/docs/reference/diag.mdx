@@ -22,7 +22,7 @@ See [Diagrams explanation](/explanation/diagrams/) for concepts and usage patter
 Capture in den, render in den-diagram:
 
 ```nix
-gram = inputs.den-diagram.lib;
+diagram = inputs.den-diagram.lib;
 
 # 1. Capture
 captured = den.lib.capture.captureWithPathsWith {
@@ -32,14 +32,14 @@ captured = den.lib.capture.captureWithPathsWith {
 };
 
 # 2. Build graph IR
-g = gram.context {
+g = diagram.context {
   entries = captured.entries;
   ctxTrace = captured.ctxTrace;
   name = host.name;
 };
 
 # 3. Render
-gram.toMermaid g
+diagram.toMermaid g
 ```
 
 ## Graph construction
@@ -58,7 +58,7 @@ Static namespace graph built from `den.aspects` declarations (no host resolution
 
 ## Filters
 
-All filters are available on the `graph` attrset (e.g., `gram.graph.aspectsOnly`). Each takes a graph IR and returns a new graph IR.
+All filters are available on the `graph` attrset (e.g., `diagram.graph.aspectsOnly`). Each takes a graph IR and returns a new graph IR.
 
 ### Predicate filters
 
@@ -189,7 +189,7 @@ Hard-coded github-light palette. No `pkgs` required -- the library is usable wit
 Build a theme from a [base16](https://github.com/tinted-theming/schemes) palette. Converts the YAML scheme to JSON via `yj` at build time.
 
 ```nix
-theme = gram.themeFromBase16 { inherit pkgs; scheme = "catppuccin-mocha"; };
+theme = diagram.themeFromBase16 { inherit pkgs; scheme = "catppuccin-mocha"; };
 ```
 
 ### `themeFromPalette palette`
@@ -238,13 +238,13 @@ Returns:
 | `pumlSourceToSvg` | `base -> source -> derivation` -- PlantUML source to SVG |
 
 ```nix
-rc = gram.renderContext { inherit pkgs; mermaidConfig = { layout = "elk"; }; };
+rc = diagram.renderContext { inherit pkgs; mermaidConfig = { layout = "elk"; }; };
 rendered = rc.render.toMermaid myGraph;
 ```
 
 ## Export helpers
 
-Utilities for turning view definitions into derivations, packages, and write scripts. Available under `gram.export`.
+Utilities for turning view definitions into derivations, packages, and write scripts. Available under `diagram.export`.
 
 ### `entityEntries { pkgs, rc } { entity, name, dir, viewDefs, galleryDrv? }`
 
