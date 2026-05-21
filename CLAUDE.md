@@ -134,6 +134,7 @@ New test files must be `git add`'d before nix can evaluate them. Use `--override
 Diagram rendering lives in a separate repo: [sini/den-diagram](https://github.com/sini/den-diagram). Den keeps only the capture layer (`nix/lib/diag/capture.nix`) which runs the fx pipeline with tracing handlers.
 
 **Capture** stays in den — `den.lib.capture.*`:
+
 - `capture`, `captureAll`, `captureWithPaths`, `captureWithPathsWith`, `captureFleet`
 
 **Rendering** lives in den-diagram — added as `inputs.den-diagram` in templates that need it:
