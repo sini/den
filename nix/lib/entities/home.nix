@@ -6,7 +6,12 @@
   ...
 }@top:
 let
-  inherit (import ./_types.nix { inherit lib; }) strOpt lookupAspect mainModuleOption;
+  inherit (import ./_types.nix { inherit lib den; })
+    strOpt
+    lookupAspect
+    mainModuleOption
+    resolvedCtxModule
+    ;
 
   homesOption = lib.mkOption {
     description = "den standalone home-manager configurations";
@@ -47,7 +52,10 @@ let
       in
       {
         freeformType = lib.types.attrsOf lib.types.anything;
-        imports = [ den.schema.home ];
+        imports = [
+          den.schema.home
+          (resolvedCtxModule "home")
+        ];
         config._module.args.home = config;
         config._module.args.host = hostByName;
         config._module.args.user = userByName;
