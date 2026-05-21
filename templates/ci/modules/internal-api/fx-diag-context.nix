@@ -1,7 +1,7 @@
 # Tests for the diag library's capture integration.
 #
 # Context graph construction tests (basic context, exclude handling) live
-# in den-gram's own test suite. These tests exercise den-specific capture
+# in den-diagram's own test suite. These tests exercise den-specific capture
 # and constraint APIs that require the full pipeline.
 {
   denTest,
