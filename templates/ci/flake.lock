@@ -35,26 +35,6 @@
         "type": "github"
       }
     },
-    "den-schema": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1779316549,
-        "narHash": "sha256-Ez1W0qTzMzyC+x2mjis5oh5L3q7cOMe/xJVdhSP6sJo=",
-        "owner": "sini",
-        "repo": "den-schema",
-        "rev": "1028d249a82d1184752c51168a0b397ea0bafa12",
-        "type": "github"
-      },
-      "original": {
-        "owner": "sini",
-        "repo": "den-schema",
-        "type": "github"
-      }
-    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -73,6 +53,26 @@
       "original": {
         "owner": "hercules-ci",
         "repo": "flake-parts",
+        "type": "github"
+      }
+    },
+    "gen-schema": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1779386005,
+        "narHash": "sha256-KY33X6a6XSwgbtdUDf1TKgwzJxTTIW/IizpHWmEmfHQ=",
+        "owner": "sini",
+        "repo": "gen-schema",
+        "rev": "246ccaee53afe4abdd488f8ec5b66bd8ee90369a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "sini",
+        "repo": "gen-schema",
         "type": "github"
       }
     },
@@ -218,7 +218,7 @@
       "inputs": {
         "darwin": "darwin",
         "den": "den",
-        "den-schema": "den-schema",
+        "gen-schema": "gen-schema",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
         "nix-effects": "nix-effects",
