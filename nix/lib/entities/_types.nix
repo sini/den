@@ -117,6 +117,33 @@ let
         default = null;
       };
     };
+  # System strings recognized as two-level group keys rather than host names.
+  reservedSystems = lib.genAttrs lib.systems.flakeExposed (_: true);
+
+  # Normalize mixed host declarations into canonical two-level form.
+  # Two-level entries (key is a system string) pass through.
+  # Flat entries (key is a host name) are grouped by their `system` attribute.
+  preprocessHosts =
+    raw:
+    let
+      systemGroups = lib.filterAttrs (k: _: reservedSystems ? ${k}) raw;
+      directHosts = lib.filterAttrs (k: _: !(reservedSystems ? ${k})) raw;
+      grouped = lib.foldlAttrs (
+        acc: name: cfg:
+        let
+          system =
+            cfg.system
+              or (throw "den: flat host '${name}' must specify 'system' (e.g. system = \"x86_64-linux\")");
+        in
+        acc
+        // {
+          ${system} = (acc.${system} or { }) // {
+            ${name} = builtins.removeAttrs cfg [ "system" ];
+          };
+        }
+      ) { } directHosts;
+    in
+    lib.recursiveUpdate systemGroups grouped;
 in
 {
   inherit
@@ -124,5 +151,7 @@ in
     lookupAspect
     mainModuleOption
     resolvedCtxModule
+    reservedSystems
+    preprocessHosts
     ;
 }
