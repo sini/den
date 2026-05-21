@@ -6,7 +6,12 @@
   ...
 }:
 let
-  inherit (import ./_types.nix { inherit lib; }) strOpt lookupAspect mainModuleOption;
+  inherit (import ./_types.nix { inherit lib den; })
+    strOpt
+    lookupAspect
+    mainModuleOption
+    resolvedCtxModule
+    ;
 
   hostsOption = lib.mkOption {
     description = "den hosts definition";
@@ -28,7 +33,10 @@ let
       { name, config, ... }:
       {
         freeformType = lib.types.attrsOf lib.types.anything;
-        imports = [ den.schema.host ];
+        imports = [
+          den.schema.host
+          (resolvedCtxModule "host")
+        ];
         config._module.args.host = config;
         options = {
           name = strOpt "host configuration name" name;
@@ -116,7 +124,10 @@ let
       { name, config, ... }:
       {
         freeformType = lib.types.attrsOf lib.types.anything;
-        imports = [ den.schema.user ];
+        imports = [
+          den.schema.user
+          (resolvedCtxModule "user")
+        ];
         config._module.args.host = host;
         config._module.args.user = config;
         options = {
