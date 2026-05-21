@@ -63,16 +63,16 @@ The resolution pipeline includes built-in tracing via `den.lib.capture` and the
 in den, then render with den-diagram. See [Diagrams](/explanation/diagrams/) for details.
 
 ```nix
-# In a REPL (with den-diagram available as `gram`):
-gram = inputs.den-diagram.lib;
+# In a REPL (with den-diagram available as `diagram`):
+diagram = inputs.den-diagram.lib;
 host = den.hosts.x86_64-linux.laptop;
 captured = den.lib.capture.captureWithPathsWith {
   classes = [ "nixos" "homeManager" ];
   root = den.lib.resolveEntity "host" { inherit host; };
   ctx = { inherit host; };
 };
-g = gram.context { entries = captured.entries; name = host.name; };
-gram.toMermaid g  # renders the full aspect graph
+g = diagram.context { entries = captured.entries; name = host.name; };
+diagram.toMermaid g  # renders the full aspect graph
 ```
 
 ## Trace Context

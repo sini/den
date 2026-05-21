@@ -11,16 +11,16 @@
   ...
 }:
 let
-  gram = inputs.den-diagram.lib;
+  diagram = inputs.den-diagram.lib;
   allHosts = lib.concatMap builtins.attrValues (builtins.attrValues den.hosts);
 in
 {
   perSystem =
     { pkgs, ... }:
     let
-      rc = gram.renderContext { inherit pkgs; };
+      rc = diagram.renderContext { inherit pkgs; };
       fleetCapture = den.lib.capture.captureFleet { };
-      fleetData = gram.fleet.of {
+      fleetData = diagram.fleet.of {
         hosts = den.hosts;
         flakeName = "fleet-demo";
       };
@@ -129,7 +129,7 @@ in
         let
           # Fleet-demo doesn't use WSL — filter out battery-injected aspects
           # that aren't relevant to this template's topology.
-          namespaceGraph = gram.graph.ofNamespace {
+          namespaceGraph = diagram.graph.ofNamespace {
             aspects = den.aspects or { };
             filter = v: v.name != "wsl-host-aspect";
           };
@@ -167,7 +167,7 @@ in
 
       fleetSummarySection =
         let
-          summaryText = gram.text.fleetSummary fleetCapture;
+          summaryText = diagram.text.fleetSummary fleetCapture;
         in
         ''
           ## Fleet Summary
@@ -213,7 +213,7 @@ in
           in
           {
             name = host.name;
-            value = gram.context {
+            value = diagram.context {
               inherit (captured) entries ctxTrace pathsByClass;
               name = host.name;
             };
@@ -222,7 +222,7 @@ in
       );
       fleetIrDrv = pkgs.runCommand "fleet-ir.json" { nativeBuildInputs = [ pkgs.jq ]; } ''
         echo ${
-          lib.escapeShellArg (gram.fleetGraph.toJSON { inherit fleetCapture hostGraphs; })
+          lib.escapeShellArg (diagram.fleetGraph.toJSON { inherit fleetCapture hostGraphs; })
         } | jq . > $out
       '';
 
@@ -506,8 +506,8 @@ in
       );
     in
     {
-      packages = gram.export.entriesToPackages everyEntry // {
-        write-diagrams = gram.export.mkWriteScript pkgs {
+      packages = diagram.export.entriesToPackages everyEntry // {
+        write-diagrams = diagram.export.mkWriteScript pkgs {
           entries = everyEntry;
           galleries = [ ];
           inherit readmeDrv;

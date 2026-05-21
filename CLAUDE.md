@@ -140,7 +140,7 @@ Diagram rendering lives in a separate repo: [denful/den-diagram](https://github.
 **Rendering** lives in den-diagram — added as `inputs.den-diagram` in templates that need it:
 
 ```nix
-gram = inputs.den-diagram.lib;
+diagram = inputs.den-diagram.lib;
 
 # Two-step: capture in den, render in den-diagram
 captured = den.lib.capture.captureWithPathsWith {
@@ -148,12 +148,12 @@ captured = den.lib.capture.captureWithPathsWith {
   root = den.lib.resolveEntity "host" { inherit host; };
   ctx = { inherit host; };
 };
-g = gram.context {
+g = diagram.context {
   entries = captured.entries;
   ctxTrace = captured.ctxTrace;
   name = host.name;
 };
-rendered = gram.toMermaid g;
+rendered = diagram.toMermaid g;
 ```
 
 Templates using den-diagram: `diagram-demo`, `fleet-demo`. Den's core flake and CI have no den-diagram dependency.
