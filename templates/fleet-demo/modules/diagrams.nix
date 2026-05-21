@@ -11,7 +11,7 @@
   ...
 }:
 let
-  gram = inputs.den-gram.lib;
+  gram = inputs.den-diagram.lib;
   allHosts = lib.concatMap builtins.attrValues (builtins.attrValues den.hosts);
 in
 {
