@@ -8,7 +8,6 @@
 
   inputs = {
     den.url = "github:denful/den";
-    den-gram.url = "github:sini/den-gram";
     import-tree.url = "github:vic/import-tree";
 
     nixpkgs.url = "https://channels.nixos.org/nixos-unstable/nixexprs.tar.xz";
