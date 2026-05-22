@@ -29,6 +29,7 @@ let
     "__providesForwarded"
     "_module"
     "_"
+    "settings"
   ] (_: true);
 
   # Schema registry for key classification.
