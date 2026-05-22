@@ -619,6 +619,73 @@
       }
     );
 
+    # ─── Group H2: nested freeform aspect refs ─────────────────────────
+
+    # Nested aspects accessed via freeform key traversal (e.g.,
+    # den.aspects.disk.zfs-disk-single) lack name/meta but carry
+    # __provider. hasAspect must resolve these via __provider chain.
+    test-H2-nested-freeform-present = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.includes = [ den.aspects.parent.child ];
+        den.aspects.parent.child.nixos = { };
+
+        expr = den.hosts.x86_64-linux.igloo.hasAspect den.aspects.parent.child;
+        expected = true;
+      }
+    );
+
+    test-H2-nested-freeform-absent = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.nixos = { };
+        den.aspects.parent.child.nixos = { };
+
+        expr = den.hosts.x86_64-linux.igloo.hasAspect den.aspects.parent.child;
+        expected = false;
+      }
+    );
+
+    # Full provenance: den.aspects.a.sub and den.aspects.b.sub are distinct.
+    # hasAspect must match the full path (a/sub vs b/sub), not just the leaf name.
+    test-H2-nested-freeform-provenance-distinct = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.includes = [ den.aspects.a.sub ];
+        den.aspects.a.sub.nixos = { };
+        den.aspects.b.sub.nixos = { };
+
+        expr = {
+          a-sub = den.hosts.x86_64-linux.igloo.hasAspect den.aspects.a.sub;
+          b-sub = den.hosts.x86_64-linux.igloo.hasAspect den.aspects.b.sub;
+        };
+        expected = {
+          a-sub = true;
+          b-sub = false;
+        };
+      }
+    );
+
+    # Deeply nested freeform ref (3 levels).
+    test-H2-deeply-nested-freeform = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.includes = [ den.aspects.disk.zfs.single ];
+        den.aspects.disk.zfs.single.nixos = { };
+
+        expr = den.hosts.x86_64-linux.igloo.hasAspect den.aspects.disk.zfs.single;
+        expected = true;
+      }
+    );
+
     # ─── Group I: error cases ─────────────────────────────────────────
 
     test-I-bad-ref-throws = denTest (

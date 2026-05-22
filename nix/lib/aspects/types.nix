@@ -488,9 +488,25 @@ let
             name = "${aspectName}._";
             includes = map (k: merged.${k}) childKeys;
           };
+          # Annotate nested attrset children with __provider so deeply nested
+          # aspects carry provenance for hasAspect resolution.
+          # Only annotate unregistered keys (potential nested aspects) —
+          # skip class keys, pipe keys, structural keys, and internal keys.
+          annotatedMerged = lib.mapAttrs (
+            k: v:
+            if builtins.isAttrs v
+              && !(v ? __provider)
+              && !(v ? __contentValues)
+              && !(lib.hasPrefix "__" k)
+              && !(classReg ? ${k})
+              && !(pipeReg ? ${k})
+              && !(structuralKeysSet ? ${k})
+            then v // { __provider = provider ++ [ k ]; }
+            else v
+          ) merged;
         in
         providesChildren
-        // merged
+        // annotatedMerged
         // {
           __contentValues = flatDefs;
           __provider = provider;
