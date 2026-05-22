@@ -57,7 +57,7 @@ in
         merge = acc: val: acc || val;
       };
     };
-    computed = _kind: sidecars: defs: {
+    computed = sidecars: defs: {
       isEntity =
         sidecars.isEntity
         || builtins.any (
@@ -68,6 +68,7 @@ in
               "includes"
               "excludes"
               "isEntity"
+              "parent"
               "collisionPolicy"
             ];
             stripped = if builtins.isAttrs v then builtins.removeAttrs v sidecarKeys else v;
@@ -76,6 +77,10 @@ in
         ) defs;
     };
   };
+  # Built-in entity topology: users nest inside hosts, homes nest inside hosts.
+  config.den.schema.user.parent = "host";
+  config.den.schema.home.parent = "host";
+
   options.den.classes = lib.mkOption {
     description = "Class evaluation domains";
     type = lib.types.lazyAttrsOf classSchemaType;
