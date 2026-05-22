@@ -81,6 +81,13 @@ in
   config.den.schema.user.parent = "host";
   config.den.schema.home.parent = "host";
 
+  options.den.reservedKeys = lib.mkOption {
+    description = "Additional aspect keys reserved from pipeline dispatch. These keys are treated as structural — the pipeline ignores them, letting consumers use them for metadata.";
+    type = lib.types.listOf lib.types.str;
+    default = [ ];
+    example = [ "settings" "tags" ];
+  };
+
   options.den.classes = lib.mkOption {
     description = "Class evaluation domains";
     type = lib.types.lazyAttrsOf classSchemaType;
