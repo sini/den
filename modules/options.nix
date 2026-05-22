@@ -52,21 +52,28 @@ in
       excludes = {
         default = [ ];
       };
+      isEntity = {
+        default = false;
+        merge = acc: val: acc || val;
+      };
     };
-    computed = _kind: _sidecars: defs: {
-      isEntity = builtins.any (
-        d:
-        let
-          v = d.value;
-          sidecarKeys = [
-            "includes"
-            "excludes"
-            "collisionPolicy"
-          ];
-          stripped = if builtins.isAttrs v then builtins.removeAttrs v sidecarKeys else v;
-        in
-        !builtins.isAttrs stripped || stripped != { }
-      ) defs;
+    computed = _kind: sidecars: defs: {
+      isEntity =
+        sidecars.isEntity
+        || builtins.any (
+          d:
+          let
+            v = d.value;
+            sidecarKeys = [
+              "includes"
+              "excludes"
+              "isEntity"
+              "collisionPolicy"
+            ];
+            stripped = if builtins.isAttrs v then builtins.removeAttrs v sidecarKeys else v;
+          in
+          !builtins.isAttrs stripped || stripped != { }
+        ) defs;
     };
   };
   options.den.classes = lib.mkOption {
