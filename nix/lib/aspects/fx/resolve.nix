@@ -587,7 +587,7 @@ let
             scopeId:
             let
               ownCtx = augmentedScopeContexts.${scopeId} or { };
-              inherit_ =
+              inherit' =
                 sid:
                 let
                   pid = scopeParent.${sid} or null;
@@ -597,10 +597,10 @@ let
                 else
                   let
                     parentCtx = augmentedScopeContexts.${pid} or { };
-                    grandparentCtx = inherit_ pid;
+                    grandparentCtx = inherit' pid;
                   in
                   grandparentCtx // parentCtx;
-              ancestorCtx = inherit_ scopeId;
+              ancestorCtx = inherit' scopeId;
               # Only inherit keys not already in the scope's own context.
               inherited = lib.filterAttrs (k: _: !(ownCtx ? ${k})) ancestorCtx;
             in
