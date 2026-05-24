@@ -168,6 +168,10 @@ in
       __pipeStage = "collect";
       fn = pred;
     };
+    collectAll = pred: {
+      __pipeStage = "collectAll";
+      fn = pred;
+    };
   };
 
   # Tag a value with collisionPolicy = "class-wins".

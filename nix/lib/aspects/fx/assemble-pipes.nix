@@ -190,6 +190,64 @@ let
     in
     builtins.filter predicateMatches siblings;
 
+  # Find all scopes matching a predicate, regardless of parent.
+  findMatchingAll =
+    {
+      scopeContexts,
+      scopeEntityKind ? { },
+      currentScopeId,
+    }:
+    predicate:
+    let
+      entityKinds = den.lib.schemaUtil.schemaEntityKinds;
+      allScopeIds = builtins.attrNames scopeContexts;
+      candidates = builtins.filter (sid: sid != currentScopeId) allScopeIds;
+      predArgs = builtins.functionArgs predicate;
+      requiredArgs = builtins.filter (k: !predArgs.${k}) (builtins.attrNames predArgs);
+      predEntityArgs = builtins.filter (k: builtins.elem k entityKinds) requiredArgs;
+      predicateMatches =
+        sid:
+        let
+          ctx = scopeContexts.${sid};
+          hasRequired = builtins.all (k: ctx ? ${k}) requiredArgs;
+          ownKind = scopeEntityKind.${sid} or null;
+          scopeOwnEntityKinds =
+            if ownKind != null then [ ownKind ] else builtins.filter (k: ctx ? ${k}) entityKinds;
+          extraEntityKinds = builtins.filter (k: !builtins.elem k predEntityArgs) scopeOwnEntityKinds;
+        in
+        hasRequired && extraEntityKinds == [ ] && predicate ctx;
+    in
+    builtins.filter predicateMatches candidates;
+
+  # Collect quirks from all scopes matching a predicate (no parent constraint).
+  collectFromAll =
+    {
+      scopeContexts,
+      scopeEntityKind ? { },
+      scopedClassImports,
+      currentScopeId,
+      pipeName,
+      hostConfigs ? null,
+    }:
+    predicate:
+    let
+      matchingScopes = findMatchingAll {
+        inherit
+          scopeContexts
+          scopeEntityKind
+          currentScopeId
+          ;
+      } predicate;
+    in
+    lib.concatMap (
+      sid:
+      let
+        entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
+        values = flattenAndExtract entries;
+      in
+      resolveThunks hostConfigs scopeContexts sid values
+    ) matchingScopes;
+
   # Collect quirks from sibling scopes matching a predicate.
   collectFromPeers =
     {
@@ -247,6 +305,7 @@ let
           "append"
           "for"
           "collect"
+          "collectAll"
           "withProvenance"
         ]
       ) stages;
@@ -295,6 +354,42 @@ let
             inherit
               scopeContexts
               scopeParent
+              scopeEntityKind
+              scopedClassImports
+              currentScopeId
+              pipeName
+              hostConfigs
+              ;
+          } stage.fn
+      else if t == "collectAll" then
+        if hasProvenance then
+          let
+            matchingScopes = findMatchingAll {
+              inherit
+                scopeContexts
+                scopeEntityKind
+                currentScopeId
+                ;
+            } stage.fn;
+            collected = lib.concatMap (
+              sid:
+              let
+                entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
+                rawValues = flattenAndExtract entries;
+                resolved = resolveThunks hostConfigs scopeContexts sid rawValues;
+              in
+              map (v: {
+                __pv = v;
+                __ps = sid;
+              }) resolved
+            ) matchingScopes;
+          in
+          values ++ collected
+        else
+          values
+          ++ collectFromAll {
+            inherit
+              scopeContexts
               scopeEntityKind
               scopedClassImports
               currentScopeId
@@ -393,6 +488,7 @@ let
         s:
         builtins.elem (s.__pipeStage or "") [
           "collect"
+          "collectAll"
           "withProvenance"
         ]
       ) stages
