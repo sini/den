@@ -44,20 +44,23 @@
       }
     );
 
-    # gen-schema _meta.topology derived from parent sidecars
+    # gen-schema _meta.topology derived from parent collections
     test-entity-topology = denTest (
       { den, ... }:
       {
-        expr = den.schema._meta.topology.host.children;
-        expected = [ "home" "user" ];
+        expr = den.schema._topology.host.children;
+        expected = [
+          "home"
+          "user"
+        ];
       }
     );
 
-    # gen-schema _meta is available
-    test-entity-meta-available = denTest (
+    # gen-schema _topology is available
+    test-entity-topology-available = denTest (
       { den, ... }:
       {
-        expr = den.schema ? _meta;
+        expr = den.schema ? _topology;
         expected = true;
       }
     );

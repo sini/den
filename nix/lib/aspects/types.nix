@@ -494,15 +494,18 @@ let
           # skip class keys, pipe keys, structural keys, and internal keys.
           annotatedMerged = lib.mapAttrs (
             k: v:
-            if builtins.isAttrs v
+            if
+              builtins.isAttrs v
               && !(v ? __provider)
               && !(v ? __contentValues)
               && !(lib.hasPrefix "__" k)
               && !(classReg ? ${k})
               && !(pipeReg ? ${k})
               && !(structuralKeysSet ? ${k})
-            then v // { __provider = provider ++ [ k ]; }
-            else v
+            then
+              v // { __provider = provider ++ [ k ]; }
+            else
+              v
           ) merged;
         in
         providesChildren

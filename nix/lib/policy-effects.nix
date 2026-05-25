@@ -101,7 +101,10 @@ in
   # Tier 1 delivery — replaces den.batteries.forward for the common case.
   route = spec: {
     __policyEffect = "route";
-    value = { path = [ ]; } // spec;
+    value = {
+      path = [ ];
+    }
+    // spec;
   };
 
   # Request post-pipeline instantiation of an entity's class content.
