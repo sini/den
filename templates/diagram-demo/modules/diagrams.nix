@@ -70,6 +70,8 @@ in
         };
       };
 
+      fleetCapture = den.lib.capture.captureFleet { };
+
       fleetData = diagram.fleet.of {
         hosts = den.hosts;
         flakeName = "diagram-demo";
@@ -101,64 +103,25 @@ in
 
       graphClasses = entity: lib.unique (lib.concatMap (n: n.classes or [ ]) entity.nodes);
 
-      # --- Capture + context helpers ---
+      # --- Scope projection helpers ---
 
-      mkHostEntity =
-        host:
-        let
-          captured = den.lib.capture.captureWithPathsWith {
-            classes = lib.unique (
-              [
-                "nixos"
-                "homeManager"
-                "user"
-              ]
-              ++ lib.concatMap (u: u.classes or [ ]) (lib.attrValues (host.users or { }))
-            );
-            root = den.lib.resolveEntity "host" { inherit host; };
-            ctx = { inherit host; };
-          };
-        in
-        diagram.context {
-          inherit (captured) entries ctxTrace pathsByClass;
-          name = host.name;
-        };
+      mkHostEntity = host: diagram.projectScope {
+        inherit fleetCapture;
+        kind = "host";
+        name = host.name;
+      };
 
-      mkUserEntity =
-        u:
-        let
-          captured = den.lib.capture.captureWithPathsWith {
-            classes = lib.unique (
-              [
-                "homeManager"
-                "user"
-              ]
-              ++ (u.user.classes or [ "homeManager" ])
-            );
-            root = den.lib.resolveEntity "user" { inherit (u) host user; };
-            ctx = { inherit (u) host user; };
-          };
-        in
-        diagram.context {
-          inherit (captured) entries ctxTrace pathsByClass;
-          name = u.userName;
-        };
+      mkUserEntity = u: diagram.projectScope {
+        inherit fleetCapture;
+        kind = "user";
+        name = u.userName;
+      };
 
-      mkHomeEntity =
-        h:
-        let
-          captured = den.lib.capture.captureWithPathsWith {
-            classes = lib.unique ([ "homeManager" ] ++ (h.home.classes or [ "homeManager" ]));
-            root = den.lib.resolveEntity "home" { home = h.home; };
-            ctx = {
-              home = h.home;
-            };
-          };
-        in
-        diagram.context {
-          inherit (captured) entries ctxTrace pathsByClass;
-          name = h.home.name;
-        };
+      mkHomeEntity = h: diagram.projectScope {
+        inherit fleetCapture;
+        kind = "home";
+        name = h.home.name;
+      };
 
       # --- Host entries ---
 
@@ -237,10 +200,7 @@ in
         viewDefs = fleetViewDefs;
       };
 
-      # --- Fleet-level views from captureFleet ---
-      fleetCapture = den.lib.capture.captureFleet { };
-
-      # Per-host graph IRs for fleet DAG composition.
+      # Per-host graph IRs for fleet DAG composition (from scope projection).
       hostGraphs = lib.listToAttrs (
         map (host: {
           name = host.name;
@@ -270,7 +230,7 @@ in
             entity = mkHostEntity host;
             text = diagram.text.hostSummary {
               graph = entity;
-              inherit host fleetCapture;
+              inherit fleetCapture;
             };
           in
           {
