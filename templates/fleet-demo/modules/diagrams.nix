@@ -195,30 +195,14 @@ in
       # --- IR (machine-readable) ---
 
       hostGraphs = lib.listToAttrs (
-        map (
-          host:
-          let
-            captured = den.lib.capture.captureWithPathsWith {
-              classes = lib.unique (
-                [
-                  "nixos"
-                  "homeManager"
-                  "user"
-                ]
-                ++ lib.concatMap (u: u.classes or [ ]) (lib.attrValues (host.users or { }))
-              );
-              root = den.lib.resolveEntity "host" { inherit host; };
-              ctx = { inherit host; };
-            };
-          in
-          {
+        map (host: {
+          name = host.name;
+          value = diagram.projectScope {
+            inherit fleetCapture;
+            kind = "host";
             name = host.name;
-            value = diagram.context {
-              inherit (captured) entries ctxTrace pathsByClass;
-              name = host.name;
-            };
-          }
-        ) allHosts
+          };
+        }) allHosts
       );
       fleetIrDrv = pkgs.runCommand "fleet-ir.json" { nativeBuildInputs = [ pkgs.jq ]; } ''
         echo ${

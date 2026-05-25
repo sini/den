@@ -5,7 +5,7 @@
 
   inputs = {
     den.url = "path:../..";
-    den-diagram.url = "github:denful/den-diagram";
+    den-diagram.url = "github:denful/den-diagram/feat/fleet-subtree-context";
     import-tree.url = "github:vic/import-tree";
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";

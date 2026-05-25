@@ -19,15 +19,16 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1779389865,
-        "narHash": "sha256-qRvXvsIhDgNJuQ052D1n1ZwhitOOTrmABbrlNMKy7Zk=",
+        "lastModified": 1779677237,
+        "narHash": "sha256-ypUyht4Fw3yr2J/UWGF4Id3sbWv+0P6pmRKUqtXADbA=",
         "owner": "denful",
         "repo": "den-diagram",
-        "rev": "3b14641b5c18f13998bd189478b4859d3bebb6d5",
+        "rev": "d7600e00a128a538fab6457d71ffd3c4821163a4",
         "type": "github"
       },
       "original": {
         "owner": "denful",
+        "ref": "feat/fleet-subtree-context",
         "repo": "den-diagram",
         "type": "github"
       }
