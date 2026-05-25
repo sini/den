@@ -45,7 +45,7 @@ in
   options.den.hosts = types.hostsOption;
   options.den.homes = types.homesOption;
   options.den.schema = schemaLib.mkSchemaOption {
-    sidecars = {
+    collections = {
       includes = {
         default = [ ];
       };
@@ -57,21 +57,21 @@ in
         merge = acc: val: acc || val;
       };
     };
-    computed = sidecars: defs: {
+    computed = collections: defs: {
       isEntity =
-        sidecars.isEntity
+        collections.isEntity
         || builtins.any (
           d:
           let
             v = d.value;
-            sidecarKeys = [
+            collectionKeys = [
               "includes"
               "excludes"
               "isEntity"
               "parent"
               "collisionPolicy"
             ];
-            stripped = if builtins.isAttrs v then builtins.removeAttrs v sidecarKeys else v;
+            stripped = if builtins.isAttrs v then builtins.removeAttrs v collectionKeys else v;
           in
           !builtins.isAttrs stripped || stripped != { }
         ) defs;
@@ -85,7 +85,10 @@ in
     description = "Additional aspect keys reserved from pipeline dispatch. These keys are treated as structural — the pipeline ignores them, letting consumers use them for metadata.";
     type = lib.types.listOf lib.types.str;
     default = [ ];
-    example = [ "settings" "tags" ];
+    example = [
+      "settings"
+      "tags"
+    ];
   };
 
   options.den.classes = lib.mkOption {
@@ -114,7 +117,6 @@ in
     host.imports = [ den.schema.conf ];
     user.imports = [ den.schema.conf ];
     home.imports = [ den.schema.conf ];
-    _topology.host.children = [ "user" ];
   };
   config.den.classes = {
     nixos.description = "NixOS system configuration";
