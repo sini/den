@@ -105,23 +105,29 @@ in
 
       # --- Scope projection helpers ---
 
-      mkHostEntity = host: diagram.projectScope {
-        inherit fleetCapture;
-        kind = "host";
-        name = host.name;
-      };
+      mkHostEntity =
+        host:
+        diagram.projectScope {
+          inherit fleetCapture;
+          kind = "host";
+          name = host.name;
+        };
 
-      mkUserEntity = u: diagram.projectScope {
-        inherit fleetCapture;
-        kind = "user";
-        name = u.userName;
-      };
+      mkUserEntity =
+        u:
+        diagram.projectScope {
+          inherit fleetCapture;
+          kind = "user";
+          name = u.userName;
+        };
 
-      mkHomeEntity = h: diagram.projectScope {
-        inherit fleetCapture;
-        kind = "home";
-        name = h.home.name;
-      };
+      mkHomeEntity =
+        h:
+        diagram.projectScope {
+          inherit fleetCapture;
+          kind = "home";
+          name = h.home.name;
+        };
 
       # --- Host entries ---
 
