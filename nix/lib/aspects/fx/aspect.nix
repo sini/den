@@ -101,12 +101,14 @@ let
           args: rawFn (args // { __scopeKeys = builtins.attrNames scopeHandlers; })
         else
           rawFn;
-      # Translate true → optionalArg sentinel for nix-effects ≥ v0.12.
-      # __args values of true (from lib.functionArgs) previously meant "optional";
-      # now bindAttrs requires the explicit sentinel.
-      args = lib.mapAttrs (
-        _: v: if v == true then fx.bind.optionalArg else v
-      ) (aspect.__args or { });
+      # nix-effects bind.fn uses lib.functionArgs internally but __args
+      # overrides win via //. Values of true (= has default / optional) must
+      # use the bindAttrs sentinel so the handler probe kicks in; passing
+      # literal true would send it as a param and throw when unhandled.
+      optionalArg = {
+        __bindAttrsOptional = true;
+      };
+      args = lib.mapAttrs (_: v: if v == true then optionalArg else v) (aspect.__args or { });
       bound = fx.bind.fn args fn;
     in
     if scopeFn != null then scopeFn bound else bound;
