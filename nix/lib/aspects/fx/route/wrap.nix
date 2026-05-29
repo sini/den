@@ -79,6 +79,11 @@ let
       };
 
   # Apply the adapt → nest → guard pipeline to a list of modules.
+  # When adaptArgs is non-null (nestWithAdaptArgs path), all modules are
+  # combined into a single evalModules call so that multiple aspects
+  # emitting to the same class merge correctly inside evalModules,
+  # rather than producing separate config definitions that get
+  # shallow-merged by the freeform `unspecified` type.  (#572)
   wrapRouteModules =
     {
       modules,
@@ -86,7 +91,15 @@ let
       guard ? null,
       adaptArgs ? null,
     }:
-    map (mod: guardModule guard (nestModule path adaptArgs (adaptModule adaptArgs path mod))) modules;
+    let
+      adapted = map (adaptModule adaptArgs path) modules;
+    in
+    if adapted == [ ] then
+      [ ]
+    else if adaptArgs != null && path != [ ] then
+      [ (guardModule guard (nestWithAdaptArgs path adaptArgs { imports = adapted; })) ]
+    else
+      map (mod: guardModule guard (nestModule path adaptArgs mod)) adapted;
 
   # Collect class modules from a forward aspect (recursing into includes).
   collectClassMods =
