@@ -487,10 +487,16 @@ let
       isConfigDependent = val: builtins.isFunction val && (builtins.functionArgs val) ? config;
       hasAnyConfigThunk =
         let
-          checkList = vals: builtins.any isConfigDependent vals;
+          # Values may be lists of entries, raw functions, or pipe entry
+          # records ({ __isPipeEntry; module = <fn>; ... }).
+          checkVal =
+            v:
+            if builtins.isList v then builtins.any checkVal v
+            else if builtins.isAttrs v && v ? module then isConfigDependent v.module
+            else isConfigDependent v;
         in
         builtins.any (
-          scopeImports: builtins.any (vals: builtins.isList vals && checkList vals) (lib.attrValues scopeImports)
+          scopeImports: builtins.any checkVal (lib.attrValues scopeImports)
         ) (lib.attrValues scopedClassImportsRaw);
 
       # Pipe-data-free host configs for cross-host config thunk resolution.
