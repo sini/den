@@ -418,7 +418,9 @@ let
                   entry = lib.last entries;
                 in
                 lib.warnIf (builtins.length entries > 1)
-                  "den: multiple instantiate specs target ${builtins.concatStringsSep "." entry.path} on ${entry.system or "unknown"}; keeping last"
+                  "den: multiple instantiate specs target ${builtins.concatStringsSep "." entry.path} on ${
+                    if entry.system != null then entry.system else "unknown"
+                  }; keeping last"
                   [ entry ];
         in
         lib.concatLists (lib.mapAttrsToList resolve grouped);
