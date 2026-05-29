@@ -21,7 +21,7 @@ let
       evaluated = lib.evalModules {
         specialArgs = adapted;
         modules = [
-          { config._module.freeformType = lib.types.lazyAttrsOf lib.types.unspecified; }
+          { config._module.freeformType = lib.types.lazyAttrsOf lib.types.raw; }
         ]
         ++ sourceModules;
       };
@@ -36,22 +36,32 @@ let
       );
     };
 
-  # Nest a module at a path by resolving imports with full outer args.
+  # Nest a module at a path by evaluating imports with full outer args.
+  # Uses evalModules with raw freeform type so conflicting keys error
+  # instead of silently clobbering via recursiveUpdate.
   nestPlain =
     path: mod: args:
     let
       fullArgs = args // (args.config._module.args or { });
       resolveImport = imp: if builtins.isFunction imp then imp fullArgs else imp;
-      resolvedMod =
-        if builtins.isAttrs mod && mod ? imports then
-          lib.foldl' lib.recursiveUpdate { } (map resolveImport mod.imports)
-        else if builtins.isFunction mod then
-          mod fullArgs
-        else
-          mod;
+      sourceModules = if builtins.isAttrs mod && mod ? imports then mod.imports else [ mod ];
+      resolved = map resolveImport sourceModules;
+      evaluated = lib.evalModules {
+        specialArgs = fullArgs;
+        modules = [
+          { config._module.freeformType = lib.types.lazyAttrsOf lib.types.raw; }
+        ]
+        ++ resolved;
+      };
     in
     {
-      config = lib.setAttrByPath path resolvedMod;
+      config = lib.setAttrByPath path (
+        builtins.removeAttrs evaluated.config [
+          "_module"
+          "warnings"
+          "assertions"
+        ]
+      );
     };
 
   # Nest a module at a target path (dispatch between adapt and plain strategies).

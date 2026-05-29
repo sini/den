@@ -80,9 +80,8 @@
       }
     );
 
-    # Overlapping key: last included aspect wins for same package name
-    # (evalModules freeform merge with unspecified type).
-    test-overlapping-key-last-wins = denTest (
+    # Overlapping key: two aspects defining the same package name errors.
+    test-overlapping-key-errors = denTest (
       {
         config,
         den,
@@ -110,9 +109,11 @@
           den.aspects.pkg-v2
         ];
 
-        # Both define "shared" — last included wins within the combined evalModules.
         expr = builtins.attrNames config.flake.packages.x86_64-linux;
-        expected = [ "shared" ];
+        expectedError = {
+          type = "ThrownError";
+          msg = "The option `shared' has conflicting definition values";
+        };
       }
     );
 
