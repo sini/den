@@ -241,6 +241,37 @@ let
     in
     go { } rawRoutes;
 
+  # Topologically sort routes: when forward A's intoClass feeds forward
+  # B's fromClass at the same scope, A must fire before B.  Only
+  # reorders __complexForward routes; non-forward routes keep their
+  # original position relative to other non-forwards.  (#567)
+  topoSortRoutes =
+    routes:
+    let
+      indexed = lib.imap0 (i: r: { inherit i r; }) routes;
+      # Build producer map: intoClass@scope → [route indices]
+      producerMap = builtins.foldl' (
+        acc:
+        { i, r }:
+        if r.__complexForward or false then
+          let
+            key = "${r.intoClass}@${r.sourceScopeId}";
+          in
+          acc // { ${key} = (acc.${key} or [ ]) ++ [ i ]; }
+        else
+          acc
+      ) { } indexed;
+      # A complex forward is "depends on producers" when its fromClass@scope
+      # has entries in producerMap (meaning another forward produces into it).
+      hasDeps =
+        { i, r }: (r.__complexForward or false) && producerMap ? "${r.fromClass}@${r.sourceScopeId}";
+      # Partition: routes without deps first, routes with deps last.
+      # This is a single-level toposort (sufficient for A→B chains).
+      noDeps = builtins.filter (ir: !hasDeps ir) indexed;
+      withDeps = builtins.filter hasDeps indexed;
+    in
+    map (ir: ir.r) (noDeps ++ withDeps);
+
   # Main entry: dedup routes, fold applying each.
   applyRoutes =
     {
@@ -255,7 +286,9 @@ let
       buildForwardAspect ? null,
     }:
     let
-      allRoutes = dedupRoutes rootScopeId (lib.concatLists (lib.attrValues scopedRoutes));
+      allRoutes = topoSortRoutes (
+        dedupRoutes rootScopeId (lib.concatLists (lib.attrValues scopedRoutes))
+      );
     in
     builtins.foldl'
       (
