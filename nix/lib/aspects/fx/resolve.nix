@@ -410,8 +410,16 @@ let
                   e // { path = basePath ++ [ "${baseName}@${e.system}" ]; }
                 ) entries
               else
-                # Same entity via multiple policy paths: keep last.
-                [ (lib.last entries) ];
+                # Same entity via multiple policy paths: deduplicate.
+                # Warn when more than one distinct instantiate spec targets the
+                # same output path on the same system — this can silently shadow
+                # one entity's configuration with another's.
+                let
+                  entry = lib.last entries;
+                in
+                lib.warnIf (builtins.length entries > 1)
+                  "den: multiple instantiate specs target ${builtins.concatStringsSep "." entry.path} on ${entry.system or "unknown"}; keeping last"
+                  [ entry ];
         in
         lib.concatLists (lib.mapAttrsToList resolve grouped);
 

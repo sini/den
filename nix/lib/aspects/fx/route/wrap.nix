@@ -1,6 +1,32 @@
 # Route module wrapping — path nesting, guards, adaptArgs.
 { lib, ... }:
 let
+  # Freeform type for route nesting evalModules: merges like NixOS
+  # (attrsets deep-merge, lists concatenate) but errors on conflicting
+  # scalar or derivation values instead of silently clobbering.
+  mergeableType = lib.mkOptionType {
+    name = "mergeable";
+    description = "auto-merged value (attrsets merge, lists concatenate, scalars conflict)";
+    merge =
+      loc: defs:
+      let
+        values = map (d: d.value) defs;
+        first = builtins.head values;
+        allLists = builtins.all builtins.isList values;
+        # Derivations are attrsets but must not deep-merge — treat as opaque.
+        allMergeableAttrs = builtins.all (v: builtins.isAttrs v && !(lib.isDerivation v)) values;
+      in
+      if builtins.length defs == 1 then
+        first
+      else if allLists then
+        builtins.concatLists values
+      else if allMergeableAttrs then
+        (lib.types.lazyAttrsOf mergeableType).merge loc defs
+      else
+        throw "den: the option `${lib.showOption loc}' has conflicting definitions from multiple aspects";
+  };
+  nestingFreeformType = lib.types.lazyAttrsOf mergeableType;
+
   # Adapt a module's args when path is empty (top-level adaptArgs).
   adaptModule =
     adaptArgs: path: mod:
@@ -21,7 +47,7 @@ let
       evaluated = lib.evalModules {
         specialArgs = adapted;
         modules = [
-          { config._module.freeformType = lib.types.lazyAttrsOf lib.types.raw; }
+          { config._module.freeformType = nestingFreeformType; }
         ]
         ++ sourceModules;
       };
@@ -49,7 +75,7 @@ let
       evaluated = lib.evalModules {
         specialArgs = fullArgs;
         modules = [
-          { config._module.freeformType = lib.types.lazyAttrsOf lib.types.raw; }
+          { config._module.freeformType = nestingFreeformType; }
         ]
         ++ resolved;
       };

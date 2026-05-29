@@ -109,10 +109,11 @@
           den.aspects.pkg-v2
         ];
 
-        expr = builtins.attrNames config.flake.packages.x86_64-linux;
+        # Force evaluation of the conflicting value — attrNames alone is lazy.
+        expr = config.flake.packages.x86_64-linux.shared.name;
         expectedError = {
           type = "ThrownError";
-          msg = "The option `shared' has conflicting definition values";
+          msg = "den: the option `shared' has conflicting definitions from multiple aspects";
         };
       }
     );
