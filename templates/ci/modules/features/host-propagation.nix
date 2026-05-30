@@ -176,6 +176,7 @@
       # (requiring user) fire when context widens via drain-deferred.
       # No include fires twice — no per-source re-resolution.
       expected = [
+        "default-anyctx {host}"
         "default-host+user-lax {host,user}"
         "default-host-lax {host}"
 

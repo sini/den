@@ -18,7 +18,7 @@ in
             "compile-forward"
           else if meta ? guard then
             "compile-conditional"
-          else if (param.aspect.__args or { }) != { } then
+          else if param.aspect ? __fn || (param.aspect.__args or { }) != { } then
             "compile-parametric"
           else
             "compile-static";

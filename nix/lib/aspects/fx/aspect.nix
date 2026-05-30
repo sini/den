@@ -109,9 +109,28 @@ let
         __bindAttrsOptional = true;
       };
       args = lib.mapAttrs (_: v: if v == true then optionalArg else v) (aspect.__args or { });
-      bound = fx.bind.fn args fn;
+      # Positional functions (no named args): call with scope context
+      # so they receive host/user/home info.  (#575)
+      isPositionalFn = args == { } && lib.isFunction rawFn && lib.functionArgs rawFn == { };
     in
-    if scopeFn != null then scopeFn bound else bound;
+    if isPositionalFn && scopeHandlers != null then
+      let
+        fullCtx = ctxFromHandlers scopeHandlers;
+        # Intersect with schema-defined entity kinds so positional
+        # functions see only entity bindings (host, user, home, ...)
+        # not framework keys (class, system).  (#575)
+        entityKeys = builtins.removeAttrs (den.schema or { }) [
+          "conf"
+          "_module"
+        ];
+        ctx = builtins.intersectAttrs entityKeys fullCtx;
+      in
+      (if scopeFn != null then scopeFn else lib.id) (fx.pure (rawFn ctx))
+    else
+      let
+        bound = fx.bind.fn args fn;
+      in
+      if scopeFn != null then scopeFn bound else bound;
 
 in
 {
