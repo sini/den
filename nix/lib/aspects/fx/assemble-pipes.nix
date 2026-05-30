@@ -39,17 +39,29 @@ let
   # These are quirk values like `{ host, ... }: { addr = host.addr; }` that
   # require pipeline context (host, user, etc.) but not NixOS config.
   # Without this, the raw function would be passed to consumers as-is.
+  # If required args (non-optional, not `lib`) are missing from scope context,
+  # the value is passed through unresolved — the consumer is responsible for
+  # providing the missing args (e.g., perSystem CRD build pipeline provides pkgs).
   resolveLocalParametric =
     scopeCtx: val:
     if isPipelineParametric val then
       let
         thunkArgs = builtins.functionArgs val;
-        ctxArgs = lib.genAttrs (builtins.filter (k: scopeCtx ? ${k}) (builtins.attrNames thunkArgs)) (
-          k: scopeCtx.${k}
+        requiredArgs = builtins.filter (k: !(thunkArgs.${k} or false) && k != "lib") (
+          builtins.attrNames thunkArgs
         );
-        result = val (ctxArgs // { inherit lib; });
+        allSatisfied = builtins.all (k: scopeCtx ? ${k}) requiredArgs;
       in
-      if builtins.isList result then result else [ result ]
+      if !allSatisfied then
+        [ val ]
+      else
+        let
+          ctxArgs = lib.genAttrs (builtins.filter (k: scopeCtx ? ${k}) (builtins.attrNames thunkArgs)) (
+            k: scopeCtx.${k}
+          );
+          result = val (ctxArgs // { inherit lib; });
+        in
+        if builtins.isList result then result else [ result ]
     else
       [ val ];
 
