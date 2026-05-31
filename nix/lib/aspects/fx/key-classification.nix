@@ -52,20 +52,29 @@ let
       && builtins.any (k: builtins.isAttrs v.${k} || lib.isFunction v.${k}) (builtins.attrNames v)
     );
 
-  hasRecognizedSubKeys =
-    depth: val:
+  # A nested aspect carries aspect *structure*: a registered class key (with
+  # class-like content), a pipe key, or a structural aspect key
+  # (includes/provides/meta/…).  Detection inspects attr NAMES only and forces
+  # a sub-value solely when its name matches a registered class — never under
+  # arbitrary content keys.  Forcing content here would evaluate user values
+  # mid-pipeline; a value reading the flake's own `self.outputs` would then
+  # re-enter the flake `self` fixpoint → infinite recursion (#580).
+  #
+  # Depth-1 suffices: sub-aspects are never auto-walked (see compile-static) —
+  # they activate via explicit `includes`, so every nested aspect exposes a
+  # recognized key at its own top level (a class key or `includes`).
+  isNestedKey =
+    aspect: k:
+    let
+      val = den.lib.aspects.fx.contentUtil.unwrapContentValuesForClassification aspect.${k};
+    in
     builtins.isAttrs val
     && builtins.any (
       sk:
-      (classRegistry ? ${sk} && looksLikeClassContent val.${sk})
-      || (depth > 0 && builtins.isAttrs (val.${sk} or null) && hasRecognizedSubKeys (depth - 1) val.${sk})
+      structuralKeysSet ? ${sk}
+      || pipeRegistry ? ${sk}
+      || (classRegistry ? ${sk} && looksLikeClassContent val.${sk})
     ) (builtins.attrNames val);
-
-  isNestedKey =
-    aspect: k:
-    hasRecognizedSubKeys 3 (
-      den.lib.aspects.fx.contentUtil.unwrapContentValuesForClassification aspect.${k}
-    );
 
   classifyKeys =
     targetClass: aspect:
