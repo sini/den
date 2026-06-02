@@ -85,7 +85,16 @@ let
     # into includes so the pipeline resolves them.  listOf doesn't call
     # providerType.merge per-element, so inner wrappers in includes lists
     # arrive here unprocessed.
-    else if builtins.isAttrs child && child ? __contentValues && !(child ? name) then
+    # A navigated nested aspect carries __provider (its full path) but may have
+    # no __contentValues (single-def keys forward their raw value directly).
+    # Either way, when it has no name yet, derive name + meta.provider from
+    # __provider so it resolves to its OWN identity (e.g. apps/gaming/steam)
+    # regardless of inclusion path. Without this it falls through nameless and
+    # children.nix renames it to <parent>/<anon>:<idx>, so the same aspect
+    # included via two paths gets two identities and fails to dedup.
+    else if
+      builtins.isAttrs child && (child ? __contentValues || child ? __provider) && !(child ? name)
+    then
       let
         prov = child.__provider or [ ];
         provName = if prov != [ ] then lib.last prov else null;
@@ -98,7 +107,7 @@ let
             in
             args != { } && !(args ? config) && !(args ? options)
           )
-        ) child.__contentValues;
+        ) (child.__contentValues or [ ]);
       in
       child
       // lib.optionalAttrs (provName != null) {
