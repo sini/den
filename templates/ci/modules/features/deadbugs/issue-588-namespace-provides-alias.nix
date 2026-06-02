@@ -148,5 +148,31 @@
       }
     );
 
+    # The computed `_` bundle must NOT be serialized into the exported
+    # namespace, else re-import feeds a stale `_` into the read-only option.
+    test-export-omits-underscore = denTest (
+      { config, ns, ... }:
+      {
+        imports = [ (inputs.den.namespace "ns" true) ];
+        ns.foo.nixos.system.stateVersion = "25.11";
+
+        expr.exportHasUnderscore = config.flake.denful.ns ? _;
+        expected.exportHasUnderscore = false;
+      }
+    );
+
+    # Round-trip: forcing `_` on a RE-IMPORTED namespace must recompute the
+    # bundle locally, not collide with the exported one (read-only "set
+    # multiple times").
+    test-reimport-namespace-bundle = denTest (
+      { provider, ... }:
+      {
+        imports = [ (inputs.den.namespace "provider" [ inputs.provider ]) ];
+
+        expr.hasIncludes = provider._ ? includes;
+        expected.hasIncludes = true;
+      }
+    );
+
   };
 }

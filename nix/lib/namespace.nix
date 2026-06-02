@@ -12,22 +12,31 @@ let
   # The _ → provides alias in aspectSubmodule means evaluated configs contain
   # both _ and provides with identical content. Re-importing both causes
   # listOf options (like includes) to merge duplicates.
-  stripAliases = lib.mapAttrs (
-    _: v:
-    if builtins.isAttrs v then
-      builtins.removeAttrs v [
-        "_"
-        "__functor"
-      ]
-    else
-      v
-  );
+  # The root `_` is the synthetic namespace provides bundle (a computed,
+  # read-only option). Like the aspect-level `_` aliases inside each value, it
+  # must not round-trip as a definition — drop it before re-feeding so the
+  # importing side recomputes its own bundle instead of colliding with it.
+  stripAliases =
+    denful:
+    lib.mapAttrs (
+      _: v:
+      if builtins.isAttrs v then
+        builtins.removeAttrs v [
+          "_"
+          "__functor"
+        ]
+      else
+        v
+    ) (builtins.removeAttrs denful [ "_" ]);
   sourceModules = map (denful: { config.den.ful.${name} = stripAliases denful; }) denfuls;
 
   aliasModule = lib.mkAliasOptionModule [ name ] [ "den" "ful" name ];
 
   outputModule = lib.optionalAttrs isOutput {
-    config.flake.denful.${name} = config.den.ful.${name};
+    # Don't serialize the computed `_` bundle into the exported namespace; it's
+    # recomputed on import (and would otherwise collide with the read-only
+    # option — see stripAliases).
+    config.flake.denful.${name} = builtins.removeAttrs config.den.ful.${name} [ "_" ];
   };
 
   # Merge external source classes into den.classes.
