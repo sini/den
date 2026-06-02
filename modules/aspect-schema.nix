@@ -41,6 +41,7 @@ let
     "schema"
     "classes"
     "_module"
+    "_"
   ];
   nsNames = builtins.attrNames (config.den.ful or { });
   nsCollected = map (
