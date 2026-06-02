@@ -85,14 +85,26 @@ let
           ];
         };
 
+      # Resolution-chain entity bindings (e.g. a parent `environment`) carried in
+      # the ambient policy context. Threaded into the home extraction below so a
+      # user scope created during home-manager extraction inherits the same
+      # ancestor bindings it would have as a normal descendant in the chain.
+      entityKindAttrs = lib.genAttrs den.lib.schemaUtil.schemaEntityKinds (_: null);
+      chainBindingsFrom = ctx: builtins.intersectAttrs entityKindAttrs ctx;
+
       userForward =
+        chainCtx:
         { host, user }:
         den.batteries.forward {
           each = lib.singleton true;
           fromClass = _: className;
           intoClass = _: host.class;
           intoPath = _: forwardPathFn { inherit host user; };
-          fromAspect = _: den.lib.resolveEntity "user" { inherit host user; };
+          # Seed the home extraction with the ambient resolution-chain bindings
+          # so parametric host aspects re-fired at the user scope bind the same
+          # args (e.g. `environment`) they would bind at the host scope, instead
+          # of being stranded unresolved.  (was: { inherit host user; })
+          fromAspect = _: den.lib.resolveEntity "user" (chainCtx // { inherit host user; });
         };
 
       # Includes shared by both host-scope and user-scope detection.
@@ -104,7 +116,7 @@ let
       );
 
       policyFn =
-        { host, ... }:
+        { host, ... }@policyCtx:
         let
           enabled = mkDetectHost {
             inherit className supportedOses optionPath;
@@ -114,10 +126,11 @@ let
           [ ]
         else
           let
+            chainCtx = chainBindingsFrom policyCtx;
             pairs = mkIntoClassUsers className { inherit host; };
             resolves = map (
               pair:
-              den.lib.policy.resolve.withIncludes ([ userForward ] ++ schemaIncludes) {
+              den.lib.policy.resolve.withIncludes ([ (userForward chainCtx) ] ++ schemaIncludes) {
                 user = pair.user;
               }
             ) pairs;
@@ -127,16 +140,18 @@ let
       # Complements the host-scope battery which only sees users
       # declared on host.users, not registry or policy-resolved users.
       userDetectFn =
-        { host, user, ... }:
+        { host, user, ... }@userCtx:
         let
           isOsSupported = builtins.elem host.class supportedOses;
           hasClass = lib.elem className user.classes;
         in
         lib.optionals (isOsSupported && hasClass) (
           [
-            (den.lib.policy.include (userForward {
-              inherit host user;
-            }))
+            (den.lib.policy.include (
+              userForward (chainBindingsFrom userCtx) {
+                inherit host user;
+              }
+            ))
           ]
           ++ classIncludes
         );
