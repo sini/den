@@ -451,10 +451,39 @@ let
                   lib.concatLists (map (d: d.value) defsForKey)
                 else
                   let
-                    # Forward sub-keys from attrset defs so deeper nested access works
-                    # (e.g., den.aspects.root.sub1.sub2.a where sub2 has multi-def).
+                    # Forward sub-keys from attrset defs so deeper nested access
+                    # works (e.g., den.aspects.root.sub1.sub2.a where sub2 has
+                    # multi-def). Deep-merge so sub-keys contributed by several
+                    # files all survive for navigation — a shallow `//` drops all
+                    # but the last when multiple files each add a different child
+                    # under the same nested namespace (e.g. cilium.nix,
+                    # hubble-ui.nix and cilium-bgp-resources.nix all defining
+                    # children of services.network.cilium). __contentValues
+                    # remains the canonical source for emit/forward collection,
+                    # so this only affects read-navigation (no double-collection).
                     subAttrVals = builtins.filter builtins.isAttrs (map (d: d.value) defsForKey);
-                    subForwarded = builtins.foldl' (a: b: a // b) { } subAttrVals;
+                    # Merge contributions consistently with den's own semantics
+                    # (and the module system): colliding attrsets recurse and
+                    # colliding lists concatenate, so children contributed by
+                    # multiple files all survive. Scalars keep last-def-wins —
+                    # genuinely-conflicting scalars are resolved by the real
+                    # module merge via __contentValues (which errors without
+                    # mkForce), so this navigation view stays total.
+                    deepMerge =
+                      a: b:
+                      a
+                      // builtins.mapAttrs (
+                        bk: bv:
+                        if !(a ? ${bk}) then
+                          bv
+                        else if builtins.isAttrs a.${bk} && builtins.isAttrs bv then
+                          deepMerge a.${bk} bv
+                        else if builtins.isList a.${bk} && builtins.isList bv then
+                          a.${bk} ++ bv
+                        else
+                          bv
+                      ) b;
+                    subForwarded = builtins.foldl' deepMerge { } subAttrVals;
                   in
                   subForwarded
                   // {
@@ -494,15 +523,18 @@ let
           # skip class keys, pipe keys, structural keys, and internal keys.
           annotatedMerged = lib.mapAttrs (
             k: v:
-            if builtins.isAttrs v
+            if
+              builtins.isAttrs v
               && !(v ? __provider)
               && !(v ? __contentValues)
               && !(lib.hasPrefix "__" k)
               && !(classReg ? ${k})
               && !(pipeReg ? ${k})
               && !(structuralKeysSet ? ${k})
-            then v // { __provider = provider ++ [ k ]; }
-            else v
+            then
+              v // { __provider = provider ++ [ k ]; }
+            else
+              v
           ) merged;
         in
         providesChildren
