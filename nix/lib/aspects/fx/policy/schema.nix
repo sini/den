@@ -162,7 +162,8 @@ let
           || late.routeEffects != [ ]
           || late.instantiateEffects != [ ]
           || late.provideEffects != [ ]
-          || late.excludeEffects != [ ];
+          || late.excludeEffects != [ ]
+          || late.spawnEffects != [ ];
       in
       if filteredPolicies == { } || !hasLateEffects then
         fx.pure null

@@ -76,13 +76,21 @@ let
     e: e.value // { __pipePolicyName = e.__pipePolicyName or null; }
   );
 
-  # Emit excludes, route/instantiate/provide/pipe effects, then run a continuation.
+  # Emit spawn-home effects via register-spawn handler.
+  policyEmitSpawn = sendEach "register-spawn" (
+    e: e.value // { __spawnPolicyName = e.__spawnPolicyName or null; }
+  );
+
+  # Emit excludes, route/instantiate/provide/pipe/spawn effects, then run a continuation.
   emitPolicyEffectsThen =
     effects: cont:
     fx.bind (policyEmitExcludes effects.excludeEffects) (
       _:
       fx.bind (policyEmitEffects effects.routeEffects effects.instantiateEffects effects.provideEffects) (
-        _: fx.bind (policyEmitPipeEffects (effects.pipeEffects or [ ])) (_: cont)
+        _:
+        fx.bind (policyEmitPipeEffects (effects.pipeEffects or [ ])) (
+          _: fx.bind (policyEmitSpawn (effects.spawnEffects or [ ])) (_: cont)
+        )
       )
     );
 

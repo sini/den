@@ -13,6 +13,7 @@ args:
 // (import ./forward.nix args)
 // (import ./provide.nix args)
 // (import ./register-pipe-effect.nix args)
+// (import ./register-spawn.nix args)
 // (import ./push-scope.nix args)
 // (import ./restore-scope.nix args)
 // (import ./propagate-routes.nix args)

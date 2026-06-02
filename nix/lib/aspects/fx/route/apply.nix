@@ -44,19 +44,26 @@ let
       acc.classImports.${spec.fromClass} or [ ];
 
   resolveSourceFallback =
-    spec: fxResolve: scopeContexts: ctx:
-    if !(spec ? sourceAspect) || fxResolve == null then
+    spec: spawnNode: scopeParent: scopeContexts: ctx:
+    # Early-out to no source: the spec has nothing to resolve from (no source
+    # aspect/scope), or spawnNode wasn't threaded (non-home callers pass
+    # null via the applyRoutes default).
+    if !(spec ? sourceAspect) || spawnNode == null || !(spec ? sourceScopeId) then
       [ ]
     else
-      let
-        normalized = den.lib.aspects.normalizeRoot spec.sourceAspect;
-        sourceCtx = scopeContexts.${spec.sourceScopeId} or ctx;
-      in
-      (fxResolve {
+      (spawnNode {
+        # spec.sourceScopeId is the USER scope (the forward compiles at the
+        # current scope, per compile-forward.nix sourceScopeId = scope). `from`
+        # must be the HOST scope = the user scope's parent. Using sourceScopeId
+        # directly gives a self-parent edge -> policyBoundAncestor returns null
+        # -> zero fleet peers (and spawnNode's spawnRoot == from assert trips).
+        from = scopeParent.${spec.sourceScopeId} or spec.sourceScopeId;
         class = spec.fromClass;
-        self = normalized;
-        ctx =
-          sourceCtx // den.lib.aspects.fx.aspect.ctxFromHandlers (spec.sourceAspect.__scopeHandlers or { });
+        aspect = den.lib.aspects.normalizeRoot spec.sourceAspect;
+        # The user binding is re-supplied by the source aspect's __scopeHandlers
+        # (ctxFromHandlers in spawnNode's seedCtx), so spawnRoot resolves to
+        # the user scope; do NOT strip it here.
+        bindings = { };
       }).imports;
 
   appendToClass = acc: cls: sid: newMods: {
@@ -76,8 +83,9 @@ let
       route,
       rootScopeId,
       scopeContexts,
+      scopeParent,
       ctx,
-      fxResolve,
+      spawnNode,
       buildForwardAspect,
       isDenDefaultModule,
     }:
@@ -85,7 +93,10 @@ let
       spec = route;
       collected = getCollectedSource acc spec rootScopeId isDenDefaultModule scopeContexts;
       sourceModules =
-        if collected != [ ] then collected else resolveSourceFallback spec fxResolve scopeContexts ctx;
+        if collected != [ ] then
+          collected
+        else
+          resolveSourceFallback spec spawnNode scopeParent scopeContexts ctx;
       sourceModule = spec.mapModule { imports = sourceModules; };
       newMods = collectClassMods spec.intoClass (buildForwardAspect spec sourceModule);
     in
@@ -303,7 +314,7 @@ let
       scopeParent ? { },
       scopeContexts ? { },
       ctx ? { },
-      fxResolve ? null,
+      spawnNode ? null,
       rootScopeId ? null,
       buildForwardAspect ? null,
     }:
@@ -321,8 +332,9 @@ let
               route
               rootScopeId
               scopeContexts
+              scopeParent
               ctx
-              fxResolve
+              spawnNode
               buildForwardAspect
               isDenDefaultModule
               ;

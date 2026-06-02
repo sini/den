@@ -8,6 +8,7 @@
 let
   inherit (import ./wrap-classes.nix { inherit lib den; }) wrapCollectedClasses;
   inherit (import ./assemble-pipes.nix { inherit lib den; }) assemblePipes;
+  inherit (import ./spawn-node.nix { inherit lib den; }) mkSpawnNode;
   route = import ./route { inherit lib den; };
   handlers = den.lib.aspects.fx.handlers;
 
@@ -146,9 +147,12 @@ let
       }
     ) acc allProvides;
 
-  # Phase 3: Apply routes.
+  # Phase 3: Apply routes. The first positional is the node spawn primitive
+  # (threaded with this pipeline's parent scope-tree state) used to resolve a
+  # complex-route forward SOURCE with full fleet visibility (replaces the old
+  # isolated fxResolve fallback).
   applyRoutes =
-    fxResolve: ctx: scopeContexts: rootScopeId: scopeParent: scopedRoutes: acc:
+    spawnNode: ctx: scopeContexts: rootScopeId: scopeParent: scopedRoutes: acc:
     route.applyRoutes {
       inherit
         scopedRoutes
@@ -156,7 +160,7 @@ let
         scopeParent
         ctx
         rootScopeId
-        fxResolve
+        spawnNode
         ;
       wrappedPerScope = acc.perScope;
       classImports = acc.classImports;
@@ -259,7 +263,7 @@ let
       scopedRoutes,
       scopeParent,
       scopeEntityClass ? (_: { }),
-      fxResolveFn,
+      spawnNodeFn,
       ctx,
     }:
     spec:
@@ -310,7 +314,7 @@ let
             subtreePhase1 = wrapPerScope ctx subtreeContexts subtreeClassImports;
             subtreePhase2 = applyProvides ctx relevantContexts subtreeProvides subtreePhase1;
             subtreePhase3 =
-              applyRoutes fxResolveFn ctx relevantContexts hostScopeId scopeParent subtreeRoutes
+              applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent subtreeRoutes
                 subtreePhase2;
           in
           extractSubtreeModules subtreePhase3.perScope scopeParent hostScopeId hostClass
@@ -356,7 +360,7 @@ let
       scopedRoutes,
       scopeParent,
       scopeEntityClass ? (_: { }),
-      fxResolveFn,
+      spawnNodeFn,
       ctx,
     }:
     classImports:
@@ -369,7 +373,7 @@ let
           scopedRoutes
           scopeParent
           scopeEntityClass
-          fxResolveFn
+          spawnNodeFn
           ctx
           ;
       };
@@ -501,9 +505,11 @@ let
           lib.attrValues scopedClassImportsRaw
         );
 
-      # Pipe-data-free host configs for cross-host config thunk resolution.
-      # Only computed when config-dependent thunks actually exist in the pipe
-      # data.  When null, resolveThunks in assemblePipes short-circuits.
+      # Pipe-data-free host configs for cross-host config-dependent thunk
+      # resolution.  Only computed when config-dependent thunks actually exist
+      # in the pipe data.  When null, resolveThunks still resolves
+      # pipeline-parametric emits, but config-dependent collected emits are
+      # deferred (resolveEntry returns them unchanged).
       hostConfigs =
         if !hasAnyConfigThunk then
           null
@@ -538,7 +544,7 @@ let
                 scopeParent
                 ;
               scopeEntityClass = result.state.scopeEntityClass or (_: { });
-              fxResolveFn = fxResolve mkPipeline;
+              spawnNodeFn = spawnNode;
               inherit ctx;
             };
           in
@@ -554,6 +560,37 @@ let
         scopedPipeEffects = result.state.scopedPipeEffects null;
         inherit scopeParent;
       };
+
+      # Parent-state bundle for node spawns. Uses the RAW scopeContexts and
+      # scopedClassImports (not the augmented/drained maps): the spawned node
+      # re-derives pipes via its OWN assemblePipes over the merged state, so
+      # threading the augmented map would double-apply and feeding the drained
+      # map (which depends on this bundle) would cycle. scopeEntityKind is the
+      # already-unwrapped binding above. scopedClassImports here covers host +
+      # all siblings, which collectAll needs to find fleet peers.
+      parentState = {
+        inherit
+          scopeContexts
+          scopeParent
+          ctx
+          scopeEntityKind
+          ;
+        scopedClassImports = scopedClassImportsRaw;
+        scopedPipeEffects = result.state.scopedPipeEffects null;
+      };
+      # Recursive: a nested complex forward inside a spawned node resolves its
+      # source via this SAME threaded primitive (not an isolated pipeline), so
+      # nested forwards stay fleet-visible and the resolver contract matches
+      # resolveSourceFallback's { from, class, aspect, bindings } call. Nix lets
+      # are lazy, so the self-reference is fine — selfRef is only invoked at
+      # runtime when a resolved aspect carries a complex non-collected forward,
+      # and a finite forward nesting terminates.
+      spawnNode = mkSpawnNode {
+        inherit wrapPerScope applyProvides applyRoutes;
+        inherit (den.lib.aspects) normalizeRoot;
+        inherit (den.lib.aspects.fx.aspect) ctxFromHandlers;
+        selfRef = spawnNode;
+      } mkPipeline parentState;
 
       # Post-assembly drain: resolve deferred includes.
       # Two categories of deferred includes are drained here:
@@ -594,60 +631,103 @@ let
               inherited = lib.filterAttrs (k: _: !(ownCtx ? ${k})) ancestorCtx;
             in
             ownCtx // inherited;
+
+          baseDrain = lib.foldl' (
+            accImports: scopeId:
+            let
+              deferred = allDeferred.${scopeId} or [ ];
+              scopeCtx = enrichedScopeCtx scopeId;
+              # Drain all deferred includes whose args are now satisfied,
+              # not just pipe-arg deferred ones.
+              drainable = builtins.filter (d: builtins.all (k: scopeCtx ? ${k}) (d.requiredArgs or [ ])) deferred;
+            in
+            if drainable == [ ] then
+              accImports
+            else
+              let
+                newEntries = lib.concatMap (
+                  d:
+                  let
+                    child = d.child;
+                    classified = classifyKeys null child;
+                  in
+                  lib.concatMap (
+                    k:
+                    let
+                      modules = unwrapContentValuesList child.${k};
+                    in
+                    map (module: {
+                      __rawEntry = true;
+                      class = k;
+                      inherit module;
+                      ctx = scopeCtx;
+                      identity = child.name or "<deferred>";
+                      aspectPolicy = child.meta.collisionPolicy or null;
+                      globalPolicy = den.config.classModuleCollisionPolicy or "error";
+                      isContextDependent = false;
+                    }) modules
+                  ) classified.classKeys
+                ) drainable;
+              in
+              builtins.foldl' (
+                acc: entry:
+                acc
+                // {
+                  ${scopeId} = (acc.${scopeId} or { }) // {
+                    ${entry.class} = ((acc.${scopeId} or { }).${entry.class} or [ ]) ++ [ entry ];
+                  };
+                }
+              ) accImports newEntries
+          ) scopedClassImportsRaw (builtins.attrNames allDeferred);
+
+          # Materialize deferred node spawn markers (policy.spawn) over
+          # the parent scope-tree state. Each marker lives at a user scope; the
+          # home class is re-walked from that user's host aspect with `user`
+          # bound, threaded with host + sibling state so fleet-collected pipes
+          # resolve to data and collectAll sees every peer. The result is folded
+          # into the user scope's class buckets so BOTH phase1 and the phase4
+          # per-host re-walk (over drainedClassImportsRaw) deliver it.
+          allHomeNodes = (result.state.scopedSpawns or (_: { })) null;
         in
         lib.foldl' (
-          accImports: scopeId:
+          acc: scopeId:
           let
-            deferred = allDeferred.${scopeId} or [ ];
-            scopeCtx = enrichedScopeCtx scopeId;
-            # Drain all deferred includes whose args are now satisfied,
-            # not just pipe-arg deferred ones.
-            drainable = builtins.filter (d: builtins.all (k: scopeCtx ? ${k}) (d.requiredArgs or [ ])) deferred;
+            sctx = scopeContexts.${scopeId} or { };
+            host = sctx.host or null;
+            user = sctx.user or null;
+            from = scopeParent.${scopeId} or null;
+            specs = allHomeNodes.${scopeId};
+            defaultClasses = user.classes or [ "homeManager" ];
+            classes = lib.unique (
+              lib.concatMap (s: if s.classes != null then s.classes else defaultClasses) specs
+            );
           in
-          if drainable == [ ] then
-            accImports
+          if host == null || from == null then
+            acc
           else
-            let
-              newEntries = lib.concatMap (
-                d:
-                let
-                  child = d.child;
-                  classified = classifyKeys null child;
-                in
-                lib.concatMap (
-                  k:
-                  let
-                    modules = unwrapContentValuesList child.${k};
-                  in
-                  map (module: {
-                    __rawEntry = true;
-                    class = k;
-                    inherit module;
-                    ctx = scopeCtx;
-                    identity = child.name or "<deferred>";
-                    aspectPolicy = child.meta.collisionPolicy or null;
-                    globalPolicy = den.config.classModuleCollisionPolicy or "error";
-                    isContextDependent = false;
-                  }) modules
-                ) classified.classKeys
-              ) drainable;
-            in
-            builtins.foldl' (
-              acc: entry:
-              acc
-              // {
-                ${scopeId} = (acc.${scopeId} or { }) // {
-                  ${entry.class} = ((acc.${scopeId} or { }).${entry.class} or [ ]) ++ [ entry ];
-                };
-              }
-            ) accImports newEntries
-        ) scopedClassImportsRaw (builtins.attrNames allDeferred);
+            acc
+            // {
+              ${scopeId} =
+                (acc.${scopeId} or { })
+                // lib.genAttrs classes (
+                  cls:
+                  ((acc.${scopeId} or { }).${cls} or [ ])
+                  ++ (spawnNode {
+                    inherit from;
+                    class = cls;
+                    aspect = host.aspect;
+                    bindings = {
+                      inherit user;
+                    };
+                  }).imports
+                );
+            }
+        ) baseDrain (builtins.attrNames allHomeNodes);
 
       phase1 = wrapPerScope ctx augmentedScopeContexts drainedClassImportsRaw;
       phase2 = applyProvides ctx augmentedScopeContexts scopedProvides phase1;
       phase3 =
-        applyRoutes (fxResolve mkPipeline) ctx augmentedScopeContexts result.state.rootScopeId scopeParent
-          scopedRoutes
+        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopedRoutes
           phase2;
       phase4 = applyInstantiates {
         scopedInstantiates = result.state.scopedInstantiates null;
@@ -662,7 +742,7 @@ let
         # Pass drained class imports so pipe-arg deferred aspects are
         # included in per-host subtree assembly.
         scopedClassImportsRaw = drainedClassImportsRaw;
-        fxResolveFn = fxResolve mkPipeline;
+        spawnNodeFn = spawnNode;
       } phase3.classImports;
     in
     {
@@ -684,19 +764,39 @@ let
       result = mkPipeline { inherit class; } { inherit self ctx; };
       scopeContexts = result.state.scopeContexts null;
       scopedClassImportsRaw = result.state.scopedClassImports null;
+      scopeParent = result.state.scopeParent null;
 
       augmentedScopeContexts = assemblePipes {
         inherit scopeContexts;
         scopedClassImports = scopedClassImportsRaw;
         scopedPipeEffects = result.state.scopedPipeEffects null;
-        scopeParent = result.state.scopeParent null;
+        inherit scopeParent;
       };
+
+      # Analogous parent-state bundle so a nested complex-route forward inside
+      # this (non-instantiating) resolution still resolves its source via a
+      # threaded spawned node rather than an isolated pipeline. No drain/phase4
+      # here, so this only matters for nested node resolution.
+      parentState = {
+        inherit scopeContexts scopeParent ctx;
+        scopeEntityKind = (result.state.scopeEntityKind or (_: { })) null;
+        scopedClassImports = scopedClassImportsRaw;
+        scopedPipeEffects = result.state.scopedPipeEffects null;
+      };
+      # Recursive: see fxResolve above. selfRef is the threaded primitive itself
+      # so a nested complex forward inside a spawned node resolves its source via
+      # the same fleet-visible spawn (matching resolveSourceFallback's contract).
+      spawnNode = mkSpawnNode {
+        inherit wrapPerScope applyProvides applyRoutes;
+        inherit (den.lib.aspects) normalizeRoot;
+        inherit (den.lib.aspects.fx.aspect) ctxFromHandlers;
+        selfRef = spawnNode;
+      } mkPipeline parentState;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts scopedClassImportsRaw;
       phase2 = applyProvides ctx augmentedScopeContexts (result.state.scopedProvides null) phase1;
       phase3 =
-        applyRoutes (fxResolveImports mkPipeline) ctx augmentedScopeContexts result.state.rootScopeId
-          (result.state.scopeParent null)
+        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent
           (result.state.scopedRoutes null)
           phase2;
     in

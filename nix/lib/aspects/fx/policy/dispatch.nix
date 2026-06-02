@@ -15,6 +15,7 @@ let
     instantiate = true;
     provide = true;
     pipe = true;
+    spawn = true;
   };
 
   # Validate that each effect returned by a policy has a valid __policyEffect tag.

@@ -53,6 +53,7 @@ let
     // handlers.registerInstantiateHandler
     // handlers.provideHandler
     // handlers.registerPipeEffectHandler
+    // handlers.registerSpawnHandler
     // resolveEntityHandler
     // handlers.pushScopeHandler
     // handlers.restoreScopeHandler
@@ -152,6 +153,7 @@ let
     scopedInstantiates = _: { };
     scopedProvides = _: { };
     scopedPipeEffects = _: { };
+    scopedSpawns = _: { };
     scopedEmittedLocs = _: { };
 
     # --- Scope-prefixed bookkeeping (future: scope-prefixed keys) ---

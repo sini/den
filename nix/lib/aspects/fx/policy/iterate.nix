@@ -16,6 +16,7 @@ let
     routeEffects = [ ];
     instantiateEffects = [ ];
     provideEffects = [ ];
+    spawnEffects = [ ];
   };
 
   # Merge new dispatch results into the accumulator.

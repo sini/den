@@ -123,6 +123,21 @@ in
     value = spec;
   };
 
+  # Request a deferred node spawn. Records a marker resolved post-walk
+  # over the parent pipeline's full scope-tree state (host + siblings), so the
+  # projected home content sees fleet-wide pipe values. `classes` defaults to
+  # the user's classes (or homeManager) at the drain site when null.
+  spawn =
+    {
+      classes ? null,
+    }:
+    {
+      __policyEffect = "spawn";
+      value = {
+        inherit classes;
+      };
+    };
+
   # Pipe transform builder — policies use pipe.from to attach transform
   # stages (filter, transform, fold, append, for) to a named pipe.
   pipe = {
