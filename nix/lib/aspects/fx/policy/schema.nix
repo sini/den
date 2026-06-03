@@ -114,8 +114,17 @@ let
 
   # Emit late policy effects into a single sibling scope.
   emitLateForSibling =
-    parentScope: parentFiredPolicies: allAspectPolicies: firedPerScope: sib:
+    parentScope: parentFiredPolicies: scopedAspectPolicies: firedPerScope: sib:
     let
+      # Runtime-include policies are subtree-scoped: a policy registered via a
+      # scope's own includes applies only to that scope's subtree, never to
+      # siblings. The policies eligible at `sib` are therefore exactly those
+      # registered at an ancestor-or-self scope — the parent (host), whose
+      # subtree contains every user, plus `sib`'s own. A sibling user's includes
+      # (an opt-in battery's policy, a per-user `to-users` policy, …) never fire
+      # at OTHER users.
+      allAspectPolicies =
+        (scopedAspectPolicies.${parentScope} or { }) // (scopedAspectPolicies.${sib.scopeId} or { });
       dispatchKey = "${sib.targetKind}@${sib.scopeId}";
       alreadyFired = firedPerScope.${dispatchKey} or { };
       # Filter policies to those not already fired AND whose entity-kind
@@ -206,15 +215,12 @@ let
           scopedAspectPolicies = (state.scopedAspectPolicies or (_: { })) null;
           firedPerScope = (state.firedPolicyNames or (_: { })) null;
           parentScope = state.currentScope;
-          # Only collect policies from the parent scope and sibling scopes —
-          # not the global flat set.  Using flatAspectPolicies caused cross-host
-          # contamination: unguarded policies (to-users, to-hosts) from sibling
-          # host scopes would fire in unrelated host contexts.
-          siblingScopes = map (s: s.scopeId) siblingMetas;
-          relevantScopes = [ parentScope ] ++ siblingScopes;
-          subtreePolicies = builtins.foldl' (
-            acc: sid: acc // (scopedAspectPolicies.${sid} or { })
-          ) { } relevantScopes;
+          # Eligibility is decided per-sibling in emitLateForSibling (ancestor-or-
+          # self scoping): parent-registered policies fan to all children, but a
+          # sibling's own runtime-include policies stay in its own subtree.  This
+          # supersedes the older parent+all-siblings union, which leaked a
+          # sibling's includes across to other siblings (cross-host contamination
+          # was already excluded; cross-sibling-within-host was not).
           # Collect all policies that already fired at the parent scope
           # (under any entity kind). These should not re-fire at children
           # via late dispatch — they already produced their effects.
@@ -225,7 +231,7 @@ let
         builtins.foldl' (
           acc: sib:
           fx.bind acc (
-            _: emitLateForSibling parentScope parentFiredPolicies subtreePolicies firedPerScope sib
+            _: emitLateForSibling parentScope parentFiredPolicies scopedAspectPolicies firedPerScope sib
           )
         ) (fx.pure null) siblingMetas
       )

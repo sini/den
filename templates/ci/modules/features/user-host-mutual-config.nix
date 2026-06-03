@@ -274,7 +274,13 @@
       }
     );
 
-    test-user-provides-to-all-users = denTest (
+    # Host-level selective provide-to-users (the legacy mutual-provider pattern).
+    # Registered at the HOST (`den.aspects.igloo`), whose subtree spans every
+    # user, so it legitimately fans to all of them — and may select per user.
+    # (Was `test-user-provides-to-all-users`, registered at `den.aspects.tux`;
+    # a user reaching siblings is no longer allowed — see
+    # `test-user-include-stays-in-subtree` below.)
+    test-host-provides-selectively-to-users = denTest (
       {
         den,
         lib,
@@ -292,20 +298,20 @@
           carl = { };
         };
 
-        den.aspects.tux.policies.to-users =
+        den.aspects.igloo.policies.to-users =
           { host, user, ... }:
           lib.optional (user.name != "tux") (include {
             homeManager.programs.vim.enable = true;
           });
 
-        den.aspects.tux.policies.to-alice =
+        den.aspects.igloo.policies.to-alice =
           { host, user, ... }:
           lib.optional (user.name == "alice") (include {
             homeManager.programs.tmux.enable = true;
           });
-        den.aspects.tux.includes = [
-          den.aspects.tux.policies.to-users
-          den.aspects.tux.policies.to-alice
+        den.aspects.igloo.includes = [
+          den.aspects.igloo.policies.to-users
+          den.aspects.igloo.policies.to-alice
         ];
 
         expr = with igloo.home-manager.users; {
@@ -326,6 +332,41 @@
           bobTmux = false;
         };
 
+      }
+    );
+
+    # A policy registered via a USER's own includes is subtree-scoped: it
+    # applies to that user, never to sibling users. (To configure all users,
+    # register at the host — see `test-host-provides-selectively-to-users`.)
+    test-user-include-stays-in-subtree = denTest (
+      {
+        den,
+        tuxHm,
+        pinguHm,
+        ...
+      }:
+      let
+        inherit (den.lib.policy) include;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users = {
+          tux = { };
+          pingu = { };
+        };
+
+        den.aspects.tux.policies.to-users =
+          { host, user, ... }: [ (include { homeManager.programs.vim.enable = true; }) ];
+        den.aspects.tux.includes = [ den.aspects.tux.policies.to-users ];
+
+        expr = [
+          tuxHm.programs.vim.enable
+          pinguHm.programs.vim.enable
+        ];
+        # tux's own include reaches tux only; pingu (a sibling) is untouched.
+        expected = [
+          true
+          false
+        ];
       }
     );
 
