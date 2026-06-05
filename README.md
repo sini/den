@@ -13,7 +13,7 @@
 
 **Write a feature once. Run it on every host, user, and platform you have — and share it with anyone, flake or not.**
 
-Den turns Nix configuration into composable **features** instead of per-host piles of modules. A Den *aspect* is a plain function: give it context (your hosts and users) and it returns configuration for every Nix class it touches — `nixos`, `darwin`, `homeManager`, `hjem`, or a class you invent.
+Den turns Nix configuration into composable **features** instead of per-host piles of modules. A Den _aspect_ is a plain function: give it context (your hosts and users) and it returns configuration for every Nix class it touches — `nixos`, `darwin`, `homeManager`, `hjem`, or a class you invent.
 
 ```nix
 # An aspect is a function of context that returns
@@ -33,8 +33,8 @@ That one idea — **a feature as a function** — is what makes the rest possibl
 ## What Den makes possible
 
 - **One feature, everywhere, in one place.** Stop scattering a single concern across separate `nixos`, `darwin`, and `homeManager` files. An aspect holds all of it together.
-- **Reuse across hosts, users — and across projects.** Share aspects between machines, between people, and between *flake and non-flake* setups, without forcing everyone to download each other's inputs.
-- **No `mkIf` / `enable` clutter.** The shape of the context *is* the condition — a function that asks for `{ host, user }` simply doesn't run where there's no user. Conditionals disappear.
+- **Reuse across hosts, users — and across projects.** Share aspects between machines, between people, and between _flake and non-flake_ setups, without forcing everyone to download each other's inputs.
+- **No `mkIf` / `enable` clutter.** The shape of the context _is_ the condition — a function that asks for `{ host, user }` simply doesn't run where there's no user. Conditionals disappear.
 - **Hosts shape their users, users shape their hosts.** Cross-entity configuration flows both ways, without coupling them together.
 - **Add a capability in one line; remove it by deleting that line.** Hosts just pick the aspects they want.
 - **Bring your own classes and whole pipelines.** Custom Nix classes, machine fleets, MicroVM guests, terranix, standalone neovim — if you can walk it as data, Den can configure it.
@@ -43,10 +43,10 @@ That one idea — **a feature as a function** — is what makes the rest possibl
 
 Four concepts, one job each:
 
-- **Entity** — *what exists*: a host, user, or home.
-- **Aspect** — *what it does*: a feature, spanning Nix classes.
-- **Policy** — *how entities relate*: topology and routing between them.
-- **Quirk** — *structured data aspects share*, without coupling.
+- **Entity** — _what exists_: a host, user, or home.
+- **Aspect** — _what it does_: a feature, spanning Nix classes.
+- **Policy** — _how entities relate_: topology and routing between them.
+- **Quirk** — _structured data aspects share_, without coupling.
 
 **Feature-first, not host-first.** Traditional setups start from hosts and push modules down; Den [flips that](https://den.denful.dev/explanation/core-principles/) — features are primary, hosts just select them.
 
@@ -75,11 +75,13 @@ nix run github:denful/den
 ## [Documentation](https://den.denful.dev)
 
 **Start here**
+
 - [From Zero to Den](https://den.denful.dev/guides/from-zero-to-den/)
 - [From Flake to Den](https://den.denful.dev/guides/from-flake-to-den/)
 - [Core Principles](https://den.denful.dev/explanation/core-principles/)
 
 **Go further**
+
 - [Custom Nix Classes](https://den.denful.dev/guides/custom-classes/)
 - [Homes Integration](https://den.denful.dev/guides/home-manager/)
 - [Batteries](https://den.denful.dev/guides/batteries/)
@@ -89,6 +91,7 @@ nix run github:denful/den
 - [Tests as Code Examples](https://den.denful.dev/tutorials/ci/)
 
 **Project**
+
 - [Motivation](https://den.denful.dev/motivation/)
 - [Versioning](https://den.denful.dev/releases/)
 - [Community](https://den.denful.dev/community/)
