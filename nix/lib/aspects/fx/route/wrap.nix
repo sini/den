@@ -101,18 +101,36 @@ let
       nestPlain path mod;
 
   # Wrap a module with a conditional guard.
+  #
+  # A bool guard gates content with `lib.optionalAttrs`, not `lib.mkIf`, to
+  # match the forward path (forward.nix guardFn): a false guard must contribute
+  # *nothing* — `mkIf false` still requires the target option to exist, so an
+  # empty-path route into an undeclared option would fail option type-checking
+  # even when skipped. `optionalAttrs false` drops the subtree entirely.
+  #
+  # A structural module (carries `imports`/`_file`/`key` module metadata but no
+  # flat `config`) cannot be merged under `config` — its module-level keys would
+  # be mis-read as option definitions and fail (e.g. "the option `_file' does
+  # not exist"). This is the empty-path case, where the source is the raw
+  # collector module. Recurse into its `imports`, gating each leaf's config and
+  # leaving module metadata at module level.
   guardModule =
     guard: mod:
     if guard == null then
       mod
     else
-      args:
       let
-        inner = if builtins.isFunction mod then mod args else mod;
+        guardOne =
+          node: args:
+          let
+            inner = if builtins.isFunction node then node args else node;
+          in
+          if inner ? imports && !(inner ? config) then
+            { imports = map guardOne inner.imports; } // builtins.removeAttrs inner [ "imports" ]
+          else
+            { config = lib.optionalAttrs (guard args) (inner.config or inner); };
       in
-      {
-        config = lib.mkIf (guard args) (inner.config or inner);
-      };
+      guardOne mod;
 
   # Apply the adapt → nest → guard pipeline to a list of modules.
   # When adaptArgs is non-null (nestWithAdaptArgs path), all modules are

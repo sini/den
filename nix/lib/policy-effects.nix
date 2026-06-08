@@ -99,13 +99,26 @@ in
 
   # Route class or quirk content from one scope partition into a target class.
   # Tier 1 delivery — replaces den.batteries.forward for the common case.
-  route = spec: {
-    __policyEffect = "route";
-    value = {
-      path = [ ];
-    }
-    // spec;
-  };
+  #
+  # `intoPath` is the public target-path name — it pairs with `intoClass` and
+  # `fromClass`, matching the forward API. `path` is kept as a back-compat
+  # alias; both normalize to the internal `path` key the route handler reads.
+  # Passing an unsupported key (e.g. `intoPath` before this aliasing existed)
+  # used to be silently dropped, landing content at the class root.
+  route =
+    spec:
+    let
+      path = spec.intoPath or spec.path or [ ];
+    in
+    if (spec ? intoPath) && (spec ? path) then
+      throw "den: policy.route: pass either `intoPath` or `path`, not both"
+    else
+      {
+        __policyEffect = "route";
+        value = builtins.removeAttrs spec [ "intoPath" ] // {
+          inherit path;
+        };
+      };
 
   # Request post-pipeline instantiation of an entity's class content.
   # The entity carries instantiate, intoAttr, mainModule metadata.
