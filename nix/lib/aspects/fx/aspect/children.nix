@@ -19,10 +19,19 @@ let
 
   nameAnon = state: nameIndexed state "<anon>";
 
-  # Synthetic names like "<when>" are shared by every instance of the
-  # constructor that produced them — two sibling guards would otherwise
-  # collide on identity and the gate would silently drop the second.
-  isSyntheticName = name: lib.hasPrefix "<" name && lib.hasSuffix ">" name;
+  # Synthetic names like "<when>" repeat per constructor; index them so
+  # siblings don't dedup-collide at the gate.
+  inherit (den.lib.aspects) isSyntheticName;
+
+  # Wrap a computation in chain-push/chain-pop of the given identity.
+  chainWrap =
+    nodeIdentity: shouldPush: comp:
+    if shouldPush then
+      fx.bind (fx.send "chain-push" { identity = nodeIdentity; }) (
+        _: fx.bind comp (result: fx.bind (fx.send "chain-pop" null) (_: fx.pure result))
+      )
+    else
+      comp;
 
   propagateScope =
     parentScopeHandlers: parentCtxId: child:
@@ -85,9 +94,11 @@ let
         let
           childName = withScope.name or "<anon>";
           child =
-            if !skipNameAnon && !(isMeaningfulName childName) then
+            if skipNameAnon then
+              withScope
+            else if !(isMeaningfulName childName) then
               withScope // { name = nameAnon state idx (withScope.__ctxId or null); }
-            else if !skipNameAnon && isSyntheticName childName then
+            else if isSyntheticName childName then
               withScope // { name = nameIndexed state childName idx (withScope.__ctxId or null); }
             else
               withScope;
@@ -168,5 +179,5 @@ let
     fx.seq (map (c: fx.send "register-constraint" (c // { inherit owner; })) allConstraints);
 in
 {
-  inherit emitIncludes registerConstraints;
+  inherit emitIncludes registerConstraints chainWrap;
 }

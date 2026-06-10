@@ -13,21 +13,13 @@ let
     emitIncludes
     emitAspectPolicies
     registerConstraints
+    chainWrap
     ;
 
   policyMod = import ../policy { inherit lib den; } {
     inherit ctxFromHandlers;
   };
   inherit (policyMod) installPolicies dispatchPoliciesHandler emitPolicyEffectsHandler;
-
-  chainWrap =
-    nodeIdentity: isMeaningful: comp:
-    if isMeaningful then
-      fx.bind (fx.send "chain-push" { identity = nodeIdentity; }) (
-        _: fx.bind comp (result: fx.bind (fx.send "chain-pop" null) (_: fx.pure result))
-      )
-    else
-      comp;
 
   resolveChildSequence =
     aspect:

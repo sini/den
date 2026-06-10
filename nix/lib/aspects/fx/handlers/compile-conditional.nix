@@ -11,7 +11,7 @@
 let
   inherit (den.lib) fx;
   inherit (den.lib.aspects.fx) identity;
-  inherit (den.lib.aspects.fx.aspect) emitIncludes;
+  inherit (den.lib.aspects.fx.aspect) emitIncludes chainWrap;
   inherit (den.lib.schemaUtil) schemaEntityKindsSet;
   inherit (import ./state-util.nix) scopedAppend;
 
@@ -124,17 +124,15 @@ let
     }
     // entityStubs;
 
-  # Emit a passed guard's aspects under the conditional's own identity on
-  # the includes chain, so anonymous payloads from sibling guards get
-  # distinct names instead of colliding at the shared parent.
+  # Chain-push the conditional around payload emission so sibling guards'
+  # anonymous payloads get distinct names instead of dedup-colliding.
   emitGuardedAspects =
     condNode:
-    fx.bind (fx.send "chain-push" { identity = identity.key condNode; }) (
-      _:
-      fx.bind (emitIncludes {
+    chainWrap (identity.key condNode) true (
+      emitIncludes {
         __parentScopeHandlers = condNode.__scopeHandlers or null;
         __parentCtxId = condNode.__ctxId or null;
-      } condNode.meta.aspects) (results: fx.bind (fx.send "chain-pop" null) (_: fx.pure results))
+      } condNode.meta.aspects
     );
 
   # Defer a conditional for re-evaluation at entity boundary.

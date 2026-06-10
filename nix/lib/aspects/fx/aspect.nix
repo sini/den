@@ -22,6 +22,7 @@ let
   inherit (import ./aspect { inherit lib den; } { inherit ctxFromHandlers; })
     emitIncludes
     emitAspectPolicies
+    chainWrap
     ;
 
   enterScope =
@@ -137,6 +138,7 @@ in
   inherit
     emitIncludes
     emitAspectPolicies
+    chainWrap
     structuralKeysSet
     wrapClassModule
     ctxFromHandlers

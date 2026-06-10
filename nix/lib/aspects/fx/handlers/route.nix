@@ -4,6 +4,15 @@
 let
   inherit (import ./state-util.nix) scopedAppend;
 
+  # Canonical route dedup identity. Shared with the spawn-node merge of
+  # parent-pipeline routes — both sides must key routes identically or
+  # dedup silently diverges.
+  routeKey =
+    fallbackScope: r:
+    "${r.fromClass or "?"}>${r.intoClass or "?"}@${r.sourceScopeId or fallbackScope}/${
+      lib.concatStringsSep "/" (r.path or [ ])
+    }";
+
   registerRouteHandler = {
     "register-route" =
       { param, state }:
@@ -12,11 +21,9 @@ let
         route = param // {
           sourceScopeId = param.sourceScopeId or scope;
         };
-        routeKey = "${route.fromClass or "?"}>${route.intoClass or "?"}@${route.sourceScopeId}/${
-          lib.concatStringsSep "/" (route.path or [ ])
-        }";
+        key = routeKey scope route;
         registeredRoutes = (state.registeredRouteKeys or (_: { })) null;
-        alreadyRegistered = registeredRoutes ? ${routeKey};
+        alreadyRegistered = registeredRoutes ? ${key};
       in
       {
         resume = null;
@@ -26,11 +33,11 @@ let
           else
             scopedAppend state "scopedRoutes" scope route
             // {
-              registeredRouteKeys = _: registeredRoutes // { ${routeKey} = true; };
+              registeredRouteKeys = _: registeredRoutes // { ${key} = true; };
             };
       };
   };
 in
 {
-  inherit registerRouteHandler;
+  inherit registerRouteHandler routeKey;
 }

@@ -9,6 +9,7 @@
 { lib, den }:
 let
   inherit (import ./assemble-pipes.nix { inherit lib den; }) assemblePipes;
+  inherit (import ./handlers/route.nix { inherit lib; }) routeKey;
   pipeNamesSet = lib.genAttrs (builtins.attrNames (den.quirks or { })) (_: true);
 in
 {
@@ -114,27 +115,14 @@ in
       # 4. Phases 1-3 over the spawned subtree; class isolation -> one class emitted.
       phase1 = wrapPerScope parentState.ctx augmented mergedClassImports;
       phase2 = applyProvides parentState.ctx augmented (result.state.scopedProvides null) phase1;
-      # Parent-pipeline routes whose source scope lies within the spawned
-      # subtree (e.g. a user-schema `policy.route` registered at this user's
-      # scope in the main pipeline) must apply to the spawned resolution too:
-      # the spawn re-emits the host aspect's class content at those same
-      # scope ids, but the spawned walk does not re-fire schema policies, so
-      # without the parent's routes that content strands in its source class
-      # (a homeLinux->homeManager route never fires and the content drops).
-      #
-      # An aspect-borne route can register in BOTH pipelines at the same
-      # scope (register-route's key dedup is per-pipeline state), so drop
-      # parent entries the spawn already carries: dedupRoutes only collapses
-      # adapterKey routes, and a duplicated path != [] simple route would
-      # re-nest content in fresh keyless wrappers and conflict at the target.
-      # Forwards into the spawned class itself would aggregate classImports
-      # across all merged scopes (including peers); typical forwards target
-      # host classes, which the subtree extraction below discards.
-      routeKey =
-        sid: r:
-        "${r.fromClass or "?"}>${r.intoClass or "?"}@${r.sourceScopeId or sid}/${
-          lib.concatStringsSep "/" (r.path or [ ])
-        }";
+      # Parent-pipeline routes sourced inside the spawned subtree must apply
+      # here too: the spawn re-emits class content at the same scope ids but
+      # never re-fires schema policies, so without them a user-schema route
+      # (homeLinux->homeManager) never fires and the content drops.
+      # Dedup against the spawn's own registrations — an aspect-borne route
+      # can register in both pipelines, and a duplicated path != [] simple
+      # route would re-nest content in fresh keyless wrappers and conflict
+      # at the target.
       spawnRoutes = result.state.scopedRoutes null;
       parentSubtreeRoutes = lib.filterAttrs (sid: _: isInSubtree sid) parentState.scopedRoutes;
       mergedSpawnRoutes =
@@ -142,10 +130,11 @@ in
         // lib.mapAttrs (
           sid: parentRoutes:
           let
-            spawnKeys = lib.genAttrs (map (routeKey sid) (spawnRoutes.${sid} or [ ])) (_: true);
+            spawnHere = spawnRoutes.${sid} or [ ];
+            spawnKeys = lib.genAttrs (map (routeKey sid) spawnHere) (_: true);
             freshParent = builtins.filter (r: !(spawnKeys ? ${routeKey sid r})) parentRoutes;
           in
-          freshParent ++ (spawnRoutes.${sid} or [ ])
+          freshParent ++ spawnHere
         ) parentSubtreeRoutes;
 
       phase3 =

@@ -5,7 +5,7 @@
 }:
 let
   inherit (den.lib.aspects.fx) identity;
-  inherit (den.lib.aspects) isMeaningfulName;
+  inherit (den.lib.aspects) isMeaningfulName isSyntheticName;
 in
 {
   checkDedupHandler = {
@@ -14,9 +14,11 @@ in
       let
         child = param;
         originalName = child.name or "<anon>";
-        isSyntheticName = lib.hasPrefix "<" originalName && lib.hasSuffix ">" originalName;
         rawDedupKey =
-          if isMeaningfulName originalName && !isSyntheticName then identity.key child else null;
+          if isMeaningfulName originalName && !(isSyntheticName originalName) then
+            identity.key child
+          else
+            null;
         scope = state.currentScope or "__unscoped";
         dedupKey = if rawDedupKey != null then "${scope}/${rawDedupKey}" else null;
         seen = (state.includeSeen or (_: { })) null;

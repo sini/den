@@ -9,6 +9,6 @@ let
   provide = import ./provide.nix { inherit lib den; } { inherit ctxFromHandlers; };
 in
 {
-  inherit (children) emitIncludes registerConstraints;
+  inherit (children) emitIncludes registerConstraints chainWrap;
   inherit (provide) emitAspectPolicies;
 }

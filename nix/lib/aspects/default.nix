@@ -124,5 +124,6 @@ in
     isParametricWrapper
     isSubmoduleFn
     isMeaningfulName
+    isSyntheticName
     ;
 }
