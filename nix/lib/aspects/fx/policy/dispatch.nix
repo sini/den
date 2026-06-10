@@ -39,15 +39,25 @@ let
   dispatchAspect =
     aspectPolicies: firedPolicies: resolveCtx:
     let
+      # `self` is always bound to the dispatching scope's context, so a policy
+      # can guard with `{ self, ... }:` to mean "fire at my registration scope"
+      # — distinct from `{ <kind>, ... }:` which fans across entities of that
+      # kind. The binding must be present (not just allowed) because Nix's
+      # attrset pattern requires every named arg, used or not. See the
+      # late-dispatch filter in policy/schema.nix, which keeps `self`-guarded
+      # policies from re-firing at descendant scopes.
+      ctx = resolveCtx // {
+        self = resolveCtx.self or resolveCtx;
+      };
       entries = lib.attrsToList aspectPolicies;
       matching = builtins.filter (
-        e: resolveArgsSatisfied e.value.fn resolveCtx && !(firedPolicies ? ${e.name})
+        e: resolveArgsSatisfied e.value.fn ctx && !(firedPolicies ? ${e.name})
       ) entries;
     in
     map (
       entry:
       let
-        result = entry.value.fn resolveCtx;
+        result = entry.value.fn ctx;
         rawEffects = if builtins.isList result then result else [ result ];
       in
       {

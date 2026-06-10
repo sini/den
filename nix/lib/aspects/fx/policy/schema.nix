@@ -168,17 +168,20 @@ let
       entityKinds = den.lib.schemaUtil.schemaEntityKinds;
       latePolicies = lib.filterAttrs (
         name: policy:
+        let
+          policyArgs = builtins.functionArgs (policy.fn or policy);
+          requiredEntityArgs = builtins.filter (
+            k: builtins.elem k entityKinds && !(policyArgs.${k} or false)
+          ) (builtins.attrNames policyArgs);
+        in
         !(alreadyFired ? ${name})
         && !(parentFiredPolicies ? ${name})
-        && (
-          let
-            policyArgs = builtins.functionArgs (policy.fn or policy);
-            requiredEntityArgs = builtins.filter (
-              k: builtins.elem k entityKinds && !(policyArgs.${k} or false)
-            ) (builtins.attrNames policyArgs);
-          in
-          requiredEntityArgs == [ ] || builtins.elem sib.targetKind requiredEntityArgs
-        )
+        # `self`-guarded policies fire only at their own registration scope
+        # (during the initial dispatch); they must never re-fire at descendant
+        # scopes via the fan-out. This is what makes `{ self, ... }:` mean
+        # "fire once here", as opposed to `{ <kind>, ... }:` which fans.
+        && !(policyArgs ? self)
+        && (requiredEntityArgs == [ ] || builtins.elem sib.targetKind requiredEntityArgs)
       ) allAspectPolicies;
     in
     fx.bind fx.effects.state.get (
