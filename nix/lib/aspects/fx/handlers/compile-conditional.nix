@@ -124,6 +124,19 @@ let
     }
     // entityStubs;
 
+  # Emit a passed guard's aspects under the conditional's own identity on
+  # the includes chain, so anonymous payloads from sibling guards get
+  # distinct names instead of colliding at the shared parent.
+  emitGuardedAspects =
+    condNode:
+    fx.bind (fx.send "chain-push" { identity = identity.key condNode; }) (
+      _:
+      fx.bind (emitIncludes {
+        __parentScopeHandlers = condNode.__scopeHandlers or null;
+        __parentCtxId = condNode.__ctxId or null;
+      } condNode.meta.aspects) (results: fx.bind (fx.send "chain-pop" null) (_: fx.pure results))
+    );
+
   # Defer a conditional for re-evaluation at entity boundary.
   deferConditional =
     condNode:
@@ -173,13 +186,7 @@ in
               };
               pass = condNode.meta.guard guardCtx;
             in
-            if pass then
-              emitIncludes {
-                __parentScopeHandlers = condNode.__scopeHandlers or null;
-                __parentCtxId = condNode.__ctxId or null;
-              } condNode.meta.aspects
-            else
-              deferConditional condNode
+            if pass then emitGuardedAspects condNode else deferConditional condNode
           )
         );
         inherit state;
@@ -248,19 +255,14 @@ in
                             fx.bind acc (
                               prev:
                               if pass then
-                                fx.bind
-                                  (emitIncludes {
-                                    __parentScopeHandlers = condNode.__scopeHandlers or null;
-                                    __parentCtxId = condNode.__ctxId or null;
-                                  } condNode.meta.aspects)
-                                  (
-                                    results:
-                                    fx.pure {
-                                      emitted = prev.emitted ++ results;
-                                      failed = prev.failed;
-                                      progressed = true;
-                                    }
-                                  )
+                                fx.bind (emitGuardedAspects condNode) (
+                                  results:
+                                  fx.pure {
+                                    emitted = prev.emitted ++ results;
+                                    failed = prev.failed;
+                                    progressed = true;
+                                  }
+                                )
                               else
                                 fx.pure {
                                   inherit (prev) emitted progressed;

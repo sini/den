@@ -8,14 +8,21 @@ let
   inherit (den.lib.aspects.fx) identity;
   inherit (import ./normalize.nix { inherit lib den; }) wrapChild isMeaningfulName;
 
-  nameAnon =
-    state: idx: ctxId:
+  nameIndexed =
+    state: base: idx: ctxId:
     let
       chain = ((state.scopedIncludesChain or (_: { })) null).${state.currentScope} or [ ];
       parent = if chain == [ ] then "<root>" else lib.last chain;
       suffix = if ctxId != null then "/${ctxId}" else "";
     in
-    "${parent}/<anon>:${toString idx}${suffix}";
+    "${parent}/${base}:${toString idx}${suffix}";
+
+  nameAnon = state: nameIndexed state "<anon>";
+
+  # Synthetic names like "<when>" are shared by every instance of the
+  # constructor that produced them — two sibling guards would otherwise
+  # collide on identity and the gate would silently drop the second.
+  isSyntheticName = name: lib.hasPrefix "<" name && lib.hasSuffix ">" name;
 
   propagateScope =
     parentScopeHandlers: parentCtxId: child:
@@ -76,9 +83,12 @@ let
       fx.bind fx.effects.state.get (
         state:
         let
+          childName = withScope.name or "<anon>";
           child =
-            if !skipNameAnon && !(isMeaningfulName (withScope.name or "<anon>")) then
+            if !skipNameAnon && !(isMeaningfulName childName) then
               withScope // { name = nameAnon state idx (withScope.__ctxId or null); }
+            else if !skipNameAnon && isSyntheticName childName then
+              withScope // { name = nameIndexed state childName idx (withScope.__ctxId or null); }
             else
               withScope;
         in
