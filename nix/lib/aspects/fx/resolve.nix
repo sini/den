@@ -579,6 +579,7 @@ let
           ;
         scopedClassImports = scopedClassImportsRaw;
         scopedPipeEffects = result.state.scopedPipeEffects null;
+        scopedRoutes = result.state.scopedRoutes null;
       };
       # Recursive: a nested complex forward inside a spawned node resolves its
       # source via this SAME threaded primitive (not an isolated pipeline), so
@@ -793,6 +794,7 @@ let
         scopeEntityKind = (result.state.scopeEntityKind or (_: { })) null;
         scopedClassImports = scopedClassImportsRaw;
         scopedPipeEffects = result.state.scopedPipeEffects null;
+        scopedRoutes = result.state.scopedRoutes null;
       };
       # Recursive: see fxResolve above. selfRef is the threaded primitive itself
       # so a nested complex forward inside a spawned node resolves its source via

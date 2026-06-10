@@ -114,9 +114,42 @@ in
       # 4. Phases 1-3 over the spawned subtree; class isolation -> one class emitted.
       phase1 = wrapPerScope parentState.ctx augmented mergedClassImports;
       phase2 = applyProvides parentState.ctx augmented (result.state.scopedProvides null) phase1;
+      # Parent-pipeline routes whose source scope lies within the spawned
+      # subtree (e.g. a user-schema `policy.route` registered at this user's
+      # scope in the main pipeline) must apply to the spawned resolution too:
+      # the spawn re-emits the host aspect's class content at those same
+      # scope ids, but the spawned walk does not re-fire schema policies, so
+      # without the parent's routes that content strands in its source class
+      # (a homeLinux->homeManager route never fires and the content drops).
+      #
+      # An aspect-borne route can register in BOTH pipelines at the same
+      # scope (register-route's key dedup is per-pipeline state), so drop
+      # parent entries the spawn already carries: dedupRoutes only collapses
+      # adapterKey routes, and a duplicated path != [] simple route would
+      # re-nest content in fresh keyless wrappers and conflict at the target.
+      # Forwards into the spawned class itself would aggregate classImports
+      # across all merged scopes (including peers); typical forwards target
+      # host classes, which the subtree extraction below discards.
+      routeKey =
+        sid: r:
+        "${r.fromClass or "?"}>${r.intoClass or "?"}@${r.sourceScopeId or sid}/${
+          lib.concatStringsSep "/" (r.path or [ ])
+        }";
+      spawnRoutes = result.state.scopedRoutes null;
+      parentSubtreeRoutes = lib.filterAttrs (sid: _: isInSubtree sid) parentState.scopedRoutes;
+      mergedSpawnRoutes =
+        spawnRoutes
+        // lib.mapAttrs (
+          sid: parentRoutes:
+          let
+            spawnKeys = lib.genAttrs (map (routeKey sid) (spawnRoutes.${sid} or [ ])) (_: true);
+            freshParent = builtins.filter (r: !(spawnKeys ? ${routeKey sid r})) parentRoutes;
+          in
+          freshParent ++ (spawnRoutes.${sid} or [ ])
+        ) parentSubtreeRoutes;
+
       phase3 =
-        applyRoutes selfRef parentState.ctx augmented spawnRoot mergedScopeParent
-          (result.state.scopedRoutes null)
+        applyRoutes selfRef parentState.ctx augmented spawnRoot mergedScopeParent mergedSpawnRoutes
           phase2;
 
       # Restrict extraction to the spawned subtree (spawnRoot + descendants).
