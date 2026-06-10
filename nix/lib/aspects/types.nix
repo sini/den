@@ -599,14 +599,21 @@ let
   aspectKeyType =
     typeCfg:
     let
-      classReg = den.classes or { };
       contentType = aspectContentType typeCfg;
+      inherit (den.lib.aspects.fx.keyClassification) structuralKeysSet;
     in
     lib.types.mkOptionType {
       name = "aspectKey";
       description = "class module or nested aspect (dispatch by registry)";
       check = _: true;
-      merge = loc: defs: contentType.merge loc defs;
+      # Reserved/structural keys are metadata, not aspect content: pass their
+      # value through untouched (last def wins) so consumers read it back as
+      # declared. Without this, the content wrapper mangles the value into a
+      # __contentValues/__provider shape even though the pipeline ignores the
+      # key for dispatch. Everything else gets the provenance/content wrapper.
+      merge =
+        loc: defs:
+        if structuralKeysSet ? ${lib.last loc} then (lib.last defs).value else contentType.merge loc defs;
     };
 
   # Aspect meta submodule type: handleWith, provider, collisionPolicy.
