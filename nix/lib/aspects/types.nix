@@ -484,8 +484,46 @@ let
                           bv
                       ) b;
                     subForwarded = builtins.foldl' deepMerge { } subAttrVals;
+                    # Annotate forwarded children (recursively) with __provider
+                    # so navigation through a multi-def key yields identifiable
+                    # aspects. Without this, apps.dev.security.gpg arrives raw
+                    # (no name, no __provider), children.nix renames it to
+                    # <parent>/<anon>:<idx>, and the same aspect included via
+                    # two paths gets two identities — emit-class dedup fails
+                    # and class content double-applies (equal-priority option
+                    # conflicts). The single-def path tags children via
+                    # annotatedMerged; this is its multi-def counterpart.
+                    # Name-based guards come first so registered class/pipe/
+                    # structural values are never forced mid-merge — forcing a
+                    # class value that reads the flake's own outputs re-enters
+                    # the flake fixpoint (#580; see isNestedKey). Only
+                    # unregistered namespace keys (which navigation must force
+                    # anyway) get WHNF'd by the isAttrs check.
+                    annotateDeep =
+                      provPath: attrs:
+                      lib.mapAttrs (
+                        ck: cv:
+                        if
+                          !(lib.hasPrefix "__" ck)
+                          && !(classReg ? ${ck})
+                          && !(pipeReg ? ${ck})
+                          && !(structuralKeysSet ? ${ck})
+                          && builtins.isAttrs cv
+                          && !(cv ? __provider)
+                          && !(cv ? __contentValues)
+                        then
+                          annotateDeep (provPath ++ [ ck ]) cv // { __provider = provPath ++ [ ck ]; }
+                        else
+                          cv
+                      ) attrs;
                   in
-                  subForwarded
+                  annotateDeep (
+                    (typeCfg.providerPrefix or [ ])
+                    ++ [
+                      keyName
+                      k
+                    ]
+                  ) subForwarded
                   // {
                     __contentValues = defsForKey;
                     __provider = (typeCfg.providerPrefix or [ ]) ++ [
