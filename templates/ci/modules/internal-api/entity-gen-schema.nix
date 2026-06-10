@@ -65,6 +65,24 @@
       }
     );
 
+    # _roots (parentless kinds) is the buildRoots root-detection contract:
+    # host is a root scope; user/home are spawned under host, not roots.
+    test-entity-roots = denTest (
+      { den, ... }:
+      {
+        expr = {
+          hostIsRoot = builtins.elem "host" den.schema._roots;
+          userNotRoot = builtins.elem "user" den.schema._roots;
+          homeNotRoot = builtins.elem "home" den.schema._roots;
+        };
+        expected = {
+          hostIsRoot = true;
+          userNotRoot = false;
+          homeNotRoot = false;
+        };
+      }
+    );
+
     # Schema entry has isEntity computed correctly
     test-entity-is-entity = denTest (
       { den, ... }:
