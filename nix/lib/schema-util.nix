@@ -4,20 +4,20 @@
   ...
 }:
 let
-  schemaNames = builtins.attrNames (den.schema or { });
+  # Canonical kind list from gen-schema introspection: _kindNames is sorted
+  # and already excludes _-prefixed introspection keys (_topology, _edges, …).
+  kindNames = den.schema._kindNames or [ ];
 
-  # Canonical entity kind predicate: excludes conf, private keys,
-  # and non-entity schema entries.
+  # Canonical entity kind predicate: excludes the shared `conf` base and
+  # non-entity schema entries (isEntity computed by gen-schema).
   schemaEntityKinds = builtins.filter (
-    k: k != "conf" && !(lib.hasPrefix "_" k) && (den.schema.${k}.isEntity or false)
-  ) schemaNames;
+    k: k != "conf" && (den.schema.${k}.isEntity or false)
+  ) kindNames;
 
   # Variant for class-module.nix warnings: all schema-like arg names
-  # (excludes conf, aspect, private keys) WITHOUT the isEntity check.
+  # (excludes conf, aspect) WITHOUT the isEntity check.
   # Used to detect missing den args in class module functions.
-  schemaArgKinds = builtins.filter (
-    k: k != "conf" && k != "aspect" && !(lib.hasPrefix "_" k)
-  ) schemaNames;
+  schemaArgKinds = builtins.filter (k: k != "conf" && k != "aspect") kindNames;
   schemaEntityKindsSet = lib.genAttrs schemaEntityKinds (_: true);
 in
 {
