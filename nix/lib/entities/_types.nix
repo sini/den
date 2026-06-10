@@ -66,58 +66,14 @@ let
     builtins.attrNames (den.schema or { })
   );
 
-  # Option type names whose values are safe for identity hashing.
-  primitiveTypeNames = [
-    "str"
-    "int"
-    "bool"
-  ];
-
-  # Module injected into entity submodules for resolved aspect, id_hash,
-  # and collisionPolicy. Extracted here so host.nix, home.nix, and future
-  # entity types all share it.
+  # Module injected into entity submodules for resolved aspect and
+  # collisionPolicy. Extracted here so host.nix, home.nix, and future entity
+  # types all share it. Identity (id_hash) is owned by the schema — supplied
+  # by gen-schema's mkInstanceType via mkIdentityModule — not duplicated here.
   resolvedCtxModule =
     kind:
+    { config, ... }:
     {
-      config,
-      options,
-      ...
-    }:
-    {
-      options.id_hash = lib.mkOption {
-        description = ''
-          Auto-computed identity hash for entity comparison.
-
-          Derived by reflecting on all non-internal, primitive-typed
-          options (str, int, bool) declared on this entity. The schema
-          kind is included to prevent cross-kind collisions.
-
-          Use `a.id_hash != b.id_hash` instead of `a != b` for entity
-          comparison — Nix's `==` does deep structural comparison which
-          is fragile across module system boundaries.
-        '';
-        readOnly = true;
-        internal = true;
-        type = lib.types.str;
-        default =
-          let
-            isPrimitive =
-              name: opt:
-              !(lib.hasPrefix "_" name)
-              && (opt ? type)
-              && builtins.elem (opt.type.name or "") primitiveTypeNames
-              && !(opt.internal or false);
-            identityKeys = lib.sort (a: b: a < b) (builtins.attrNames (lib.filterAttrs isPrimitive options));
-            encode =
-              k:
-              let
-                v = config.${k};
-              in
-              "${k}=${toString v}";
-            fingerprint = "${kind}|${lib.concatMapStringsSep "|" encode identityKeys}";
-          in
-          builtins.hashString "sha256" fingerprint;
-      };
       options.resolved = lib.mkOption {
         description = "The resolved aspect for this ${kind}.";
         readOnly = true;
