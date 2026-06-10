@@ -61,10 +61,10 @@ let
       default = config.__resolveResult.pathSetByScope;
     };
 
-  # Entity kinds derived from the schema, excluding non-entity entries.
-  schemaKinds = builtins.filter (n: n != "conf" && !(lib.hasPrefix "_" n)) (
-    builtins.attrNames (den.schema or { })
-  );
+  # Entity kinds from the schema's own kind list (gen-schema _kindNames is
+  # sorted and excludes _-prefixed introspection keys), minus the shared
+  # `conf` base.
+  schemaKinds = builtins.filter (n: n != "conf") (den.schema._kindNames or [ ]);
 
   # Module injected into entity submodules for resolved aspect and
   # collisionPolicy. Extracted here so host.nix, home.nix, and future entity
