@@ -232,6 +232,7 @@ let
             inherit (route) path;
             guard = route.guard or null;
             adaptArgs = route.adaptArgs or null;
+            reinstantiate = route.reinstantiate or false;
           };
       # Delivery routes registered inside an isolated child collect rooted at
       # their own scope but must land the result on the PARENT — the child

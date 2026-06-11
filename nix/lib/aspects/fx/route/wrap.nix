@@ -90,11 +90,31 @@ let
       );
     };
 
-  # Nest a module at a target path (dispatch between adapt and plain strategies).
+  # Nest a module at a path by REFERENCE, keeping the collected module wrapper
+  # INTACT. Unlike nestPlain (which unwraps `mod.imports` and pre-evaluates the
+  # content in an isolated freeform evalModules, freezing it to resolved config),
+  # this preserves the wrapper's `key`/`_file` (assigned by wrap-classes.nix as
+  # `<class>@<identity>`) and delivers the module unevaluated. Required when the
+  # target RE-INSTANTIATES the delivered content as its own NixOS system (e.g.
+  # microvm `microvm.vms.<n>.config`, whose option type re-runs eval-config with
+  # the full base module-list): the target then applies base-module defaults AND
+  # dedups identical re-declarations across {host,user} scopes by `key` — exactly
+  # as spawn-node's instantiation walk does. Pre-evaluating (nestPlain) instead
+  # strips base defaults and drops the keys, poisoning every namespace aggregate
+  # and double-declaring keyless modules at the target.
+  nestVerbatim = path: mod: {
+    config = lib.setAttrByPath path { imports = [ mod ]; };
+  };
+
+  # Nest a module at a target path (dispatch between verbatim, adapt, and plain
+  # strategies). `reinstantiate` selects verbatim delivery for targets that
+  # re-evaluate the payload as their own module set.
   nestModule =
-    path: adaptArgs: mod:
+    path: adaptArgs: reinstantiate: mod:
     if path == [ ] then
       mod
+    else if reinstantiate then
+      nestVerbatim path mod
     else if adaptArgs != null then
       nestWithAdaptArgs path adaptArgs mod
     else
@@ -144,16 +164,20 @@ let
       path,
       guard ? null,
       adaptArgs ? null,
+      reinstantiate ? false,
     }:
     let
       adapted = map (adaptModule adaptArgs path) modules;
     in
     if adapted == [ ] then
       [ ]
-    else if adaptArgs != null && path != [ ] then
+    # reinstantiate keeps each collected wrapper keyed and separate so the
+    # target's own evalModules dedups them; it must not be combined into one
+    # adaptArgs evalModules.
+    else if adaptArgs != null && path != [ ] && !reinstantiate then
       [ (guardModule guard (nestWithAdaptArgs path adaptArgs { imports = adapted; })) ]
     else
-      map (mod: guardModule guard (nestModule path adaptArgs mod)) adapted;
+      map (mod: guardModule guard (nestModule path adaptArgs reinstantiate mod)) adapted;
 
   # Collect class modules from a forward aspect (recursing into includes).
   collectClassMods =
