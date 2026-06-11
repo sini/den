@@ -151,6 +151,9 @@ in
       # homeManager content into this node. The fleet pipe values still resolve
       # correctly because assemblePipes ran over the full merged state; only the
       # final per-scope class buckets are subtree-restricted here.
+      # Isolation-blind by design: isolated entities resolve via resolve.to in
+      # the host pipeline, never through spawnNode, so no isolated descendant
+      # can appear under spawnRoot. Revisit if that invariant ever changes.
       isInSubtree =
         sid:
         sid == spawnRoot
