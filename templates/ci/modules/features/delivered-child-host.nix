@@ -20,6 +20,23 @@
 # hand-rolling the resolve/route pair.
 { denTest, lib, ... }:
 let
+  # Minimal stand-in for the home-manager nixos module, used only to satisfy
+  # the guest's host-submodule home-manager.module option (detection). The real
+  # home-manager module self-references `config.home-manager` and only resolves
+  # when the guest is re-instantiated as its own nixosSystem; these unit tests
+  # never re-instantiate (the guest-os content is collected into the freeform
+  # microvm slot), so the per-user home-manager modules the primitive emits are
+  # re-evaluated explicitly in the assertion instead. Real consumers (nix-config)
+  # use the real home-manager module when the microvm genuinely instantiates.
+  hmStub = {
+    options.home-manager.users = lib.mkOption {
+      type = lib.types.lazyAttrsOf (
+        lib.types.submodule { freeformType = lib.types.lazyAttrsOf lib.types.anything; }
+      );
+      default = { };
+    };
+  };
+
   # Stub of the microvm.vms.<name>.config slot the real microvm.nixos module
   # provides on the PARENT. Freeform so delivered child config lands here.
   microvmSlot =
@@ -234,6 +251,12 @@ in
           public_key = ./delivered-child-host.nix;
           deliveredChildren.guest = mkGuest den {
             public_key = ./delivered-child-host.nix;
+            # tux is a homeManager user → guest-os HM synthesis now fires; pin
+            # the stub module (the real module needs guest re-instantiation).
+            home-manager = {
+              enable = true;
+              module = hmStub;
+            };
             users.tux = {
               name = "tux";
               userName = "tux";
@@ -255,6 +278,78 @@ in
           secretPresent = true;
           hn = "guest-vm";
           stateVersion = "25.11";
+        };
+      }
+    );
+
+    # HOME-MANAGER SYNTHESIS: a guest user with classes = ["homeManager"] and a
+    # homeManager aspect must produce a home-manager OUTPUT in the delivered
+    # config — i.e. igloo.microvm.vms.guest.config.home-manager.users.tux.<v>.
+    #
+    # This exercises the guest-os home-env wiring:
+    #   - hostConf  defines `home-manager.enable`/`.module` ON the guest (else
+    #               mkDetectHost short-circuits and NOTHING synthesizes),
+    #   - the guest-hm-user-forward bridge resolves each homeManager user's
+    #     homeManager content and delivers it under guest-os
+    #     home-manager.users.<u> (the battery's user-sub-scope forward does not
+    #     survive the collectSubtree delivery route — see the primitive).
+    # WITHOUT that wiring the delivered config has NO home-manager.users.tux
+    # (hmUsers = []) and this test FAILS.
+    #
+    # The delivered content is a `{ imports = [...]; }` home-manager module — the
+    # exact shape the guest's real home-manager module evaluates when the microvm
+    # re-instantiates the guest config downstream. These unit tests never
+    # re-instantiate (the guest-os content lands in the freeform microvm slot),
+    # so the assertion re-evaluates the delivered imports to observe the actual
+    # home-manager output. nix-config exercises the real module on instantiation.
+    test-home-synthesis = denTest (
+      {
+        den,
+        lib,
+        igloo,
+        ...
+      }:
+      {
+        imports = [ (parentBase den) ];
+        den.deliveredChild.stateVersion = "25.11";
+
+        den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den {
+          # Consumer override: pin a stub HM module so the host-submodule
+          # home-manager.enable option exists (detection) without pulling the
+          # real home-manager module (which only evaluates on re-instantiation).
+          home-manager = {
+            enable = true;
+            module = hmStub;
+          };
+          users.tux = {
+            name = "tux";
+            userName = "tux";
+            classes = [ "homeManager" ];
+            # The guest user's home config, attached inline as the aspect.
+            aspect.homeManager.programs.git.enable = true;
+          };
+        };
+        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+
+        # The delivered config carries the per-user home-manager content as a
+        # `{ imports = [...]; }` module under home-manager.users.tux — the exact
+        # shape the guest's real home-manager module evaluates when the microvm
+        # re-instantiates the delivered config. We re-evaluate those imports
+        # here (with a permissive freeform module set, the way the microvm
+        # nixosSystem would) and assert the user's program setting lands.
+        expr = {
+          hmUsers = builtins.attrNames igloo.microvm.vms.guest.config.home-manager.users;
+          gitEnabled =
+            (lib.evalModules {
+              modules = [
+                { config._module.freeformType = lib.types.lazyAttrsOf lib.types.anything; }
+              ]
+              ++ igloo.microvm.vms.guest.config.home-manager.users.tux.imports;
+            }).config.programs.git.enable;
+        };
+        expected = {
+          hmUsers = [ "tux" ];
+          gitEnabled = true;
         };
       }
     );
