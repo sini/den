@@ -144,19 +144,24 @@ let
       };
     };
 
-  # Collect class modules from a scope and all its descendants.
+  # Collect class modules from a scope and all its descendants — skipping
+  # isolated descendants (and their subtrees). The collection root is always
+  # included so an isolated entity's own delivery route still collects itself.
   collectFromSubtree =
-    wrappedPerScope: scopeParent: rootScopeId: fromClass:
+    wrappedPerScope: scopeParent: scopeIsolated: rootScopeId: fromClass:
     let
       allScopeIds = builtins.attrNames wrappedPerScope;
       isInSubtree =
         sid:
         sid == rootScopeId
         || (
-          let
-            parent = scopeParent.${sid} or null;
-          in
-          parent != null && parent != sid && isInSubtree parent
+          !(scopeIsolated.${sid} or false)
+          && (
+            let
+              parent = scopeParent.${sid} or null;
+            in
+            parent != null && parent != sid && isInSubtree parent
+          )
         );
       subtreeScopes = builtins.filter isInSubtree allScopeIds;
     in
@@ -168,6 +173,7 @@ let
       route,
       wrappedPerScope,
       scopeParent,
+      scopeIsolated,
     }:
     let
       isFlakeRoute = route.intoClass == "flake";
@@ -178,7 +184,7 @@ let
       # entity subtrees whose scope args won't be available after adaptArgs.
       sourceModules =
         if isFlakeRoute || (route.collectSubtree or false) then
-          collectFromSubtree wrappedPerScope scopeParent route.sourceScopeId route.fromClass
+          collectFromSubtree wrappedPerScope scopeParent scopeIsolated route.sourceScopeId route.fromClass
         else
           let
             scopeExists = wrappedPerScope ? ${route.sourceScopeId};
@@ -227,8 +233,17 @@ let
             guard = route.guard or null;
             adaptArgs = route.adaptArgs or null;
           };
+      # Delivery routes registered inside an isolated child collect rooted at
+      # their own scope but must land the result on the PARENT — the child
+      # scope is skipped by isolation-aware extraction, so appending there
+      # would drop the content.
+      appendScopeId =
+        if route.appendToParent or false then
+          scopeParent.${route.sourceScopeId} or route.sourceScopeId
+        else
+          route.sourceScopeId;
     in
-    appendToClass acc route.intoClass route.sourceScopeId wrappedModules;
+    appendToClass acc route.intoClass appendScopeId wrappedModules;
 
   isDenDefaultModule = mod: lib.hasSuffix "@default" (mod.key or mod._file or "");
 
@@ -318,6 +333,7 @@ let
       wrappedPerScope,
       classImports,
       scopeParent ? { },
+      scopeIsolated ? { },
       scopeContexts ? { },
       ctx ? { },
       spawnNode ? null,
@@ -346,7 +362,14 @@ let
               ;
           }
         else
-          applySimpleRoute acc { inherit route wrappedPerScope scopeParent; }
+          applySimpleRoute acc {
+            inherit
+              route
+              wrappedPerScope
+              scopeParent
+              scopeIsolated
+              ;
+          }
       )
       {
         inherit classImports;

@@ -100,6 +100,8 @@ in
         // {
           ${spawnRoot} = from;
         };
+      mergedScopeIsolated =
+        (parentState.scopeIsolated or { }) // ((result.state.scopeIsolated or (_: { })) null);
 
       # 3. Re-derive pipes over merged state. hostConfigs = null: config-dependent
       #    stay deferred (via __configThunk); pipeline-parametric resolve eagerly.
@@ -138,7 +140,8 @@ in
         ) parentSubtreeRoutes;
 
       phase3 =
-        applyRoutes selfRef parentState.ctx augmented spawnRoot mergedScopeParent mergedSpawnRoutes
+        applyRoutes selfRef parentState.ctx augmented spawnRoot mergedScopeParent mergedScopeIsolated
+          mergedSpawnRoutes
           phase2;
 
       # Restrict extraction to the spawned subtree (spawnRoot + descendants).

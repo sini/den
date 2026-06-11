@@ -152,12 +152,13 @@ let
   # complex-route forward SOURCE with full fleet visibility (replaces the old
   # isolated fxResolve fallback).
   applyRoutes =
-    spawnNode: ctx: scopeContexts: rootScopeId: scopeParent: scopedRoutes: acc:
+    spawnNode: ctx: scopeContexts: rootScopeId: scopeParent: scopeIsolated: scopedRoutes: acc:
     route.applyRoutes {
       inherit
         scopedRoutes
         scopeContexts
         scopeParent
+        scopeIsolated
         ctx
         rootScopeId
         spawnNode
@@ -213,18 +214,23 @@ let
   # This produces the complete module set for a host: host-scope modules,
   # user-scope modules, and route-delivered modules — all in one list.
   extractSubtreeModules =
-    perScope: scopeParent: rootScopeId: targetClass:
+    perScope: scopeParent: scopeIsolated: rootScopeId: targetClass:
     let
       allScopeIds = builtins.attrNames perScope;
-      # Collect all descendant scope IDs by walking scopeParent.
+      # Collect descendant scope IDs by walking scopeParent — skipping isolated
+      # descendants (and everything below them). The collection root is always
+      # included: isolation gates crossing INTO an entity, not collecting AT it.
       isInSubtree =
         sid:
         sid == rootScopeId
         || (
-          let
-            parent = scopeParent.${sid} or null;
-          in
-          parent != null && parent != sid && isInSubtree parent
+          !(scopeIsolated.${sid} or false)
+          && (
+            let
+              parent = scopeParent.${sid} or null;
+            in
+            parent != null && parent != sid && isInSubtree parent
+          )
         );
       subtreeScopes = builtins.filter isInSubtree allScopeIds;
       # Collect modules from all subtree scopes, deduplicating by key.
@@ -263,6 +269,7 @@ let
       scopedRoutes,
       scopeParent,
       scopeEntityClass ? (_: { }),
+      scopeIsolated ? { },
       spawnNodeFn,
       ctx,
     }:
@@ -314,10 +321,10 @@ let
             subtreePhase1 = wrapPerScope ctx subtreeContexts subtreeClassImports;
             subtreePhase2 = applyProvides ctx relevantContexts subtreeProvides subtreePhase1;
             subtreePhase3 =
-              applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent subtreeRoutes
+              applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
                 subtreePhase2;
           in
-          extractSubtreeModules subtreePhase3.perScope scopeParent hostScopeId hostClass
+          extractSubtreeModules subtreePhase3.perScope scopeParent scopeIsolated hostScopeId hostClass
         else
           null;
       modules =
@@ -360,6 +367,7 @@ let
       scopedRoutes,
       scopeParent,
       scopeEntityClass ? (_: { }),
+      scopeIsolated ? { },
       spawnNodeFn,
       ctx,
     }:
@@ -373,6 +381,7 @@ let
           scopedRoutes
           scopeParent
           scopeEntityClass
+          scopeIsolated
           spawnNodeFn
           ctx
           ;
@@ -485,6 +494,9 @@ let
       scopeParent = result.state.scopeParent null;
       scopedProvides = result.state.scopedProvides null;
       scopedRoutes = result.state.scopedRoutes null;
+      # Kind-level isolation marks {scopeId→true}; route collection and subtree
+      # extraction skip isolated descendants (the collection root is exempt).
+      scopeIsolated = (result.state.scopeIsolated or (_: { })) null;
 
       # Scan raw pipe values for config-dependent thunks (functions taking
       # { config, ... }).  If none exist, hostConfigs stays null and
@@ -546,6 +558,7 @@ let
                 scopeParent
                 ;
               scopeEntityClass = result.state.scopeEntityClass or (_: { });
+              inherit scopeIsolated;
               spawnNodeFn = spawnNode;
               inherit ctx;
             };
@@ -574,6 +587,7 @@ let
         inherit
           scopeContexts
           scopeParent
+          scopeIsolated
           ctx
           scopeEntityKind
           ;
@@ -730,11 +744,13 @@ let
       phase1 = wrapPerScope ctx augmentedScopeContexts drainedClassImportsRaw;
       phase2 = applyProvides ctx augmentedScopeContexts scopedProvides phase1;
       phase3 =
-        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopedRoutes
+        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
+          scopedRoutes
           phase2;
       phase4 = applyInstantiates {
         scopedInstantiates = result.state.scopedInstantiates null;
         scopeEntityClass = result.state.scopeEntityClass or (_: { });
+        inherit scopeIsolated;
         inherit
           augmentedScopeContexts
           scopedProvides
@@ -777,6 +793,7 @@ let
       scopeContexts = result.state.scopeContexts null;
       scopedClassImportsRaw = result.state.scopedClassImports null;
       scopeParent = result.state.scopeParent null;
+      scopeIsolated = (result.state.scopeIsolated or (_: { })) null;
 
       augmentedScopeContexts = assemblePipes {
         inherit scopeContexts;
@@ -790,7 +807,12 @@ let
       # threaded spawned node rather than an isolated pipeline. No drain/phase4
       # here, so this only matters for nested node resolution.
       parentState = {
-        inherit scopeContexts scopeParent ctx;
+        inherit
+          scopeContexts
+          scopeParent
+          scopeIsolated
+          ctx
+          ;
         scopeEntityKind = (result.state.scopeEntityKind or (_: { })) null;
         scopedClassImports = scopedClassImportsRaw;
         scopedPipeEffects = result.state.scopedPipeEffects null;
@@ -809,7 +831,7 @@ let
       phase1 = wrapPerScope ctx augmentedScopeContexts scopedClassImportsRaw;
       phase2 = applyProvides ctx augmentedScopeContexts (result.state.scopedProvides null) phase1;
       phase3 =
-        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent
+        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
           (result.state.scopedRoutes null)
           phase2;
     in
