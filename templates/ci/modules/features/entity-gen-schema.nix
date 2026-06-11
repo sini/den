@@ -50,6 +50,9 @@
       {
         expr = den.schema._topology.host.children;
         expected = [
+          # delivered-guest: the delivered-child-host primitive registers a
+          # dedicated guest kind nested under host (modules/policies).
+          "delivered-guest"
           "home"
           "user"
         ];
