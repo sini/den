@@ -78,6 +78,11 @@ let
     n == null || !(builtins.elem n cfg.omitIncludeNames)
   ) hostIncludes;
 
+  # The guest class is always nixos-flavored, so the hardcoded `.nixosModules`
+  # accessor is correct here (vs the class-keyed `"${host.class}Modules"` that
+  # the normal host battery uses — guest-os has no *Modules input attr of its own).
+  hmNixosModule = inputs.home-manager.nixosModules.home-manager;
+
   # ADD: a guest-os home-env instance so home-manager synthesis (gated on
   # host.class ∈ supportedOses) fires for a guest-os child. getModule pins the
   # parent's nixos home-manager module (the guest-os class has no *Modules
@@ -106,7 +111,7 @@ let
     ctxName = "guest-hm";
     supportedOses = [ guestClass ];
     optionPath = "home-manager";
-    getModule = _: inputs.home-manager.nixosModules.home-manager;
+    getModule = _: hmNixosModule;
     forwardPathFn =
       { user, ... }:
       [
@@ -169,16 +174,8 @@ let
     curatedFromHost
     ++ [
       guestHome.battery
-      {
-        __isPolicy = true;
-        name = "guest-hm-user-forward";
-        fn = guestHmUserForward;
-      }
-      {
-        __isPolicy = true;
-        name = "expose-child-quirks";
-        fn = exposePolicy;
-      }
+      (den.lib.policy.mkPolicy "guest-hm-user-forward" guestHmUserForward)
+      (den.lib.policy.mkPolicy "expose-child-quirks" exposePolicy)
     ]
     ++ guestDefault;
 
@@ -190,7 +187,7 @@ let
   #   - mkDetectHost sees `host.home-manager.enable` = true (a homeManager user
   #     exists) and does not short-circuit, and
   #   - the battery's hostModule can read `host.home-manager.module`.
-  guestHmModule = inputs.home-manager.nixosModules.home-manager;
+  guestHmModule = hmNixosModule;
   guestHasHmUser =
     guest:
     builtins.any (u: builtins.elem "homeManager" (u.classes or [ ])) (
@@ -201,7 +198,7 @@ let
   # in the guest-os class, and route its content into the parent under the
   # delivery path.
   resolveChild =
-    name: guest:
+    _name: guest:
     let
       # Default the home-manager host option on the raw guest unless the guest
       # already declares it (consumer override wins).
