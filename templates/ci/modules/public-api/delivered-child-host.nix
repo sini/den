@@ -1,10 +1,12 @@
 # Acceptance tests for the delivered-child-host PRIMITIVE
 # (modules/policies/delivered-child-host.nix).
 #
-# A delivered child is a guest host that resolves as a nested child scope under
-# its parent host and is realized INTO the parent's config
+# A delivered child is a guest host that resolves as an ISOLATED nested child
+# scope under its parent host and is realized INTO the parent's config
 # (microvm.vms.<name>.config) instead of producing a standalone
-# nixosConfigurations.<name> output.
+# nixosConfigurations.<name> output. The guest authors honest `nixos`; an
+# entity-isolation marker keeps that content out of the parent's own toplevel,
+# and a collect/append-decoupled delivery route lands it at the delivery path.
 #
 # HARNESS NOTE: denTest only exposes INSTANTIATED hosts
 # (config.flake.nixosConfigurations.<name>.config). A delivered child has NO
@@ -13,21 +15,22 @@
 # `igloo.microvm.vms.<name>.config.*`.
 #
 # The primitive supplies: a parent option (host.deliveredChildren), a dedicated
-# `delivered-guest` kind whose includes are a curated subset of
-# den.schema.host.includes, the delivery policy (resolve + class-isolation +
-# route+collectSubtree), and an expose policy. Tests use the primitive — they
-# declare children via den.hosts.<sys>.igloo.deliveredChildren rather than
-# hand-rolling the resolve/route pair.
+# isolated `delivered-guest` kind whose includes are a curated subset of
+# den.schema.host.includes, the delivery policy (resolve + isolation +
+# route+collectSubtree+appendToParent), and an expose policy. Tests use the
+# primitive — they declare children via den.hosts.<sys>.igloo.deliveredChildren
+# rather than hand-rolling the resolve/route pair.
 { denTest, lib, ... }:
 let
   # Minimal stand-in for the home-manager nixos module, used only to satisfy
   # the guest's host-submodule home-manager.module option (detection). The real
   # home-manager module self-references `config.home-manager` and only resolves
   # when the guest is re-instantiated as its own nixosSystem; these unit tests
-  # never re-instantiate (the guest-os content is collected into the freeform
-  # microvm slot), so the per-user home-manager modules the primitive emits are
-  # re-evaluated explicitly in the assertion instead. Real consumers (nix-config)
-  # use the real home-manager module when the microvm genuinely instantiates.
+  # never re-instantiate (the guest's nixos content is collected into the
+  # freeform microvm slot), so the per-user home-manager modules the primitive
+  # emits are re-evaluated explicitly in the assertion instead. Real consumers
+  # (nix-config) use the real home-manager module when the microvm genuinely
+  # instantiates.
   hmStub = {
     options.home-manager.users = lib.mkOption {
       type = lib.types.lazyAttrsOf (
@@ -59,6 +62,19 @@ let
       };
     };
 
+  # Stub of the agenix `age.*` options. Host-includes authored `nixos.age.*`
+  # now fire at the PARENT scope as well as the guest scope (the guest authors
+  # honest nixos), where a real nixosSystem has no age options. This absorbs
+  # those option writes on the parent.
+  ageStub =
+    { lib, ... }:
+    {
+      options.age = lib.mkOption {
+        type = lib.types.lazyAttrsOf lib.types.anything;
+        default = { };
+      };
+    };
+
   # A guest entity. The primitive sets class/intoAttr; the realistic gap-table
   # (G6) still applies: a raw delivered child bypasses the host submodule's
   # userType, so user records must be FULL ({ name; userName; classes; }).
@@ -72,11 +88,15 @@ let
     }
     // extra;
 
-  # Common parent wiring: the microvm slot on igloo. Returned as a module so it
-  # merges (NOT `//`, which would clobber the test body's own `den` attr).
+  # Common parent wiring: the microvm slot + age stub on igloo. Returned as a
+  # module so it merges (NOT `//`, which would clobber the test body's own
+  # `den` attr).
   parentBase = den: {
     den.aspects.igloo.includes = [ den.aspects.microvm-slot ];
-    den.aspects.microvm-slot.nixos.imports = [ microvmSlot ];
+    den.aspects.microvm-slot.nixos.imports = [
+      microvmSlot
+      ageStub
+    ];
   };
 in
 {
@@ -89,7 +109,7 @@ in
       {
         imports = [ (parentBase den) ];
         den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den { };
-        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
 
         expr = igloo.microvm.vms.guest.config.networking.hostName;
         expected = "guest-vm";
@@ -97,24 +117,28 @@ in
     );
 
     # PARTICIPATION: a curated host-include value fires in the CHILD scope and
-    # arrives in the delivered config. The host-include emits into guest-os.
+    # arrives in the delivered config. The host-include emits into nixos, so it
+    # now fires at the PARENT scope too — assert membership in both, not
+    # list-equality (the parent carries nixpkgs defaults like atkbd/loop).
     test-participation = denTest (
       { den, igloo, ... }:
       {
         imports = [ (parentBase den) ];
         den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den { };
         den.schema.host.includes = [
-          { guest-os.boot.kernelModules = [ "from-host-include" ]; }
+          { nixos.boot.kernelModules = [ "from-host-include" ]; }
         ];
-        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
 
         expr = {
           hn = igloo.microvm.vms.guest.config.networking.hostName;
-          km = igloo.microvm.vms.guest.config.boot.kernelModules;
+          deliveredHasInclude = lib.elem "from-host-include" igloo.microvm.vms.guest.config.boot.kernelModules;
+          parentHasInclude = lib.elem "from-host-include" igloo.boot.kernelModules;
         };
         expected = {
           hn = "guest-vm";
-          km = [ "from-host-include" ];
+          deliveredHasInclude = true;
+          parentHasInclude = true;
         };
       }
     );
@@ -136,7 +160,7 @@ in
         den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den { };
 
         den.aspects.guest-aspect = {
-          guest-os.networking.hostName = "guest-vm";
+          nixos.networking.hostName = "guest-vm";
           guest-ports = [ 2222 ];
         };
         den.aspects.port-consumer.nixos =
@@ -158,7 +182,7 @@ in
       {
         imports = [ (parentBase den) ];
         den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den { };
-        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
 
         expr = {
           iglooExists = config.flake.nixosConfigurations ? igloo;
@@ -174,14 +198,16 @@ in
     # AGENIX DOESN'T THROW (retarget + parent key): an agenix-like host-include
     # reads host.public_key via builtins.readFile. The guest sets public_key to
     # the parent's existing key path (clean override), so it resolves and the
-    # value lands in the delivered config through the parent.
+    # value lands in the delivered config through the parent. The parent
+    # (igloo) also sets public_key, so the parent-scope evaluation of the
+    # include resolves too (ageStub absorbs the option).
     test-agenix-tailored = denTest (
       { den, igloo, ... }:
       let
         agenixLike =
           { host, ... }:
           {
-            guest-os.age.hostPubkey = builtins.readFile host.public_key;
+            nixos.age.hostPubkey = builtins.readFile host.public_key;
           };
       in
       {
@@ -191,7 +217,7 @@ in
           deliveredChildren.guest = mkGuest den { public_key = ./delivered-child-host.nix; };
         };
         den.schema.host.includes = [ agenixLike ];
-        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
 
         expr =
           igloo.microvm.vms.guest.config.age.hostPubkey != ""
@@ -202,14 +228,15 @@ in
 
     # NEGATIVE (why tailoring is required): a verbatim guest WITHOUT public_key
     # hard-blocks the agenix-like readFile the moment the delivered value is
-    # forced through the parent.
+    # forced through the parent. (igloo itself HAS public_key, so the parent
+    # scope is fine; the guest binding lacks it.)
     test-agenix-verbatim-blocks = denTest (
       { den, igloo, ... }:
       let
         agenixLike =
           { host, ... }:
           {
-            guest-os.age.hostPubkey = builtins.readFile host.public_key;
+            nixos.age.hostPubkey = builtins.readFile host.public_key;
           };
       in
       {
@@ -219,7 +246,7 @@ in
           deliveredChildren.guest = mkGuest den { }; # NO public_key.
         };
         den.schema.host.includes = [ agenixLike ];
-        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
 
         expr = igloo.microvm.vms.guest.config.age.hostPubkey;
         expectedError = {
@@ -230,17 +257,17 @@ in
     );
 
     # REALISTIC GUEST: real users + agenix (host pubkey + per-user secret) +
-    # the guest-os stateVersion default. Exercises the COMPLETE tailoring
-    # surface through the primitive. A delivered child built as a raw entity
-    # bypasses userType, so the user is a FULL record (gap G6).
+    # the stateVersion default. Exercises the COMPLETE tailoring surface
+    # through the primitive. A delivered child built as a raw entity bypasses
+    # userType, so the user is a FULL record (gap G6).
     test-realistic-guest = denTest (
       { den, igloo, ... }:
       let
         agenixBattery =
           { host, ... }:
           {
-            guest-os.age.hostPubkey = builtins.readFile host.public_key;
-            guest-os.age.secrets."tux-password".file = host.public_key;
+            nixos.age.hostPubkey = builtins.readFile host.public_key;
+            nixos.age.secrets."tux-password".file = host.public_key;
           };
       in
       {
@@ -251,8 +278,8 @@ in
           public_key = ./delivered-child-host.nix;
           deliveredChildren.guest = mkGuest den {
             public_key = ./delivered-child-host.nix;
-            # tux is a homeManager user → guest-os HM synthesis now fires; pin
-            # the stub module (the real module needs guest re-instantiation).
+            # tux is a homeManager user → HM synthesis now fires; pin the stub
+            # module (the real module needs guest re-instantiation).
             home-manager = {
               enable = true;
               module = hmStub;
@@ -265,7 +292,7 @@ in
           };
         };
         den.schema.host.includes = [ agenixBattery ];
-        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
 
         expr = {
           pubkeyResolved = igloo.microvm.vms.guest.config.age.hostPubkey != "";
@@ -286,22 +313,21 @@ in
     # homeManager aspect must produce a home-manager OUTPUT in the delivered
     # config — i.e. igloo.microvm.vms.guest.config.home-manager.users.tux.<v>.
     #
-    # This exercises the guest-os home-env wiring:
-    #   - hostConf  defines `home-manager.enable`/`.module` ON the guest (else
-    #               mkDetectHost short-circuits and NOTHING synthesizes),
-    #   - the guest-hm-user-forward bridge resolves each homeManager user's
-    #     homeManager content and delivers it under guest-os
-    #     home-manager.users.<u> (the battery's user-sub-scope forward does not
-    #     survive the collectSubtree delivery route — see the primitive).
-    # WITHOUT that wiring the delivered config has NO home-manager.users.tux
-    # (hmUsers = []) and this test FAILS.
+    # This exercises the guest-hm-user-forward bridge: the standard battery's
+    # per-user forward appends at the user-under-guest scope (below the isolated
+    # guest), which isolation drops from the parent. The bridge resolves each
+    # homeManager user's homeManager content at the GUEST scope (the delivery
+    # route's collection root) and delivers it under nixos
+    # home-manager.users.<u>. WITHOUT it the delivered config has NO
+    # home-manager.users.tux and this test FAILS.
     #
     # The delivered content is a `{ imports = [...]; }` home-manager module — the
     # exact shape the guest's real home-manager module evaluates when the microvm
     # re-instantiates the guest config downstream. These unit tests never
-    # re-instantiate (the guest-os content lands in the freeform microvm slot),
-    # so the assertion re-evaluates the delivered imports to observe the actual
-    # home-manager output. nix-config exercises the real module on instantiation.
+    # re-instantiate (the guest's nixos content lands in the freeform microvm
+    # slot), so the assertion re-evaluates the delivered imports to observe the
+    # actual home-manager output. nix-config exercises the real module on
+    # instantiation.
     test-home-synthesis = denTest (
       {
         den,
@@ -329,7 +355,7 @@ in
             aspect.homeManager.programs.git.enable = true;
           };
         };
-        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
 
         # The delivered config carries the per-user home-manager content as a
         # `{ imports = [...]; }` module under home-manager.users.tux — the exact
@@ -350,6 +376,96 @@ in
         expected = {
           hmUsers = [ "tux" ];
           gitEnabled = true;
+        };
+      }
+    );
+
+    # THE cortex repro: a guest-only option must not leak onto the parent's
+    # toplevel (microvm.guest does not exist there) and must arrive at the
+    # delivery path.
+    test-no-guest-option-leak = denTest (
+      { den, igloo, ... }:
+      {
+        imports = [ (parentBase den) ];
+        den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den { };
+        den.aspects.guest-aspect.nixos = {
+          networking.hostName = "guest-vm";
+          microvm.guest.enable = true;
+        };
+
+        # Forcing the parent's toplevel would throw 'option microvm.guest does
+        # not exist' if the guest's nixos leaked. networking.hostName is unset
+        # on the parent, so it falls back to the nixos default.
+        expr = {
+          parentEvals = igloo.networking.hostName;
+          delivered = igloo.microvm.vms.guest.config.microvm.guest.enable;
+        };
+        expected = {
+          parentEvals = "nixos";
+          delivered = true;
+        };
+      }
+    );
+
+    # THE load-bearing regression: compose entities are NOT isolated — a
+    # home-manager user on the PARENT still lands in the parent's nixos even
+    # while a delivered child coexists. We use the real home-manager battery
+    # (parent igloo is a genuine nixosSystem) and observe the parent user's HM
+    # content via the tuxHm fixture (igloo.home-manager.users.tux).
+    test-parent-home-manager-intact = denTest (
+      {
+        den,
+        tuxHm,
+        igloo,
+        ...
+      }:
+      {
+        imports = [ (parentBase den) ];
+        den.hosts.x86_64-linux.igloo = {
+          users.tux = { };
+          deliveredChildren.guest = mkGuest den { };
+        };
+        # Parent user's home-manager content (standard battery + real module),
+        # authored on the user's own aspect (named after the user).
+        den.aspects.tux.homeManager.programs.git.enable = true;
+        den.aspects.guest-aspect.nixos.networking.hostName = "guest-vm";
+
+        expr = {
+          parentHm = tuxHm.programs.git.enable;
+          delivered = igloo.microvm.vms.guest.config.networking.hostName;
+        };
+        expected = {
+          parentHm = true;
+          delivered = "guest-vm";
+        };
+      }
+    );
+
+    # Reused fleet aspect: a SHARED nixos-authored aspect composed into the
+    # guest lands at the delivery path and does NOT leak to the parent.
+    test-reused-nixos-aspect-delivered = denTest (
+      {
+        den,
+        lib,
+        igloo,
+        ...
+      }:
+      {
+        imports = [ (parentBase den) ];
+        den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den { };
+        den.aspects.shared-role.nixos.boot.kernelModules = [ "shared-role-module" ];
+        den.aspects.guest-aspect = {
+          includes = [ den.aspects.shared-role ];
+          nixos.networking.hostName = "guest-vm";
+        };
+
+        expr = {
+          delivered = lib.elem "shared-role-module" igloo.microvm.vms.guest.config.boot.kernelModules;
+          parent = lib.elem "shared-role-module" igloo.boot.kernelModules;
+        };
+        expected = {
+          delivered = true;
+          parent = false;
         };
       }
     );
