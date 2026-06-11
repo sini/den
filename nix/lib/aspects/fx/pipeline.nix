@@ -139,6 +139,8 @@ let
     # structural walk, bucketed by the scope that owns each node. Powers the
     # projected (in-context) hasAspect. Thunked to survive per-step deepSeq.
     pathSetByScope = _: { };
+    # Full resolved nodes keyed by unique identity, for entity.aspects.
+    resolvedNodes = _: { };
 
     # --- Scope-partitioned output state (handlers write here) ---
     scopedClassImports = _: { };

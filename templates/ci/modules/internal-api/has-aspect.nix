@@ -740,5 +740,171 @@
       }
     );
 
+    # ─── Group K: entity.aspects (resolved node list) ─────────────────
+
+    # .aspects returns the flat set of resolved nodes (every depth), each
+    # augmented with .identity / .identityKey / .isNamed and retaining the
+    # raw .name. Subset checks (elem) tolerate schema-injected siblings.
+    test-K-aspects-contains-resolved = denTest (
+      { den, ... }:
+      let
+        aspects = den.hosts.x86_64-linux.igloo.aspects;
+        ids = map (a: a.identity) aspects;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.includes = [ den.aspects.feature ];
+        den.aspects.feature.nixos = { };
+
+        expr = {
+          hasIgloo = builtins.elem "igloo" ids;
+          hasFeature = builtins.elem "feature" ids;
+          allAugmented = builtins.all (
+            a: (a ? identity) && (a ? identityKey) && (a ? isNamed) && (a ? name)
+          ) aspects;
+        };
+        expected = {
+          hasIgloo = true;
+          hasFeature = true;
+          allAugmented = true;
+        };
+      }
+    );
+
+    # The entity root (carries __entityKind) is not one of its own aspects.
+    test-K-aspects-excludes-entity-root = denTest (
+      { den, ... }:
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.aspects.igloo.nixos = { };
+
+        expr = builtins.any (a: a ? __entityKind) den.hosts.x86_64-linux.igloo.aspects;
+        expected = false;
+      }
+    );
+
+    # Exclude-aware: tombstoned aspects are absent (same gate as pathSet).
+    test-K-aspects-respects-tombstone = denTest (
+      { den, ... }:
+      let
+        ids = map (a: a.identity) den.hosts.x86_64-linux.igloo.aspects;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.includes = [
+          den.aspects.keep
+          den.aspects.drop
+        ];
+        den.aspects.igloo.meta.handleWith = den.lib.aspects.fx.constraints.exclude den.aspects.drop;
+        den.aspects.keep.nixos = { };
+        den.aspects.drop.nixos = { };
+
+        expr = {
+          keep = builtins.elem "keep" ids;
+          drop = builtins.elem "drop" ids;
+        };
+        expected = {
+          keep = true;
+          drop = false;
+        };
+      }
+    );
+
+    # Flat across depths: deeply nested aspects appear as their own entries.
+    test-K-aspects-deep-present = denTest (
+      { den, ... }:
+      let
+        ids = map (a: a.identity) den.hosts.x86_64-linux.igloo.aspects;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.includes = [ den.aspects.level1 ];
+        den.aspects.level1.includes = [ den.aspects.level2 ];
+        den.aspects.level2.includes = [ den.aspects.level3 ];
+        den.aspects.level3.nixos = { };
+
+        expr = {
+          l1 = builtins.elem "level1" ids;
+          l2 = builtins.elem "level2" ids;
+          l3 = builtins.elem "level3" ids;
+        };
+        expected = {
+          l1 = true;
+          l2 = true;
+          l3 = true;
+        };
+      }
+    );
+
+    # Provenance: nested freeform refs keep distinct identities (a/sub ≠ b/sub).
+    test-K-aspects-nested-identity-distinct = denTest (
+      { den, ... }:
+      let
+        ids = map (a: a.identity) den.hosts.x86_64-linux.igloo.aspects;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo.includes = [ den.aspects.a.sub ];
+        den.aspects.a.sub.nixos = { };
+        den.aspects.b.sub.nixos = { };
+
+        expr = {
+          aSub = builtins.elem "a/sub" ids;
+          bSub = builtins.elem "b/sub" ids;
+        };
+        expected = {
+          aSub = true;
+          bSub = false;
+        };
+      }
+    );
+
+    # Anonymous aspects are exposed (not filtered) — an inline-invoked factory
+    # resolves to an anonymous sibling, present with .isNamed == false.
+    test-K-aspects-includes-anonymous = denTest (
+      { den, ... }:
+      let
+        aspects = den.hosts.x86_64-linux.igloo.aspects;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.facter = report: {
+          nixos.environment.variables.FACTER_REPORT = report;
+        };
+        den.aspects.igloo.includes = [ (den.aspects.facter "report") ];
+
+        expr = builtins.any (a: !a.isNamed) aspects;
+        expected = true;
+      }
+    );
+
+    # Regression: anonymous *instances* (loc-named "<anon>:N") nest under named
+    # providers (e.g. "roles/dev/<anon>:3"). Their name slips past
+    # isMeaningfulName, so .isNamed must also inspect the identity. Invariant
+    # consumers (colmena tags) rely on: every isNamed node has a clean identity.
+    test-K-aspects-named-have-clean-identity = denTest (
+      { den, lib, ... }:
+      let
+        aspects = den.hosts.x86_64-linux.igloo.aspects;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.facter = report: {
+          nixos.environment.variables.FACTER_REPORT = report;
+        };
+        # Inline-invoked factory resolves to an anonymous sibling node.
+        den.aspects.igloo.includes = [ (den.aspects.facter "report") ];
+
+        expr = builtins.all (a: !a.isNamed || !(lib.hasInfix "<anon>" a.identity)) aspects;
+        expected = true;
+      }
+    );
+
   };
 }
