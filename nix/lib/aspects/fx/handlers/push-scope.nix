@@ -32,6 +32,7 @@ let
         prevEntityClass = (state.scopeEntityClass or (_: { })) null;
         prevEntityKind = (state.scopeEntityKind or (_: { })) null;
         prevSourcePolicy = (state.scopeSourcePolicy or (_: { })) null;
+        prevIsolated = (state.scopeIsolated or (_: { })) null;
         updatedContexts = prevContexts // {
           ${newScopeId} = scopedCtx;
         };
@@ -46,6 +47,8 @@ let
         updatedSourcePolicy =
           prevSourcePolicy
           // lib.optionalAttrs (sourcePolicyName != null) { ${newScopeId} = sourcePolicyName; };
+        isolatedKind = entityKind != null && (den.schema.${entityKind}.isolated or false);
+        updatedIsolated = prevIsolated // lib.optionalAttrs isolatedKind { ${newScopeId} = true; };
       in
       {
         resume = {
@@ -64,6 +67,7 @@ let
             scopeEntityClass = _: updatedEntityClass;
             scopeEntityKind = _: updatedEntityKind;
             scopeSourcePolicy = _: updatedSourcePolicy;
+            scopeIsolated = _: updatedIsolated;
           }
           // lib.optionalAttrs (parentItems != [ ]) {
             scopedDeferredIncludes =
