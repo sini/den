@@ -335,5 +335,210 @@ in
       }
     );
 
+    # ====================================================================
+    # INTEGRATION SPIKE: REALISTIC delivered child (real users + agenix +
+    # home-manager) to quantify the COMPLETE tailoring surface.
+    #
+    # A realistic guest (cf. cortex-cuda) has: real users with the
+    # homeManager class, the agenix battery (host.public_key read +
+    # per-user secrets), and home-manager synthesis. Each of the tests
+    # below exercises one of those facets through the delivered child and
+    # records the gap + the minimal tailoring fix.
+    #
+    # ---- GAP TABLE (host-include attr / break-reason / tailoring fix) ----
+    #
+    # G1  host.users (core host-to-users)
+    #     Break-reason: resolve.shared { user } runs for guest-os class too,
+    #     so users DO synthesize into the child scope — NO break. But their
+    #     content lands in the user's home/homeManager class, not guest-os,
+    #     so it is NOT collected by the guest-os route. The OS-level user
+    #     account (users.users.<name>) is emitted into ${host.class} =
+    #     guest-os by whatever define-user/os-user battery targets the host
+    #     class — that DOES land in guest-os and IS collected. SAFE once the
+    #     route collects guest-os; no per-attr tailoring needed.
+    #
+    # G2  home-manager battery host-include (home-env makeHomeEnv policyFn)
+    #     Break-reason: gated off — mkDetectHost requires host.class ∈
+    #     {nixos,darwin}; guest-os fails isOsSupported, so policyFn → [].
+    #     home-manager synthesis SILENTLY DOES NOT FIRE for a guest-os child.
+    #     Tailoring fix (to actually GET home-manager in the guest): the
+    #     guest's distinct class must be home-manager-supported. Either set
+    #     guest.class = "nixos" (loses the route isolation — bad) OR register
+    #     a home-env instance whose supportedOses includes "guest-os" and
+    #     whose getModule resolves a real module. This is the ONE structural
+    #     tailoring beyond a clean attr-override: a per-class home-env wiring.
+    #
+    # G3  agenix host.public_key (battery readFile)
+    #     Break-reason: builtins.readFile host.public_key hard-blocks when
+    #     public_key is unset (proven by -verbatim-blocks above).
+    #     Tailoring fix: set guest.public_key to a real key path (parent's or
+    #     the guest's own). Clean attr override.
+    #
+    # G4  agenix per-user secrets (host.<class>.age.secrets.* with paths)
+    #     Break-reason: if the battery synthesises secret file paths from a
+    #     per-host secrets dir keyed by host.name, a guest whose name has no
+    #     secrets dir readFiles a missing path → eval block, same shape as G3.
+    #     Tailoring fix: point the guest's secrets source at the parent's (or
+    #     declare the guest's own). Clean attr override (data path).
+    #
+    # G5  den.default host-include (defaults.nix)
+    #     Break-reason: den.default sets nixos.system.stateVersion +
+    #     homeManager.home.stateVersion. For a guest-os child these land in
+    #     the nixos/homeManager classes, NOT guest-os, so the route does not
+    #     collect them: the guest's guest-os config gets NO stateVersion
+    #     default. NOT an eval break, but a silent missing-default.
+    #     Tailoring fix: add a guest-os-targeted default
+    #     (den.default.guest-os.system.stateVersion) OR have the guest aspect
+    #     set it. Clean attr addition.
+    #
+    # G6  user records (name / userName / classes) — NEW, discovered here.
+    #     Break-reason: a delivered child built as a RAW entity attrset and
+    #     handed to resolve.to "host" { host = guest; } does NOT pass through
+    #     the host submodule's userType, which is what synthesises each user's
+    #     name/userName/classes. The core host-to-users policy then does
+    #     `user.name` (core.nix:30) on a bare { } and HARD-BLOCKS:
+    #       error: attribute 'name' missing  (modules/policies/core.nix:30).
+    #     This bites EVERY realistic guest the moment it declares ≥1 user.
+    #     Tailoring fix: declare each guest user as a FULL record
+    #     ({ name; userName; classes; }) — i.e. hand-synthesise the fields the
+    #     standalone-host path gets for free. Clean (verbose) attr override.
+    #     ARCHITECTURAL NOTE: this is the single biggest argument that "raw
+    #     entity as host" is leaky — the guest is NOT coerced through hostType,
+    #     so it silently lacks name/system/class/intoAttr defaults too (the
+    #     spike's mkGuest already hand-sets system/class/intoAttr for exactly
+    #     this reason). A dedicated guest kind (or routing the guest through a
+    #     real entity submodule) would restore those defaults.
+    # ---------------------------------------------------------------------
+
+    # G3+G4: realistic agenix — host.public_key set to a real path AND a
+    # per-user secret path; both readFiles resolve through the child.
+    # NOTE the users entry is a FULL record (name/userName/classes): a raw
+    # delivered-child entity bypasses the host submodule's userType, so the
+    # core host-to-users policy reads user.name off the raw attrset — see G6.
+    test-delivered-child-realistic-agenix = denTest (
+      { den, igloo, ... }:
+      let
+        guest = mkGuest den {
+          public_key = ./delivered-child-host.nix;
+          users.tux = {
+            name = "tux";
+            userName = "tux";
+            classes = [ "homeManager" ];
+          };
+        };
+        # Mirrors a real agenix battery: host pubkey + a per-user secret
+        # whose source path is derived (here, a real file that exists).
+        agenixBattery =
+          { host, ... }:
+          {
+            guest-os.age.hostPubkey = builtins.readFile host.public_key;
+            guest-os.age.secrets."tux-password".file = host.public_key;
+          };
+      in
+      {
+        den.classes.guest-os.description = "delivered child host class";
+        den.aspects.igloo.includes = [ den.aspects.microvm-slot ];
+        den.aspects.microvm-slot.nixos.imports = [ microvmSlot ];
+        den.hosts.x86_64-linux.igloo.public_key = ./delivered-child-host.nix;
+
+        den.policies.deliver-guest = deliverGuest den guest;
+        den.schema.host.includes = [
+          den.policies.deliver-guest
+          agenixBattery
+        ];
+        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+
+        expr = {
+          pubkeyResolved = igloo.microvm.vms.guest.config.age.hostPubkey != "";
+          secretPresent = igloo.microvm.vms.guest.config.age.secrets ? "tux-password";
+          hn = igloo.microvm.vms.guest.config.networking.hostName;
+        };
+        expected = {
+          pubkeyResolved = true;
+          secretPresent = true;
+          hn = "guest-vm";
+        };
+      }
+    );
+
+    # G1: real users on the guest. host-to-users (core) fires for the
+    # guest-os child; the OS-level account, emitted into the host class
+    # (guest-os), is collected by the route and arrives in the delivered
+    # config. No per-attr tailoring; SAFE.
+    test-delivered-child-realistic-users = denTest (
+      { den, igloo, ... }:
+      let
+        guest = mkGuest den {
+          # FULL record — raw delivered-child entity bypasses userType (G6).
+          users.tux = {
+            name = "tux";
+            userName = "tux";
+            classes = [ "homeManager" ];
+          };
+        };
+        # An os-user-style host-include that writes the account into the
+        # host class (guest-os), the way an os-user battery would.
+        osUserLike =
+          { host, ... }:
+          {
+            guest-os.users.users = builtins.mapAttrs (name: _: {
+              isNormalUser = true;
+            }) host.users;
+          };
+      in
+      {
+        den.classes.guest-os.description = "delivered child host class";
+        den.aspects.igloo.includes = [ den.aspects.microvm-slot ];
+        den.aspects.microvm-slot.nixos.imports = [ microvmSlot ];
+        den.hosts.x86_64-linux.igloo = { };
+
+        den.policies.deliver-guest = deliverGuest den guest;
+        den.schema.host.includes = [
+          den.policies.deliver-guest
+          osUserLike
+        ];
+        den.aspects.guest-aspect.guest-os.networking.hostName = "guest-vm";
+
+        expr = {
+          hasTux = igloo.microvm.vms.guest.config.users.users ? tux;
+          isNormal = igloo.microvm.vms.guest.config.users.users.tux.isNormalUser or false;
+        };
+        expected = {
+          hasTux = true;
+          isNormal = true;
+        };
+      }
+    );
+
+    # G5: den.default stateVersion does NOT reach the guest-os class (lands
+    # in nixos/homeManager class, not collected). A guest-os-targeted
+    # default is the tailoring; here we set it on the guest aspect and
+    # confirm it arrives.
+    test-delivered-child-realistic-stateversion = denTest (
+      { den, igloo, ... }:
+      let
+        guest = mkGuest den { };
+      in
+      {
+        den.classes.guest-os.description = "delivered child host class";
+        den.aspects.igloo.includes = [ den.aspects.microvm-slot ];
+        den.aspects.microvm-slot.nixos.imports = [ microvmSlot ];
+        den.hosts.x86_64-linux.igloo = { };
+
+        den.policies.deliver-guest = deliverGuest den guest;
+        den.schema.host.includes = [ den.policies.deliver-guest ];
+
+        den.aspects.guest-aspect.guest-os = {
+          networking.hostName = "guest-vm";
+          # The tailoring: a guest-os-targeted stateVersion (den.default's
+          # nixos.* default does not reach this class).
+          system.stateVersion = "25.11";
+        };
+
+        expr = igloo.microvm.vms.guest.config.system.stateVersion;
+        expected = "25.11";
+      }
+    );
+
   };
 }
