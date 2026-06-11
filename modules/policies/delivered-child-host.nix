@@ -173,6 +173,12 @@ let
           collectSubtree = true;
           appendToParent = true;
           path = cfg.deliveryPathFor name;
+          # The delivery target (microvm.vms.<name>.config) RE-INSTANTIATES the
+          # collected nixos as its own NixOS system, so deliver the keyed module
+          # wrappers verbatim (base-module defaults apply at the target, keys
+          # dedup {host,user}-scope re-declarations) instead of pre-evaluating
+          # them into resolved config (which strips defaults + keys).
+          reinstantiate = true;
         })
       ]
     );
