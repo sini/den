@@ -56,6 +56,10 @@ in
         default = false;
         merge = acc: val: acc || val;
       };
+      isolated = {
+        default = false;
+        merge = acc: val: acc || val;
+      };
     };
     computed = collections: defs: {
       isEntity =
@@ -68,6 +72,7 @@ in
               "includes"
               "excludes"
               "isEntity"
+              "isolated"
               "parent"
               "collisionPolicy"
             ];
