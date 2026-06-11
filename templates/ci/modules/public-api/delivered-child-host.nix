@@ -98,6 +98,55 @@ let
       ageStub
     ];
   };
+
+  # ---- Faithful RE-INSTANTIATING slot -------------------------------------
+  # `microvmSlot` is a freeform stub: it stores the delivered config but never
+  # re-evaluates it, so it CANNOT catch a delivery that strips base-module
+  # context or drops module keys. This slot mirrors microvm.nix's real
+  # `microvm.vms.<n>.config`: a custom option type whose `merge` re-runs
+  # `evalModules` over the delivered defs together with a base module-list. The
+  # base declares `fromBase` WITH A DEFAULT (analogue of NixOS boot.* defaults)
+  # and is freeform so authored content lands.
+  reinstantiatingBase =
+    { lib, ... }:
+    {
+      options.fromBase = lib.mkOption {
+        type = lib.types.str;
+        default = "BASE-DEFAULT";
+      };
+      config._module.freeformType = lib.types.lazyAttrsOf lib.types.anything;
+    };
+  reinstantiatingSlot =
+    { lib, ... }:
+    {
+      options.microvm.vms = lib.mkOption {
+        default = { };
+        type = lib.types.attrsOf (
+          lib.types.submodule {
+            options.config = lib.mkOption {
+              default = null;
+              type = lib.types.nullOr (
+                lib.mkOptionType {
+                  name = "reinstantiated NixOS config";
+                  # Re-instantiate the delivered modules WITH base modules —
+                  # exactly as microvm's eval-config does. Returns the full
+                  # evalModules result, so the consumer reads `.config.config.*`.
+                  merge =
+                    _loc: defs:
+                    lib.evalModules {
+                      modules = [ reinstantiatingBase ] ++ map (d: d.value) defs;
+                    };
+                }
+              );
+            };
+          }
+        );
+      };
+    };
+  parentReinstantiating = den: {
+    den.aspects.igloo.includes = [ den.aspects.microvm-reslot ];
+    den.aspects.microvm-reslot.nixos.imports = [ reinstantiatingSlot ];
+  };
 in
 {
   flake.tests.delivered-child-host = {
@@ -470,5 +519,47 @@ in
       }
     );
 
+    # RE-INSTANTIATION: base-module context is preserved (route `reinstantiate`).
+    # The delivery target re-evaluates the guest's collected nixos as its own
+    # module set together with BASE modules. A guest module that READS a
+    # base-module default (`fromBase`) must see it — proving the route delivered
+    # live MODULES (re-evaluated WITH the base) and not a pre-frozen resolved
+    # attrset. Pre-fix (nestPlain pre-evaluates each module in an isolated
+    # freeform evalModules WITHOUT the base) this read has no `fromBase` and the
+    # delivery THROWS. Only a re-instantiating slot exercises this — the freeform
+    # `microvmSlot` cannot.
+    test-reinstantiation-applies-base-context = denTest (
+      { den, igloo, ... }:
+      {
+        imports = [ (parentReinstantiating den) ];
+        den.hosts.x86_64-linux.igloo.deliveredChildren.guest = mkGuest den { };
+        den.aspects.guest-aspect.nixos =
+          { config, ... }:
+          {
+            networking.hostName = "guest-vm";
+            # Reads a default declared by a BASE module of the target system.
+            echoed = config.fromBase;
+          };
+
+        # `.config.config` — first `.config` is the slot option, second is the
+        # re-instantiated evalModules result's config.
+        expr = {
+          hn = igloo.microvm.vms.guest.config.config.networking.hostName;
+          echoed = igloo.microvm.vms.guest.config.config.echoed;
+        };
+        expected = {
+          hn = "guest-vm";
+          echoed = "BASE-DEFAULT";
+        };
+      }
+    );
+
+    # RE-INSTANTIATION: identical option-declaring modules collected across
+    # multiple {host,user} scopes must DEDUP at the re-instantiating target
+    # (route `reinstantiate` keeps each collected wrapper's `key` intact). Two
+    # guest users include the SAME option-declaring aspect, so it is emitted at
+    # both user scopes and collected twice. Pre-fix the route unwrapped the keyed
+    # wrappers → two keyless declarations of `options.demo.flag` → "already
+    # declared" throw. Post-fix the wrappers share `nixos@demo-decl` and dedup.
   };
 }
