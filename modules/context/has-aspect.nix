@@ -8,6 +8,45 @@ let
 
   entityModule =
     { config, ... }:
+    let
+      # Prefer `classes` (list), fall back to `[class]`, else error.
+      classes =
+        config.classes or (
+          if config ? class then
+            [ config.class ]
+          else
+            throw "den.schema.conf.hasAspect: entity has no `class` or `classes`"
+        );
+      primaryClass =
+        if classes == [ ] then
+          throw "den.schema.conf.hasAspect: entity has empty `classes` list"
+        else
+          lib.head classes;
+      # Lazy thunk throwing at call time (not attribute access), so the
+      # accessors can be referenced safely by tooling and only fire when
+      # actually invoked.
+      err = throw (
+        "hasAspect: ${config.name or "<unnamed entity>"} has no config.resolved "
+        + "(no matching den.schema.<kind> defined)."
+      );
+      # Shared record: `hasAspect` (functor) and `aspects` (node list) are both
+      # read off `info`, so the per-class fxFullResolve runs once and is reused.
+      info =
+        if config ? resolved then
+          den.lib.aspects.mkEntityHasAspect {
+            tree = config.resolved;
+            inherit primaryClass classes;
+          }
+        else
+          {
+            __functor = _: _: err;
+            forClass = _: _: err;
+            forAnyClass = _: err;
+            aspects = err;
+            aspectsForClass = _: err;
+            allAspects = err;
+          };
+    in
     {
       options.hasAspect = lib.mkOption {
         description = ''
@@ -30,40 +69,32 @@ let
         readOnly = true;
         type = lib.types.raw;
         defaultText = lib.literalMD "Computed from `config.resolved` and the entity's class/classes.";
-        default =
-          let
-            # Prefer `classes` (list), fall back to `[class]`, else error.
-            classes =
-              config.classes or (
-                if config ? class then
-                  [ config.class ]
-                else
-                  throw "den.schema.conf.hasAspect: entity has no `class` or `classes`"
-              );
-            primaryClass =
-              if classes == [ ] then
-                throw "den.schema.conf.hasAspect: entity has empty `classes` list"
-              else
-                lib.head classes;
-            # Lazy thunk throwing at call time (not attribute access), so
-            # entity.hasAspect / .forClass / .forAnyClass can be referenced
-            # safely by tooling and only fire when actually invoked.
-            err = throw (
-              "hasAspect: ${config.name or "<unnamed entity>"} has no config.resolved "
-              + "(no matching den.schema.<kind> defined)."
-            );
-          in
-          if config ? resolved then
-            den.lib.aspects.mkEntityHasAspect {
-              tree = config.resolved;
-              inherit primaryClass classes;
-            }
-          else
-            {
-              __functor = _: _: err;
-              forClass = _: _: err;
-              forAnyClass = _: err;
-            };
+        default = info;
+      };
+
+      options.aspects = lib.mkOption {
+        description = ''
+          The flat list of all resolved aspect nodes on this entity (every
+          depth), each the resolved node augmented with:
+            .identity     # base FQN, ctx-stripped — e.g. "roles/workstation"
+            .identityKey  # full unique key incl {ctxId} (distinguishes anons)
+            .isNamed      # false for anonymous aspects
+
+          Each node also retains its `.name`, `.meta`, and `.includes` (its
+          resolved subtree), so callers can inspect, navigate, and re-include
+          it. Excludes the entity root and excluded/tombstoned aspects;
+          anonymous aspects are included.
+
+          Same cyclic caveat as `hasAspect`: do not use to decide an aspect's
+          own `includes`. Reading it post-resolution (module bodies, batteries)
+          is safe.
+        '';
+        internal = true;
+        visible = false;
+        readOnly = true;
+        type = lib.types.raw;
+        defaultText = lib.literalMD "Computed from `config.resolved` and the entity's primary class.";
+        default = info.aspects;
       };
     };
 in

@@ -15,10 +15,12 @@ let
     else
       throw "hasAspect: ref must have `name`+`meta` or `__provider` (got ${builtins.typeOf ref}).";
 
-  # Resolve tree via fx pipeline and extract pathSet from state.
+  # Resolve tree via fx pipeline, returning the full result state. One run
+  # yields both the pathSet (membership, for hasAspect) and resolvedNodes
+  # (for .aspects), so callers share a single resolution per class.
   # Inlines the same root normalization as fxResolveTree (default.nix)
   # to handle raw lambdas and functor attrsets.
-  collectPathSet =
+  resolveClassState =
     { tree, class }:
     let
       normalized = den.lib.aspects.normalizeRoot tree;
@@ -30,7 +32,10 @@ let
         self = normalized;
       };
     in
-    (result.state.pathSet or (_: { })) null;
+    result.state;
+
+  collectPathSet =
+    { tree, class }: ((resolveClassState { inherit tree class; }).pathSet or (_: { })) null;
 
   hasAspectIn =
     {
@@ -55,6 +60,31 @@ let
       forAnyClass = check;
     };
 
+  # Augment a resolved node with its identity accessors for .aspects callers.
+  # Shallow: every node already appears as its own flat entry, so children
+  # reached via `.includes` are also present (augmented) at top level.
+  augment =
+    node:
+    let
+      baseId = identity.baseKey node;
+    in
+    node
+    // {
+      # Base FQN, ctx-stripped — pretty + stable (e.g. "roles/workstation").
+      identity = baseId;
+      # Full unique key incl {ctxId} — distinguishes anonymous instances.
+      identityKey = identity.key node;
+      # Named only if neither the node's own name nor any provider-chain segment
+      # is an anonymous/synthetic sentinel. isMeaningfulName catches an exact
+      # "<anon>"/"<function body>"/"[definition …]" name; the infix guards catch
+      # nested anonymous instances like "roles/dev/<anon>:3" (whose name
+      # "<anon>:3" slips past isMeaningfulName), so consumers can filter on it.
+      isNamed =
+        den.lib.aspects.isMeaningfulName (node.name or "<anon>")
+        && !(lib.hasInfix "<anon>" baseId)
+        && !(lib.hasInfix "<function body>" baseId);
+    };
+
   mkEntityHasAspect =
     {
       tree,
@@ -62,22 +92,35 @@ let
       classes,
     }:
     let
-      setFor = builtins.listToAttrs (
+      # One resolution per unique class, shared between membership (pathSet)
+      # and the node list (resolvedNodes).
+      stateFor = builtins.listToAttrs (
         map (c: {
           name = c;
-          value = collectPathSet {
+          value = resolveClassState {
             inherit tree;
             class = c;
           };
         }) (lib.unique ([ primaryClass ] ++ classes))
       );
-      check = class: ref: (setFor.${class} or { }) ? ${refKey ref};
-      bareFn = check primaryClass;
+      pathSetFor = c: ((stateFor.${c} or { }).pathSet or (_: { })) null;
+      nodesFor =
+        c: map augment (lib.attrValues (((stateFor.${c} or { }).resolvedNodes or (_: { })) null));
+      check = class: ref: (pathSetFor class) ? ${refKey ref};
     in
     {
-      __functor = _: bareFn;
+      __functor = _: check primaryClass;
       forClass = check;
       forAnyClass = ref: lib.any (c: check c ref) classes;
+
+      # Flat list of all resolved aspect nodes (every depth) for the primary
+      # class, each augmented with .identity / .identityKey / .isNamed.
+      aspects = nodesFor primaryClass;
+      aspectsForClass = nodesFor;
+      # Union across classes, deduped by full identity key.
+      allAspects = lib.attrValues (
+        builtins.listToAttrs (map (n: lib.nameValuePair n.identityKey n) (lib.concatMap nodesFor classes))
+      );
     };
 
 in

@@ -13,6 +13,10 @@ let
   # Composed: aspectPath → pathKey in one call.
   key = a: pathKey (aspectPath a);
 
+  # Base identity without the {ctxId} instance suffix: provider chain + name.
+  # The pretty, stable fully-qualified name (e.g. "roles/workstation").
+  baseKey = a: pathKey ((a.meta.provider or [ ]) ++ [ (a.name or "<anon>") ]);
+
   # True when an identity string refers to an anonymous/unresolved node.
   isAnonIdentity =
     id:
@@ -47,12 +51,15 @@ let
       { param, state }:
       let
         isExcluded = param.meta.excluded or false;
+        # The entity root (host/user/home) carries __entityKind. It is indexed
+        # in pathSet (unchanged) but excluded from resolvedNodes — an entity is
+        # not one of its own aspects.
+        isEntityRoot = param ? __entityKind;
         path = aspectPath param;
-        key = pathKey path;
+        nodeKey = pathKey path;
         # Also store base path (without ctxId) so hasAspect can match
         # without needing to know the specific context instance.
-        basePath = (param.meta.provider or [ ]) ++ [ (param.name or "<anon>") ];
-        baseKey = pathKey basePath;
+        nodeBaseKey = baseKey param;
       in
       {
         resume = param;
@@ -63,10 +70,10 @@ let
               _:
               (state.pathSet or (_: { })) null
               // {
-                ${key} = true;
+                ${nodeKey} = true;
               }
-              // lib.optionalAttrs (baseKey != key) {
-                ${baseKey} = true;
+              // lib.optionalAttrs (nodeBaseKey != nodeKey) {
+                ${nodeBaseKey} = true;
               };
             pathSetByScope =
               _:
@@ -78,8 +85,20 @@ let
               prev
               // {
                 ${scope} = scopeSet // {
-                  ${baseKey} = true;
+                  ${nodeBaseKey} = true;
                 };
+              };
+          }
+          // lib.optionalAttrs (!isExcluded && !isEntityRoot) {
+            # Full resolved nodes keyed by unique (ctx-qualified) identity, for
+            # host.aspects. Stored behind the state thunk so a deepSeq of state
+            # never forces the node's class-content bodies (the lambda is WHNF);
+            # only reading host.aspects materializes name/meta/identity.
+            resolvedNodes =
+              _:
+              (state.resolvedNodes or (_: { })) null
+              // {
+                ${nodeKey} = param;
               };
           };
       };
@@ -100,6 +119,7 @@ in
     aspectPath
     pathKey
     key
+    baseKey
     isAnonIdentity
     stripCtxSuffix
     toPathSet
