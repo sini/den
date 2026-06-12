@@ -796,6 +796,7 @@ let
           scopeEntityKind
           scopedProvides
           scopedRoutes
+          dedupProvides
           ;
         scopedClassImports = scopedClassImportsRaw;
         scopedSpawns = (result.state.scopedSpawns or (_: { })) null;
@@ -879,5 +880,6 @@ in
     fxResolveWithPaths
     fxResolveImports
     wrapCollectedClasses
+    dedupProvides
     ;
 }

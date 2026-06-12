@@ -177,6 +177,7 @@ in
       scopedSpawns,
       scopedInstantiates,
       rootScopeId,
+      dedupProvides,
     }:
     let
       nameArgs = { inherit scopeEntityKind scopeContexts; };
@@ -235,25 +236,7 @@ in
       # keyed): two provides from one policy into one class+path collapse to one
       # edge regardless of registering scope.
       allProvides = builtins.concatLists (lib.attrValues scopedProvides);
-      dedupedProvides =
-        let
-          go =
-            seen: specs:
-            if specs == [ ] then
-              [ ]
-            else
-              let
-                s = builtins.head specs;
-                rest = builtins.tail specs;
-                pn = s.__providePolicyName or null;
-                key = if pn != null then "${pn}/${s.class}/${lib.concatStringsSep "/" (s.path or [ ])}" else null;
-              in
-              if key != null && seen ? ${key} then
-                go seen rest
-              else
-                [ s ] ++ go (if key != null then seen // { ${key} = true; } else seen) rest;
-        in
-        go { } allProvides;
+      dedupedProvides = dedupProvides allProvides;
       providesEdges = map (
         spec:
         let
