@@ -72,9 +72,23 @@ let
       overrideKinds = builtins.filter (
         k: schemaEntityKindsSet ? ${k} && builtins.isAttrs (rawScopedCtx.${k} or null)
       ) (builtins.attrNames rawScopedCtx);
-      # Host run buckets every descendant scope; a host-less entity uses its own.
-      ownerPathSet =
-        rawScopedCtx.host.__pathSetByScope or rawScopedCtx.${targetKind}.__pathSetByScope or { };
+      # Owner = topmost ancestor along targetKind's parent chain whose ctx binding
+      # carries a production bucket; falls back to the target itself. (Generic form
+      # of "the host run buckets every descendant scope".)
+      ownerChain =
+        let
+          walk =
+            k: acc:
+            let
+              p = den.schema.${k}.parent or null;
+            in
+            if p == null || builtins.elem p acc then acc else walk p (acc ++ [ p ]);
+        in
+        walk targetKind [ targetKind ];
+      ownerKind = lib.findFirst (
+        k: builtins.isAttrs (rawScopedCtx.${k} or null) && rawScopedCtx.${k} ? __pathSetByScope
+      ) targetKind (lib.reverseList ownerChain);
+      ownerPathSet = rawScopedCtx.${ownerKind}.__pathSetByScope or { };
       projectedFor =
         entity:
         den.lib.aspects.mkProjectedHasAspect {

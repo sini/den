@@ -71,5 +71,75 @@
         expected = "true";
       }
     );
+
+    # NON-host owner: the bucket-producing entity is a standalone `home` (NOT a
+    # host — `host` is ABSENT from ctx), and the consumer is a child entity kind
+    # `crew` (parent = home) the home fans out to. The home's standalone run
+    # buckets the crew scope, re-keyed by crew's id_hash, with `svc/feature`
+    # delivered into it. The crew include reads the PROJECTED crew.hasAspect,
+    # which must resolve against the OWNING home's bucket — reached by walking
+    # crew's parent chain (crew → home).
+    #
+    # The old hardcoded-`host`-literal lookup reads `rawScopedCtx.host`
+    # (ABSENT) → crew's own binding (no `__pathSetByScope`: crew has no entity
+    # submodule) → empty bucket → FALSE. The generic chain walk skips the
+    # bucket-less `host` literal, ascends crew → home, finds the home's bucket
+    # and the crew-keyed `svc/feature` → TRUE. This case is RED at HEAD before
+    # the refactor and GREEN after.
+    test-projected-hasaspect-non-host-owner = denTest (
+      { den, config, ... }:
+      let
+        inherit (den.lib.policy) resolve;
+      in
+      {
+        den.default.homeManager.home.stateVersion = "25.11";
+        den.default.includes = [ den.provides.define-user ];
+        den.homes.x86_64-linux.tux = { };
+
+        # crew nests inside home: home → crew. home is an ANCESTOR of crew.
+        den.schema.crew.isEntity = true;
+        den.schema.crew.parent = "home";
+
+        # settings-bearing, namespaced aspect delivered to the CREW scope, so it
+        # lands in the home's production bucket keyed by crew's id_hash.
+        den.aspects.svc.feature = {
+          settings.opt = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+          };
+          homeManager = { };
+        };
+        den.schema.crew.includes = [
+          den.aspects.svc.feature
+          (
+            { crew, ... }:
+            {
+              homeManager.home.sessionVariables.HAS_FEATURE = lib.boolToString (
+                crew.hasAspect den.aspects.svc.feature
+              );
+            }
+          )
+        ];
+
+        # Home fans out to a crew child. crew carries an explicit id_hash so the
+        # bucket re-key (entities/_types.nix:pathSetByScopeOption) keys the crew
+        # scope's delivered set by crew identity — what the projected lookup
+        # reads — instead of a raw scope-string (crew has no instance registry).
+        den.policies.test-home-to-crew =
+          { home, ... }:
+          [
+            (resolve.to "crew" {
+              crew = {
+                name = home.name or "tux";
+                id_hash = "crew-tux";
+              };
+            })
+          ];
+        den.schema.home.includes = [ den.policies.test-home-to-crew ];
+
+        expr = config.flake.homeConfigurations.tux.config.home.sessionVariables.HAS_FEATURE or "MISSING";
+        expected = "true";
+      }
+    );
   };
 }
