@@ -195,5 +195,127 @@ in
       }
     );
 
+    # route `reinstantiate`: deliver collected modules VERBATIM into a target
+    # whose option `merge` RE-INSTANTIATES them as their own module set together
+    # with base modules (e.g. microvm.nix's `microvm.vms.<n>.config`, whose
+    # merge re-runs eval-config). The flag keeps each collected wrapper's keyed
+    # module intact instead of pre-evaluating it in an isolated freeform
+    # evalModules. A guest module that READS a base-module default must see it —
+    # proving the route shipped live MODULES re-evaluated WITH the base, not a
+    # pre-frozen resolved attrset. Pre-flag (nestPlain) the read has no
+    # `fromBase` default in scope and the delivery THROWS. Hand-rolled (no
+    # delivered-child policy): a bare resolve into an isolated guest scope + a
+    # delivery route carrying reinstantiate, into a faithfully re-instantiating
+    # slot. A freeform stub slot (test-isolated-delivery-exactly-once) cannot
+    # exercise this — it stores defs without re-evaluating them.
+    test-route-reinstantiate-base-context = denTest (
+      { den, igloo, ... }:
+      let
+        guestEntity = {
+          name = "guest";
+          system = "x86_64-linux";
+          class = "nixos";
+          intoAttr = [ ];
+          users = { };
+          aspect = den.aspects.guest-aspect;
+        };
+        # Delivery route registered INSIDE the guest scope (collection root),
+        # gated against re-fire in nested sub-scopes. `reinstantiate = true`
+        # ships the keyed wrappers verbatim.
+        deliverPolicy = den.lib.policy.mkPolicy "deliver-reinst" (
+          { ... }@args:
+          lib.optionals (!(args ? user) && !(args ? home)) [
+            (den.lib.policy.route {
+              fromClass = "nixos";
+              intoClass = "nixos";
+              collectSubtree = true;
+              appendToParent = true;
+              reinstantiate = true;
+              path = [
+                "microvm"
+                "vms"
+                "guest"
+                "config"
+              ];
+            })
+          ]
+        );
+        # Base module of the target system: declares `fromBase` WITH A DEFAULT
+        # (the analogue of NixOS boot.* defaults) and is freeform so authored
+        # guest content lands.
+        reinstantiatingBase =
+          { lib, ... }:
+          {
+            options.fromBase = lib.mkOption {
+              type = lib.types.str;
+              default = "BASE-DEFAULT";
+            };
+            config._module.freeformType = lib.types.lazyAttrsOf lib.types.anything;
+          };
+        # A target slot whose `merge` re-runs evalModules over the delivered
+        # defs together with the base module-list — exactly as microvm's
+        # eval-config does. Consumer reads `.config.config.*`.
+        reinstantiatingSlot =
+          { lib, ... }:
+          {
+            options.microvm.vms = lib.mkOption {
+              default = { };
+              type = lib.types.attrsOf (
+                lib.types.submodule {
+                  options.config = lib.mkOption {
+                    default = null;
+                    type = lib.types.nullOr (
+                      lib.mkOptionType {
+                        name = "reinstantiated NixOS config";
+                        merge =
+                          _loc: defs:
+                          lib.evalModules {
+                            modules = [ reinstantiatingBase ] ++ map (d: d.value) defs;
+                          };
+                      }
+                    );
+                  };
+                }
+              );
+            };
+          };
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.schema.iso-kind = {
+          isEntity = true;
+          parent = "host";
+          isolated = true;
+        };
+        den.policies.resolve-reinst-child =
+          { host, ... }:
+          lib.optionals (host.name == "igloo") [
+            (den.lib.policy.resolve.to.withIncludes "iso-kind" [ deliverPolicy ] {
+              iso-kind = guestEntity;
+            })
+          ];
+        den.schema.host.includes = [ den.policies.resolve-reinst-child ];
+        den.aspects.igloo.nixos.imports = [ reinstantiatingSlot ];
+        den.aspects.guest-aspect.nixos =
+          { config, ... }:
+          {
+            networking.hostName = "guest-vm";
+            # Reads a default declared by a BASE module of the target system.
+            echoed = config.fromBase;
+          };
+
+        # `.config.config` — first `.config` is the slot option, second is the
+        # re-instantiated evalModules result's config.
+        expr = {
+          hn = igloo.microvm.vms.guest.config.config.networking.hostName;
+          echoed = igloo.microvm.vms.guest.config.config.echoed;
+        };
+        expected = {
+          hn = "guest-vm";
+          echoed = "BASE-DEFAULT";
+        };
+      }
+    );
+
   };
 }
