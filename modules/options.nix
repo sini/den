@@ -14,7 +14,11 @@ let
       config
       ;
   };
-  schemaLib = inputs.gen-schema.lib;
+  # Imported directly, not via den.lib.schema: this declares options.den.schema,
+  # and den.lib's map includes schema-util which reads den.schema._kindNames —
+  # routing through den.lib here would close that cycle. Entity types consume it
+  # lazily at eval time, so they safely use den.lib.schema.
+  schemaLib = import ./../nix/lib/schema.nix { inherit inputs lib; };
 
   classSchemaType = lib.types.submodule (
     { ... }:

@@ -36,6 +36,7 @@ let
     schemaUtil = ./schema-util.nix;
     synthesizePolicies = ./synthesize-policies.nix;
     fx = ./fx.nix;
+    schema = ./schema.nix;
   };
 in
 den-lib

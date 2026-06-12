@@ -19,7 +19,7 @@ let
 
   # Entity instances are gen-schema instances: mkInstanceType injects name,
   # strict/freeform, _module.args.<kind>, and schema-owned id_hash (identity).
-  schemaLib = inputs.gen-schema.lib;
+  schemaLib = den.lib.schema;
 
   # Recursive merge without forcing leaf values.
   # Unlike lib.types.anything, this does not inspect values deeply (no
