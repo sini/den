@@ -697,29 +697,40 @@ let
               ) accImports newEntries
           ) scopedClassImportsRaw (builtins.attrNames allDeferred);
 
-          # Materialize deferred node spawn markers (policy.spawn) over
-          # the parent scope-tree state. Each marker lives at a user scope; the
-          # home class is re-walked from that user's host aspect with `user`
-          # bound, threaded with host + sibling state so fleet-collected pipes
-          # resolve to data and collectAll sees every peer. The result is folded
-          # into the user scope's class buckets so BOTH phase1 and the phase4
-          # per-host re-walk (over drainedClassImportsRaw) deliver it.
+          # Materialize deferred node spawn markers (policy.spawn) over the
+          # parent scope-tree state, kind-generically. Each marker lives at some
+          # spawned-FOR scope (the OWN entity, of kind `ownKind`); the spawned
+          # class is re-walked from the projected ASPECT carried on the PARENT
+          # scope's own entity record, with the own entity bound under its kind.
+          # The walk is threaded with parent + sibling state so fleet-collected
+          # pipes resolve to data and collectAll sees every peer. The result is
+          # folded into the own scope's class buckets so BOTH phase1 and the
+          # phase4 per-host re-walk (over drainedClassImportsRaw) deliver it.
+          #
+          # The aspect is read from the PARENT scope's own ctx (record under
+          # parentKind) — the same record the old code reached via the child
+          # scope's ancestor-bound `host`. Default classes fall back to the own
+          # record's `classes` (e.g. user type defaults `["homeManager"]`); in
+          # practice batteries pass `spec.classes` explicitly so this is unused.
           allHomeNodes = (result.state.scopedSpawns or (_: { })) null;
         in
         lib.foldl' (
           acc: scopeId:
           let
             sctx = scopeContexts.${scopeId} or { };
-            host = sctx.host or null;
-            user = sctx.user or null;
+            ownKind = scopeEntityKind.${scopeId} or null;
+            ownRecord = if ownKind == null then null else sctx.${ownKind} or null;
             from = scopeParent.${scopeId} or null;
+            parentKind = if from == null then null else scopeEntityKind.${from} or null;
+            parentRecord =
+              if parentKind == null then null else (scopeContexts.${from} or { }).${parentKind} or null;
             specs = allHomeNodes.${scopeId};
-            defaultClasses = user.classes or [ "homeManager" ];
+            defaultClasses = if ownRecord == null then [ ] else ownRecord.classes or [ ];
             classes = lib.unique (
               lib.concatMap (s: if s.classes != null then s.classes else defaultClasses) specs
             );
           in
-          if host == null || from == null then
+          if parentRecord == null || ownRecord == null then
             acc
           else
             acc
@@ -732,9 +743,9 @@ let
                   ++ (spawnNode {
                     inherit from;
                     class = cls;
-                    aspect = host.aspect;
+                    aspect = parentRecord.aspect;
                     bindings = {
-                      inherit user;
+                      ${ownKind} = ownRecord;
                     };
                   }).imports
                 );
