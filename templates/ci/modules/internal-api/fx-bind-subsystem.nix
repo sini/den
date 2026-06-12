@@ -45,21 +45,24 @@
       }
     );
 
-    # bind: missing scope handlers for required args → defers, returns { deferred = true }.
+    # bind: missing scope handlers for a NON-entity required arg → defers,
+    # returns { deferred = true }. (Entity-kind args never defer — bind classifies
+    # them fan-out/inert/ctx; this test exercises the generic defer path for a
+    # plain (pipe/enrichment-style) arg.)
     test-bind-defers-missing = denTest (
       { den, ... }:
       let
         fx = den.lib.fx;
         handlers = den.lib.aspects.fx.handlers;
         aspect = {
-          name = "needs-host";
+          name = "needs-widget";
           __fn =
-            { host }:
+            { widget }:
             {
-              inherit host;
+              inherit widget;
             };
           __args = {
-            host = false;
+            widget = false;
           };
         };
         compileFn = _: fx.pure { compiled = true; };
@@ -157,10 +160,13 @@
               };
             };
         };
+        # Non-entity arg: defer's loud guard throws on entity-kind args (those
+        # are classified in bind), so generic queue/stub mechanics are exercised
+        # with a plain (pipe/enrichment-style) key.
         comp = fx.send "defer" {
           inherit child;
-          requiredKeys = [ "host" ];
-          requiredArgs = [ "host" ];
+          requiredKeys = [ "widget" ];
+          requiredArgs = [ "widget" ];
         };
         result = fx.handle {
           handlers = handlers.deferHandler // stubCapture;

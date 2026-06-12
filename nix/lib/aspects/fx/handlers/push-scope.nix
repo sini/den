@@ -1,6 +1,9 @@
 # Effect handler: push-scope
-# Atomically sets currentScope, scopeContexts, scopeParent,
-# inherits scopedAspectPolicies, and fans out scopedDeferredIncludes.
+# Atomically sets currentScope, scopeContexts, scopeParent, and inherits
+# scopedAspectPolicies. Deferred includes are NOT inherited to child scopes:
+# entity-kind args are classified synchronously in bind (fan-out/inert/ctx),
+# never carried cross-scope. Non-entity (pipe/enrichment) deferred includes are
+# drained same-scope (drain.nix / resolve.nix baseDrain / scope-widen).
 {
   lib,
   den,
@@ -22,8 +25,6 @@ let
         scopeHandlers = constantHandler (
           scopedCtx // lib.optionalAttrs (entityClass != null) { class = entityClass; }
         );
-        allDeferred = (state.scopedDeferredIncludes or (_: { })) null;
-        parentItems = allDeferred.${parentScope} or [ ];
       in
       let
         prevContexts = state.scopeContexts null;
@@ -55,28 +56,18 @@ let
           inherit scopeHandlers;
           scopeId = newScopeId;
         };
-        state =
-          state
-          // {
-            currentScope = newScopeId;
-            inLateDispatch = false;
-            inLateDispatchStack = (state.inLateDispatchStack or [ ]) ++ [ (state.inLateDispatch or false) ];
-            scopeContexts = _: updatedContexts;
-            scopeParent = _: updatedParent;
-            scopedAspectPolicies = _: updatedPolicies;
-            scopeEntityClass = _: updatedEntityClass;
-            scopeEntityKind = _: updatedEntityKind;
-            scopeSourcePolicy = _: updatedSourcePolicy;
-            scopeIsolated = _: updatedIsolated;
-          }
-          // lib.optionalAttrs (parentItems != [ ]) {
-            scopedDeferredIncludes =
-              _:
-              allDeferred
-              // {
-                ${newScopeId} = (allDeferred.${newScopeId} or [ ]) ++ parentItems;
-              };
-          };
+        state = state // {
+          currentScope = newScopeId;
+          inLateDispatch = false;
+          inLateDispatchStack = (state.inLateDispatchStack or [ ]) ++ [ (state.inLateDispatch or false) ];
+          scopeContexts = _: updatedContexts;
+          scopeParent = _: updatedParent;
+          scopedAspectPolicies = _: updatedPolicies;
+          scopeEntityClass = _: updatedEntityClass;
+          scopeEntityKind = _: updatedEntityKind;
+          scopeSourcePolicy = _: updatedSourcePolicy;
+          scopeIsolated = _: updatedIsolated;
+        };
       };
   };
 in

@@ -9,7 +9,7 @@ let
   inherit (den.lib) fx;
   inherit (den.lib.aspects.fx) argClass;
   schema = den.schema or { };
-  isEntityKind = k: builtins.isAttrs (schema.${k} or null) && (schema.${k}.isEntity or false);
+  isEntityKind = argClass.isEntityKind schema;
 in
 {
   bindHandler = {
@@ -172,11 +172,16 @@ in
             fx.bind (compileFn augmentedAspect) (result: fx.pure { value = result; })
           else
             let
-              # Entity classification only applies once we're AT an entity
-              # scope (K_S known). At the root scope (scopeKind == null) entity
-              # args defer as before, binding as the pipeline descends into the
-              # owning entity scope.
-              entityMissing = if scopeKind == null then [ ] else builtins.filter isEntityKind missingKeys;
+              # Entity classification (the formal rule). An entity-kind missing
+              # arg at scope S (kind K_S) is: in-ctx (handled upstream, not
+              # missing) → descendant of K_S → fan out at S → otherwise MISPLACED
+              # → whole aspect inert, silently.
+              #
+              # Root scope (scopeKind == null) has NO entity kind: isDescendantOf
+              # is false for a null scopeKind, so every entity arg here is
+              # misplaced → inert. (The old cross-scope defer carrier is gone; a
+              # root defer would dangle forever — inert is the rule's verdict.)
+              entityMissing = builtins.filter isEntityKind missingKeys;
               descendants = builtins.filter (argClass.isDescendantOf schema scopeKind) entityMissing;
               misplaced = builtins.filter (k: !(builtins.elem k descendants)) entityMissing;
             in

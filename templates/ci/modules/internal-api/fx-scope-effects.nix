@@ -65,7 +65,9 @@
       }
     );
 
-    # push-scope: re-entry appends parent deferred to child (fan-out on every entry).
+    # push-scope: deferred includes do NOT propagate to child scopes. Entity-arg
+    # deferral is gone; deferred entries stay where they were queued. Parent keeps
+    # its entry; the child gets none from inheritance.
     test-push-scope-reentry-deferred = denTest (
       { den, ... }:
       let
@@ -85,19 +87,14 @@
             };
           }
         ];
-        # State where child scope already exists (re-entry scenario).
         baseState = pipeline.defaultState // {
           currentScope = parentScope;
           scopeContexts = _: {
             ${parentScope} = {
               host = "alpha";
             };
-            ${childScope} = scopedCtx;
           };
-          scopedDeferredIncludes = _: {
-            ${parentScope} = deferred;
-            ${childScope} = deferred;
-          };
+          scopedDeferredIncludes = _: { ${parentScope} = deferred; };
         };
         comp = fx.send "push-scope" {
           inherit scopedCtx parentScope;
@@ -107,15 +104,23 @@
           handlers = handlers.pushScopeHandler;
           state = baseState;
         } comp;
+        allDeferred = result.state.scopedDeferredIncludes null;
       in
       {
-        # On re-entry, parent deferred items are appended (matching old copyDeferredToScope behavior).
-        expr = builtins.length ((result.state.scopedDeferredIncludes null).${childScope} or [ ]);
-        expected = 2;
+        # Parent retains its 1 deferred entry; child inherits 0.
+        expr = [
+          (builtins.length (allDeferred.${parentScope} or [ ]))
+          (builtins.length (allDeferred.${childScope} or [ ]))
+        ];
+        expected = [
+          1
+          0
+        ];
       }
     );
 
-    # push-scope: fans out parent deferred to new child scope.
+    # push-scope: parent deferred entries are NOT fanned out to the new child
+    # scope (carrier removed). The child scope sees an empty deferred list.
     test-push-scope-deferred-fanout = denTest (
       { den, ... }:
       let
@@ -160,7 +165,7 @@
       in
       {
         expr = builtins.length ((result.state.scopedDeferredIncludes null).${childScope} or [ ]);
-        expected = 2;
+        expected = 0;
       }
     );
 

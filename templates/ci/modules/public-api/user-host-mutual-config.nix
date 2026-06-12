@@ -134,11 +134,14 @@
           tuxHm.programs.direnv.enable
           pinguHm.programs.direnv.enable
         ];
-        # { host, user } parametric includes resolve once per user
-        # when both args are available (fan-out via deferred drain).
+        # §6 rule-correct: { host, user } at host scope fans out over users, but
+        # the content is homeManager — a class the HOST scope does not resolve.
+        # It is class-local to the host (inert), so users' HM never receives it.
+        # homeManager from a host-scope aspect must reach users via to-users
+        # policy (test-host-parametric-mutual below), not a bare include.
         expected = [
-          true
-          true
+          false
+          false
         ];
       }
     );

@@ -353,6 +353,9 @@
       let
         fx = den.lib.fx;
         handlers = den.lib.aspects.fx.handlers;
+        # Non-entity args: defer's loud guard throws on entity-kind args (those
+        # are classified in bind, never deferred). Accumulation mechanics are
+        # class-agnostic, so exercise with plain (pipe/enrichment-style) keys.
         comp =
           fx.bind
             (fx.send "defer" {
@@ -360,11 +363,11 @@
                 name = "a";
                 __fn = _: { };
                 __args = {
-                  host = false;
+                  widget = false;
                 };
               };
-              requiredKeys = [ "host" ];
-              requiredArgs = [ "host" ];
+              requiredKeys = [ "widget" ];
+              requiredArgs = [ "widget" ];
             })
             (
               _:
@@ -373,11 +376,11 @@
                   name = "b";
                   __fn = _: { };
                   __args = {
-                    user = false;
+                    gizmo = false;
                   };
                 };
-                requiredKeys = [ "user" ];
-                requiredArgs = [ "user" ];
+                requiredKeys = [ "gizmo" ];
+                requiredArgs = [ "gizmo" ];
               }
             );
         result = fx.handle {

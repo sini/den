@@ -236,13 +236,15 @@
         );
 
         expr = trace "nixos" den.aspects.role;
-        # perHost wrapper defers when no host context is available in the
-        # trace pipeline (ctx = {}). The deferred stub shows the name but
-        # no inner children.
+        # §6 rule-correct: the trace pipeline runs at the ROOT scope (ctx = {}),
+        # which has no entity kind. A perHost ({ host }) aspect there destructures
+        # an entity kind that is neither in-ctx nor a descendant → misplaced →
+        # inert (no deferred stub emitted). `param` drops from the trace entirely.
+        # (Previously it deferred and showed a childless stub via the cross-scope
+        # carrier, now removed.)
         expected.trace = [
           "role"
           [ "leaf" ]
-          [ "param" ]
         ];
       }
     );

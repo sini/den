@@ -32,6 +32,9 @@ rec {
     in
     scopeKind != null && argKind != scopeKind && walk argKind [ argKind ];
 
+  # True when `k` names a registered entity kind in `schema`.
+  isEntityKind = schema: k: builtins.isAttrs (schema.${k} or null) && (schema.${k}.isEntity or false);
+
   childrenAttrFor = argKind: "${argKind}s";
 
   # Child records of `parentRecord` for `argKind`; [ ] when absent.

@@ -219,31 +219,20 @@
       }
     );
 
-    # 7. TRIPWIRE for carrier removal: this rides the dying cross-scope chain;
-    # when push-scope inheritance + walkDeferred are removed, classify the flip
-    # per the formal rule (root scope has no entity kind → strictly inert) and
-    # update this expectation consciously.
+    # 7. Root-scope entity arg → INERT (carrier removed @ this commit; rule: root
+    # entity arg → inert). The formal rule: a parametric entity arg at a scope
+    # whose entity kind is NEITHER able to bind it from ctx NOR an ancestor of it
+    # is misplaced → whole aspect inert, silently. The root (flake) scope has NO
+    # entity kind, so a `{ user, ... }` aspect there is strictly inert.
     #
-    # Root-scope path: the top-level resolution starts at the `flake` entity
+    # Root-scope path: top-level resolution starts at the `flake` entity
     # (modules/outputs.nix: resolveEntity "flake" {}), whose includes are
-    # `den.schema.flake.includes` (flake is a non-entity routing kind, so no
-    # selfProvide). That scope is the rootScopeId with NO scopeEntityKind entry,
-    # so in bind.nix `scopeKind == null` → the root-scope guard zeroes
-    # entityMissing and the `{ user, ... }` aspect takes the DEFER path, NOT the
-    # fan-out path. It is then inherited down through push-scope's
-    # scopedDeferredIncludes (push-scope.nix:72-79) and refired by walkDeferred
-    # once `user` is in scope at each user scope — the cross-scope carrier.
-    #
-    # CURRENT behavior (determined empirically): both classes are delivered to
-    # the descendants. nixos content lands on the host once per user
-    # ("root-saw <user>"), and homeManager content reaches each user's HM eval.
-    # This is the carrier delivering, NOT the synchronous fan-out path.
-    #
-    # When the carrier is removed, the formal rule makes a root-scope entity arg
-    # strictly inert (root scope has no entity kind to fan out over), so BOTH the
-    # host funny list AND the per-user HM direnv flip to absent. Update both
-    # expectations together at that point.
-    test-root-scope-descendant-arg-tripwire = denTest (
+    # `den.schema.flake.includes` (flake is a non-entity routing kind). That
+    # scope is the rootScopeId with NO scopeEntityKind entry, so bind.nix sees
+    # scopeKind == null: isDescendantOf is false, the `user` arg is misplaced →
+    # inert. Previously this rode the cross-scope defer carrier (push-scope
+    # deferred inheritance + walkDeferred refire); that carrier is now removed.
+    test-root-scope-descendant-arg-inert = denTest (
       {
         den,
         igloo,
@@ -280,15 +269,12 @@
           tuxDirenv = tuxHm.programs.direnv.enable;
           pinguDirenv = pinguHm.programs.direnv.enable;
         };
-        # Carrier-delivered (current). On carrier removal: hostFunny → [ ],
-        # tuxDirenv → false, pinguDirenv → false.
+        # Inert: root scope has no entity kind, so the { user } aspect is
+        # misplaced. Neither class is delivered to descendants.
         expected = {
-          hostFunny = [
-            "root-saw pingu"
-            "root-saw tux"
-          ];
-          tuxDirenv = true;
-          pinguDirenv = true;
+          hostFunny = [ ];
+          tuxDirenv = false;
+          pinguDirenv = false;
         };
       }
     );

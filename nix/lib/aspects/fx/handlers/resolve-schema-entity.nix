@@ -1,6 +1,8 @@
 # Handles: resolve-schema-entity
-# Entity resolution: push scope, resolve entity, walk tree,
-# drain deferred, propagate forwards, pop scope.
+# Entity resolution: push scope, resolve entity, propagate forwards, pop scope.
+# Deferred includes are NOT refired here — entity-kind args are classified
+# synchronously in bind (fan-out/inert/ctx). Non-entity deferred includes are
+# drained post-pipeline (resolve.nix baseDrain) or on context-widen.
 {
   lib,
   den,
@@ -31,28 +33,7 @@ let
         ++ map stripCtxId resolveIncludes;
     };
 
-  # Walk deferred aspects after entity resolution, collecting results.
-  walkDeferred =
-    scopeHandlersForCtx: scopedCtx: prevResults: childResult: satisfiable:
-    builtins.foldl' (
-      acc': deferred:
-      fx.bind acc' (
-        prev:
-        let
-          child = deferred.child // {
-            __scopeHandlers = scopeHandlersForCtx;
-          };
-        in
-        fx.bind (fx.send "resolve" {
-          aspect = child;
-          identity = identity.key child;
-          ctx = scopedCtx;
-          gated = true;
-        }) (resolved: fx.pure (prev ++ [ resolved ]))
-      )
-    ) (fx.pure (prevResults ++ [ childResult ])) satisfiable;
-
-  # Resolve entity tree within scope: resolve-entity → walk → drain → propagate.
+  # Resolve entity tree within scope: resolve-entity → resolve → propagate → pop.
   resolveEntityInScope =
     scopeHandlersForCtx: scopedCtx: param: prevResults: scopeId: parentScope:
     fx.effects.scope.provide scopeHandlersForCtx (
@@ -74,15 +55,10 @@ let
             resolvedList:
             let
               childResult = builtins.head resolvedList;
+              allResults = prevResults ++ [ childResult ];
             in
-            fx.bind (fx.send "drain" scopedCtx) (
-              satisfiable:
-              fx.bind (walkDeferred scopeHandlersForCtx scopedCtx prevResults childResult satisfiable) (
-                allResults:
-                fx.bind (fx.send "propagate-routes" { inherit scopeId; }) (
-                  _: fx.bind (fx.send "restore-scope" { inherit parentScope; }) (_: fx.pure allResults)
-                )
-              )
+            fx.bind (fx.send "propagate-routes" { inherit scopeId; }) (
+              _: fx.bind (fx.send "restore-scope" { inherit parentScope; }) (_: fx.pure allResults)
             )
           )
       )
