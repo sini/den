@@ -69,10 +69,34 @@ let
       overrideKinds = builtins.filter (
         k: schemaEntityKindsSet ? ${k} && builtins.isAttrs (rawScopedCtx.${k} or null)
       ) (builtins.attrNames rawScopedCtx);
-      scopeId = mkScopeId (lib.getAttrs overrideKinds rawScopedCtx);
       # Host run buckets every user scope; a host-less entity uses its own.
+      ownerKind = if (rawScopedCtx.host.__pathSetByScope or null) != null then "host" else targetKind;
       ownerPathSet =
         rawScopedCtx.host.__pathSetByScope or rawScopedCtx.${targetKind}.__pathSetByScope or { };
+      # The owning entity's `__pathSetByScope` is keyed by scopes WITHIN its own
+      # resolution — the owner kind and its descendants (host → user/home/…),
+      # NOT the ANCESTOR topology kinds it inherits in a production ctx (e.g. a
+      # fleet `environment`/`fleet`). So the projected scopeId must drop those
+      # ancestor kinds, else the lookup key (`environment=…,host=…`) never matches
+      # the bucket key (`host=…`) and hasAspect always reads false. Keep
+      # `overrideKinds` for the hasAspect override (every in-ctx entity kind), but
+      # restrict the scopeId to the owner subtree.
+      inOwnerSubtree =
+        k:
+        let
+          go =
+            c:
+            c == ownerKind
+            || (
+              let
+                p = den.schema.${c}.parent or null;
+              in
+              p != null && p != c && go p
+            );
+        in
+        go k;
+      scopeIdKinds = builtins.filter inOwnerSubtree overrideKinds;
+      scopeId = mkScopeId (lib.getAttrs scopeIdKinds rawScopedCtx);
       projected = den.lib.aspects.mkProjectedHasAspect {
         pathSetByScope = ownerPathSet;
         inherit scopeId;
