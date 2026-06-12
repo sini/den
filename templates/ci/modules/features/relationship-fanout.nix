@@ -279,5 +279,61 @@
       }
     );
 
+    # 8. Shared-include suppression: when the SAME source aspect is registered
+    # into BOTH den.schema.host.includes AND den.schema.user.includes (the
+    # den.default pattern), it reaches each user directly via the user scope's
+    # own resolution. Fanning it out at the host scope too would double-cover.
+    # `sharedWithDescendant` detects the shared provenance root (matching the
+    # include node's identity.key against schema.user.includes) and makes the
+    # aspect INERT at the host scope, so each user's contribution lands EXACTLY
+    # once. If the suppression were broken, the list would be DOUBLED
+    # (["shared pingu" "shared pingu" "shared tux" "shared tux"]).
+    test-shared-include-suppresses-fanout = denTest (
+      {
+        den,
+        igloo,
+        lib,
+        ...
+      }:
+      {
+        den.hosts.x86_64-linux.igloo.users = {
+          tux = { };
+          pingu = { };
+        };
+
+        den.aspects.igloo.nixos.options.funny = lib.mkOption {
+          default = [ ];
+          type = lib.types.listOf lib.types.str;
+        };
+
+        # A NAMED aspect carries a stable identity.key from any registration
+        # site (a bare lambda would anonymize differently per site). Register
+        # the SAME node into BOTH host and user includes (the den.default
+        # shape).
+        den.aspects.shared.includes = [
+          (
+            { user, ... }:
+            {
+              nixos.funny = [ "shared ${user.name}" ];
+            }
+          )
+        ];
+
+        # Same provenance root in both lists. At each user scope `user` is
+        # in-ctx and it binds once, landing the per-user contribution. At the
+        # host scope `user` is a descendant → it would fan out, but
+        # sharedWithDescendant detects the shared user-include root and makes it
+        # INERT here → no double-cover. Each contribution lands EXACTLY once.
+        den.schema.host.includes = [ den.aspects.shared ];
+        den.schema.user.includes = [ den.aspects.shared ];
+
+        expr = lib.sort lib.lessThan igloo.funny;
+        expected = [
+          "shared pingu"
+          "shared tux"
+        ];
+      }
+    );
+
   };
 }

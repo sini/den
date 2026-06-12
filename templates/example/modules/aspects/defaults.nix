@@ -35,8 +35,10 @@
     #  # A plain function destructuring { host } binds host once at the host
     #  # scope (nixos-class content emits there):
     #     ({ host, ... }: { nixos.foo = [ 42 ]; })
-    #  # Destructuring { host, user } fans out per user, emitting at each
-    #  # user scope:
+    #  # Destructuring { host, user } fans out over the host's users and emits
+    #  # on the host (one nixos contribution per user); the bound user is the
+    #  # arg source, not the output target. At user scope both args are in-ctx
+    #  # and it binds once:
     #     ({ host, user, ... }: { nixos.foo = [ 42 ]; })
     #  # Destructuring { home } binds home at standalone-home scope:
     #     ({ home, ... }: { homeManager.foo = [ 42 ]; })
