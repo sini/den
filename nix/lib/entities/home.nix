@@ -76,7 +76,7 @@ let
             hostByName = if hostName != null then den.hosts.${system}.${hostName} or null else null;
             userByName = if hostByName != null then hostByName.users.${userName} or null else null;
 
-        # A home named `user@host` carries a host identity even when that host
+            # A home named `user@host` carries a host identity even when that host
             # isn't declared in `den.hosts`. Synthesize a minimal `{ name = ...; }`
             # so host-keyed provides/policies (which match on `host.name`) resolve
             # for an otherwise-standalone home — without instantiating a real host
@@ -97,7 +97,7 @@ let
               else
                 null;
 
-        homeManagerConfiguration =
+            homeManagerConfiguration =
               if nameWithHost && hostByName != null then
                 { pkgs, modules }:
                 inputs.home-manager.lib.homeManagerConfiguration {
@@ -116,8 +116,8 @@ let
             config._module.args.host = hostCtx;
             config._module.args.user = userByName;
             options = {
-              
-          userName = strOpt "user account name" userName;
+
+              userName = strOpt "user account name" userName;
               hostName = lib.mkOption {
                 type = lib.types.nullOr lib.types.str;
                 default = hostName;
