@@ -10,6 +10,7 @@ let
   inherit (import ./assemble-pipes.nix { inherit lib den; }) assemblePipes;
   inherit (import ./spawn-node.nix { inherit lib den; }) mkSpawnNode;
   route = import ./route { inherit lib den; };
+  inherit (import ./edge-trace.nix { inherit lib den; }) extractEdgeTrace;
   handlers = den.lib.aspects.fx.handlers;
 
   # Check if `ancestor` is an ancestor of `descendant` in the scopeParent tree.
@@ -783,6 +784,24 @@ let
       # set from scope-string to entity identity (id_hash) for projected
       # hasAspect (see entities/_types.nix:pathSetByScopeOption).
       inherit scopeContexts scopeEntityKind;
+      # Read-only delivery-edge trace over the pipeline end-state (the migration
+      # oracle for the delivery-edge unification port, edge-trace.nix). Nix
+      # attrs are lazy, so this is a thunk — never forced by normal resolve
+      # consumers, only by the delivery-edges suite / debug inspection.
+      edgeTrace = extractEdgeTrace {
+        inherit
+          scopeContexts
+          scopeParent
+          scopeIsolated
+          scopeEntityKind
+          scopedProvides
+          scopedRoutes
+          ;
+        scopedClassImports = scopedClassImportsRaw;
+        scopedSpawns = (result.state.scopedSpawns or (_: { })) null;
+        scopedInstantiates = (result.state.scopedInstantiates or (_: { })) null;
+        rootScopeId = result.state.rootScopeId;
+      };
     };
 
   # Back-compatible projection: imports only. Protects deferredModule consumers

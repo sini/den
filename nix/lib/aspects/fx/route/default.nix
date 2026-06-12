@@ -16,8 +16,17 @@ let
         ;
     })
     applyRoutes
+    dedupRoutes
+    findChildScopeKeys
+    topoSortRoutes
     ;
 in
 {
-  inherit wrapRouteModules applyRoutes;
+  inherit
+    wrapRouteModules
+    applyRoutes
+    dedupRoutes
+    findChildScopeKeys
+    topoSortRoutes
+    ;
 }

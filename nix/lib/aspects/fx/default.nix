@@ -15,4 +15,5 @@
   wrapClasses = import ./wrap-classes.nix { inherit lib den; };
   keyClassification = import ./key-classification.nix { inherit lib den; };
   argClass = import ./arg-class.nix { inherit lib den; };
+  edgeTrace = import ./edge-trace.nix { inherit lib den; };
 }

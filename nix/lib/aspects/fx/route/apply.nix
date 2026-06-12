@@ -379,5 +379,14 @@ let
       allRoutes;
 in
 {
-  inherit applyRoutes;
+  inherit
+    applyRoutes
+    # Exported for the read-only edge-trace extractor (edge-trace.nix), which
+    # renders the CURRENT route suppression decisions as `suppressedBy`
+    # annotations by reusing this exact logic rather than reimplementing it.
+    # Additive only — no behavior change.
+    dedupRoutes
+    findChildScopeKeys
+    topoSortRoutes
+    ;
 }
