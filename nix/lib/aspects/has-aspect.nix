@@ -46,13 +46,14 @@ let
     (collectPathSet { inherit tree class; }) ? ${refKey ref};
 
   # Projected hasAspect: pure lookup over an already-computed per-scope path
-  # set (byproduct of the owning entity's production run). No pipeline.
-  # `pathSetByScope`/`scopeId` are read lazily — forced only when the result
-  # boolean is scrutinised (e.g. at a class-module `mkIf`, post-run).
+  # set (byproduct of the owning entity's production run), keyed by entity
+  # identity (`id_hash`). No pipeline. `pathSetByScope`/`key` are read lazily —
+  # forced only when the result boolean is scrutinised (e.g. at a class-module
+  # `mkIf`, post-run).
   mkProjectedHasAspect =
-    { pathSetByScope, scopeId }:
+    { pathSetByScope, key }:
     let
-      check = ref: (pathSetByScope.${scopeId} or { }) ? ${refKey ref};
+      check = ref: key != null && (pathSetByScope.${key} or { }) ? ${refKey ref};
     in
     {
       __functor = _: check;

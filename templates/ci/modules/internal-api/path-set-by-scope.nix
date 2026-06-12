@@ -54,11 +54,11 @@
         mk = den.lib.aspects.mkProjectedHasAspect;
         h = mk {
           pathSetByScope = {
-            "host=x,user=y" = {
+            "id:abc" = {
               "foo" = true;
             };
           };
-          scopeId = "host=x,user=y";
+          key = "id:abc";
         };
       in
       {
