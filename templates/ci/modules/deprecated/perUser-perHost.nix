@@ -26,51 +26,65 @@
         # directly resolved." Both see {host, user} without home.
         # Test updated to reflect post-ctx drain semantics.
         den.aspects.igloo.includes = [
-          (den.lib.perHost { nixos.funny = [ "atHost perHost static" ]; })
-          (den.lib.perHost (
-            { host }:
+          { nixos.funny = [ "atHost perHost static" ]; }
+          (
+            { host, ... }:
             {
               nixos.funny = [ "atHost perHost ${host.name} fun" ];
             }
-          ))
-          (den.lib.perUser { nixos.funny = [ "atHost perUser static" ]; })
-          (den.lib.perUser (
-            { user, host }:
+          )
+          { nixos.funny = [ "atHost perUser static" ]; }
+          (
+            { user, host, ... }:
             {
               nixos.funny = [ "atHost perUser ${user.name}@${host.name} fun" ];
             }
-          ))
+          )
         ];
 
         den.aspects.tux.includes = [
-          (den.lib.perHost { nixos.funny = [ "atUser perHost static" ]; })
-          (den.lib.perHost (
-            { host }:
+          { nixos.funny = [ "atUser perHost static" ]; }
+          (
+            { host, ... }:
             {
               nixos.funny = [ "atUser perHost ${host.name} fun" ];
             }
-          ))
-          (den.lib.perUser { nixos.funny = [ "atUser perUser static" ]; })
-          (den.lib.perUser (
-            { user, host }:
+          )
+          { nixos.funny = [ "atUser perUser static" ]; }
+          (
+            { user, host, ... }:
             {
               nixos.funny = [ "atUser perUser ${user.name}@${host.name} fun" ];
             }
-          ))
+          )
         ];
 
         expr = lib.sort lib.lessThan igloo.funny;
-        # Fan-out: perUser includes on host aspect drain once per user
-        # scope. Static variants produce identical output at each scope
-        # (appearing twice in the merged list). Fun variants produce
-        # per-user distinct output.
+        # §6: host-aspect (igloo) includes resolve at host scope (ctx={host});
+        # user-aspect (tux) includes resolve at user scope (ctx={host,user}).
+        # { host } fn → in-ctx at its scope → binds once. { host, user } fn →
+        # user is a descendant at host scope → fan-out per user; both in-ctx at
+        # user scope → binds once. Bare static attrset → unconditional, emits
+        # once at its scope (NO fan-out, no destructure to defer on).
+        #
+        # FLIPS vs perCtx shim:
+        # - "atHost perUser static" x2 → x1: rule-correct. The old shim
+        #   genuinely made the static parametric-on-user (intended ×2 fan-out);
+        #   under the migration the per-user fan-out of identical static content
+        #   RELOCATED to `relationship-fanout.test-identical-static-appears-per-user`.
+        #   The bare static here has no destructure → emits ONCE at host scope.
+        # - + "atUser perHost igloo fun", + "atUser perHost static": rule-correct.
+        #   { host } / static on a USER aspect now BIND host from ctx at the user
+        #   scope and emit there; the old perHost shim silently no-op'd (saw user
+        #   extra). nixos content folds into the host config → NEW entries.
         expected = [
           "atHost perHost igloo fun"
           "atHost perHost static"
           "atHost perUser pingu@igloo fun"
           "atHost perUser static"
-          "atHost perUser static"
           "atHost perUser tux@igloo fun"
+          "atUser perHost igloo fun"
+          "atUser perHost static"
           "atUser perUser static"
           "atUser perUser tux@igloo fun"
         ];
@@ -103,48 +117,69 @@
           [
             (include {
               includes = [
-                (den.lib.perHost { nixos.funny = [ (throw "atHost perHost static") ]; })
-                (den.lib.perHost (
-                  { host }:
+                { nixos.funny = [ "atHost perHost static" ]; }
+                (
+                  { host, ... }:
                   {
-                    nixos.funny = [ (throw "atHost perHost ${host.name} fun") ];
+                    nixos.funny = [ "atHost perHost ${host.name} fun" ];
                   }
-                ))
-                (den.lib.perUser { nixos.funny = [ "atHost perUser static" ]; })
-                (den.lib.perUser (
-                  { user, host }:
+                )
+                { nixos.funny = [ "atHost perUser static" ]; }
+                (
+                  { user, host, ... }:
                   {
                     nixos.funny = [ "atHost perUser ${user.name}@${host.name} fun" ];
                   }
-                ))
+                )
               ];
             })
           ];
         den.aspects.igloo.includes = [ den.aspects.igloo.policies.to-users ];
 
         den.aspects.tux.includes = [
-          (den.lib.perHost { nixos.funny = [ "atUser ignored perHost static" ]; })
-          (den.lib.perHost (
-            { host }:
+          { nixos.funny = [ "atUser perHost static" ]; }
+          (
+            { host, ... }:
             {
-              nixos.funny = [ "atUser ignored perHost ${host.name} fun" ];
+              nixos.funny = [ "atUser perHost ${host.name} fun" ];
             }
-          ))
-          (den.lib.perUser { nixos.funny = [ "atUser perUser static" ]; })
-          (den.lib.perUser (
-            { user, host }:
+          )
+          { nixos.funny = [ "atUser perUser static" ]; }
+          (
+            { user, host, ... }:
             {
               nixos.funny = [ "atUser perUser ${user.name}@${host.name} fun" ];
             }
-          ))
+          )
         ];
 
         expr = lib.sort lib.lessThan igloo.funny;
+        # §6: the to-users policy on host-aspect igloo fans out per user
+        # (ctx={host,user}); its include block runs once per user (tux, pingu).
+        # Inside that ctx, { host } fn and bare statics BIND/emit (host in-ctx)
+        # → x2 each (one per user). { host, user } fn → both in-ctx → per user.
+        #
+        # FLIPS vs perCtx shim:
+        # - + "atHost perHost igloo fun" x2, + "atHost perHost static" x2:
+        #   rule-correct. Inside to-users ctx={host,user}, host is in-ctx, so the
+        #   perHost entries now bind and emit (per-user fan-out) instead of the
+        #   shim's silent skip (it saw the user extra). The originals threw to
+        #   assert non-emission; under the rule they DO emit, so the throws were
+        #   replaced with plain strings.
+        # - + "atUser perHost igloo fun", + "atUser perHost static":
+        #   rule-correct. On user-aspect tux, host binds from ctx and emits at the
+        #   user scope (formerly "atUser ignored …", skipped by the shim).
         expected = [
+          "atHost perHost igloo fun"
+          "atHost perHost igloo fun"
+          "atHost perHost static"
+          "atHost perHost static"
           "atHost perUser pingu@igloo fun"
           "atHost perUser static"
           "atHost perUser static"
           "atHost perUser tux@igloo fun"
+          "atUser perHost igloo fun"
+          "atUser perHost static"
           "atUser perUser static"
           "atUser perUser tux@igloo fun"
         ];
@@ -168,33 +203,49 @@
         };
 
         den.aspects.tux.includes = [
-          (den.lib.perHost { homeManager.funny = [ "atHome IGNORED perHost static" ]; })
-          (den.lib.perHost (
-            { host }:
+          # Bare static attrsets are unconditional → emit at the home scope.
+          { homeManager.funny = [ "atHome perHost static" ]; }
+          # { host } fn: host is neither in-ctx nor a descendant of a standalone
+          # home → misplaced → inert (IGNORED).
+          (
+            { host, ... }:
             {
               homeManager.funny = [ "atHome IGNORED perHost ${host.name} fun" ];
             }
-          ))
-          (den.lib.perUser { homeManager.funny = [ "atHome IGNORED perUser static" ]; })
-          (den.lib.perUser (
-            { user, host }:
+          )
+          { homeManager.funny = [ "atHome perUser static" ]; }
+          # { user, host } fn: neither in-ctx nor descendant → inert (IGNORED).
+          (
+            { user, host, ... }:
             {
               homeManager.funny = [ "atHome IGNORED perUser ${user.name}@${host.name} fun" ];
             }
-          ))
-          (den.lib.perHome { homeManager.funny = [ "atHome perHome static" ]; })
-          (den.lib.perHome (
-            { home }:
+          )
+          { homeManager.funny = [ "atHome perHome static" ]; }
+          (
+            { home, ... }:
             {
               homeManager.funny = [ "atHome perHome ${home.name} fun" ];
             }
-          ))
+          )
         ];
 
         expr = lib.sort lib.lessThan config.flake.homeConfigurations.tux.config.funny;
+        # §6: standalone home, ctx={home}. { host }/{ user,host } fns are
+        # misplaced (no host/user in ctx or as descendants) → inert. { home } fn
+        # binds in-ctx. Bare static attrsets are unconditional → emit.
+        #
+        # FLIPS vs perCtx shim:
+        # - + "atHome perHost static", + "atHome perUser static": rule-correct.
+        #   These are bare static attrsets (no entity destructure) → unconditional
+        #   emission at the home scope. The shim no-op'd them (it saw the home
+        #   extra). Labels lost the "IGNORED" prefix since they now emit; the
+        #   parametric { host }/{ user,host } fns remain genuinely inert.
         expected = [
           "atHome perHome static"
           "atHome perHome tux fun"
+          "atHome perHost static"
+          "atHome perUser static"
         ];
       }
     );

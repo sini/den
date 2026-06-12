@@ -1,9 +1,9 @@
-# Forward custom class to leaf option using evalConfig (deprecated parametric/perHost variant).
+# Forward custom class to leaf option using evalConfig (parametric children variant).
 { denTest, ... }:
 {
   flake.tests.fwd-leaf-option = {
 
-    # perHost parametric children with evalConfig.
+    # parametric children with evalConfig.
     test-fwd-perHost-variables = denTest (
       {
         den,
@@ -34,8 +34,16 @@
               )
             ];
           }
-          { den.aspects.foo._.sub1 = den.lib.perHost { variables.TEST = "test-var"; }; }
-          { den.aspects.foo._.sub2 = den.lib.perHost { variables.OTHER = "other-var"; }; }
+          {
+            den.aspects.foo._.sub1 = {
+              variables.TEST = "test-var";
+            };
+          }
+          {
+            den.aspects.foo._.sub2 = {
+              variables.OTHER = "other-var";
+            };
+          }
         ];
 
         den.aspects.igloo.includes = [ den.aspects.foo ];

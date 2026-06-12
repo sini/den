@@ -74,10 +74,11 @@
       den.aspects.demo-shell
       den.aspects.hyprland
       den.aspects.dev-tools
-      # Home-level roles: only materialize in home contexts.
-      (den.lib.perHome den.aspects.home-dev)
-      (den.lib.perHome den.aspects.home-productivity)
-      (den.lib.perHome den.aspects.alice-dotfiles)
+      # Home-level roles: these aspects carry homeManager-class content;
+      # inert at host/user scopes, they materialize in the home class.
+      den.aspects.home-dev
+      den.aspects.home-productivity
+      den.aspects.alice-dotfiles
     ];
     nixos =
       { ... }:

@@ -1,14 +1,14 @@
 # Parametric aspect: mail relay configured per-host.
-# den.lib.perHost provides { host } from the pipeline context.
+# A plain function receiving { host } from the pipeline context; bound at the
+# host scope by handler-based resolution.
 { den, ... }:
 {
-  den.aspects.mail = den.lib.perHost (
-    { host }:
+  den.aspects.mail =
+    { host, ... }:
     {
       nixos.services.postfix = {
         enable = true;
         hostname = host.hostName;
       };
-    }
-  );
+    };
 }

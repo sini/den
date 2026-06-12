@@ -100,11 +100,11 @@
       {
         den.hosts.x86_64-linux.igloo.users.tux.classes = [ "homeManager" ];
 
-        # NOTE: Under policies, use perHost for host-only options
+        # NOTE: host-owned static; nixos-class content emits at the host scope.
         den.aspects.igloo.includes = [
-          (den.lib.perHost {
+          {
             nixos.options.foo = lib.mkOption { default = "foo"; };
-          })
+          }
         ];
 
         expr = igloo.foo;

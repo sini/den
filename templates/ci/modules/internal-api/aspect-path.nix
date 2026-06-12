@@ -228,23 +228,23 @@
           param
         ];
         den.aspects.leaf.nixos = { };
-        den.aspects.param = den.lib.perHost (
-          { host }:
+        den.aspects.param =
+          { host, ... }:
           {
             nixos = { };
-          }
-        );
+          };
 
         expr = trace "nixos" den.aspects.role;
-        # §6 rule-correct: the trace pipeline runs at the ROOT scope (ctx = {}),
-        # which has no entity kind. A perHost ({ host }) aspect there destructures
-        # an entity kind that is neither in-ctx nor a descendant → misplaced →
-        # inert (no deferred stub emitted). `param` drops from the trace entirely.
-        # (Previously it deferred and showed a childless stub via the cross-scope
-        # carrier, now removed.)
+        # §6: the trace pipeline runs at the ROOT scope (ctx = {}). A plain
+        # { host, ... } aspect there destructures an entity kind that is neither
+        # in-ctx nor a descendant → misplaced → inert (emits no nixos content).
+        # It still appears in the trace by NAME as a childless node `["param"]`:
+        # trace visibility tracks the include graph, not emission. (The prior
+        # cross-scope deferral carrier is gone, but structural visibility remains.)
         expected.trace = [
           "role"
           [ "leaf" ]
+          [ "param" ]
         ];
       }
     );

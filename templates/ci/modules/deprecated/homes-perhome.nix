@@ -24,12 +24,12 @@
           lib.optional (home.hostName == "igloo") (include {
             homeManager.home.keyboard.layout = "enthium";
             includes = [
-              (den.lib.perHome (
-                { home }:
+              (
+                { home, ... }:
                 {
                   homeManager.home.keyboard.variant = home.name;
                 }
-              ))
+              )
             ];
           });
         den.aspects.tux.includes = [
