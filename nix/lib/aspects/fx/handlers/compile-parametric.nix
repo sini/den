@@ -62,6 +62,21 @@ in
                       inherit (param) identity ctx;
                       gated = true;
                     }
+                  # Relationship fan-out: one compiled aspect per descendant
+                  # child, each re-resolved at the current (emitting) scope.
+                  else if bindResult ? fanOut then
+                    builtins.foldl' (
+                      acc: compiled:
+                      fx.bind acc (
+                        prev:
+                        fx.bind (fx.send "resolve" {
+                          aspect = compiled;
+                          inherit (param) identity ctx;
+                          gated = true;
+                        }) (resolved: fx.pure (prev ++ resolved))
+                      )
+                    ) (fx.pure [ ]) bindResult.fanOut
+                  # deferred or inert → contributes nothing here.
                   else
                     fx.pure [ ]
                 )
