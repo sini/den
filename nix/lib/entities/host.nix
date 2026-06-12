@@ -146,7 +146,7 @@ let
               };
               mainModule = mainModuleOption den config;
               __resolveResult = resolveResultOption den config;
-              __pathSetByScope = pathSetByScopeOption den config;
+              __pathSetByScope = pathSetByScopeOption den "host" config;
             };
           }
         )

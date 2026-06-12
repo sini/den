@@ -1,15 +1,18 @@
 # Regression: projected (in-context) hasAspect under an ANCESTOR entity-kind
 # scope.
 #
-# The owning host's `__pathSetByScope` is bucketed by scopes WITHIN the host's
-# own resolution (host + descendants: user/home), keyed e.g. "host=igloo". But a
-# host resolved under a fleet-style topology (flake → tier → host, where `tier`
-# is an entity kind like an environment) inherits the `tier` binding in its
-# production ctx. The projected hasAspect must NOT fold that ancestor kind into
-# its lookup scopeId — else it looks up "host=igloo,tier=prod" against a bucket
-# keyed "host=igloo" and every in-context hasAspect reads false (the
-# /persist-vs-/etc agenix identityPath bug). den's default flake→system→host
-# walk hides this because `system` is a plain string, not an entity kind.
+# A host resolved under a fleet-style topology (flake → tier → host, where
+# `tier` is an entity kind like an environment) inherits the `tier` binding in
+# its production ctx. The projected hasAspect must still resolve against the
+# owning host's bucket — which is produced by the host's OWN standalone run and
+# knows nothing of the ancestor `tier`. Buckets are keyed by entity identity
+# (`id_hash`), which is context-free (kind+name, not ancestry), so the consuming
+# host looks itself up by its own id_hash regardless of any ancestor scopes —
+# no scope-string reconstruction, no ancestor to strip. The historical bug
+# (keying by a reconstructed "tier=prod,host=igloo" scope-string vs a bucket
+# keyed "host=igloo") read false here and dropped agenix's /persist prefix
+# (identityPaths → /etc/ssh). den's default flake→system→host walk hides it
+# because `system` is a plain string, not an entity kind.
 { denTest, lib, ... }:
 {
   flake.tests.hasaspect-ancestor-scope = {

@@ -768,6 +768,10 @@ let
       imports = phase4.${class} or [ ];
       # Surfaced from the SAME result.state — Task 1 thunked this onto state.
       pathSetByScope = result.state.pathSetByScope null;
+      # Per-scope ctx + entity-kind, so the entity surface can re-key the path
+      # set from scope-string to entity identity (id_hash) for projected
+      # hasAspect (see entities/_types.nix:pathSetByScopeOption).
+      inherit scopeContexts scopeEntityKind;
     };
 
   # Back-compatible projection: imports only. Protects deferredModule consumers

@@ -56,53 +56,36 @@ let
 
       # In-context `.hasAspect` answers PROJECTED membership — what's delivered
       # into this scope (incl. `provides`), not the structural registry tree. The
-      # owning host's production run already bucketed each scope's path set under
-      # `__pathSetByScope`. The lookup is pure and forced lazily (at a class-module
-      # `mkIf`), so it never re-enters the resolve that produced it — except from
-      # an `includes` position, which forces the host's own in-flight
-      # `__resolveResult` and recurses. So: don't decide includes from it.
+      # owning host's production run bucketed each scope's path set under
+      # `__pathSetByScope`, RE-KEYED by entity identity (`id_hash`) at the entity
+      # surface (entities/_types.nix:pathSetByScopeOption). The lookup is pure and
+      # forced lazily (at a class-module `mkIf`), so it never re-enters the resolve
+      # that produced it — except from an `includes` position, which forces the
+      # host's own in-flight `__resolveResult` and recurses. So: don't decide
+      # includes from it.
       #
-      # Key by entity-kind bindings only: enrichment may add non-entity keys (e.g.
-      # `system`) to the ctx, but buckets are keyed by entity scope — restricting
-      # here keeps the lookup key matched. Only `.hasAspect` is swapped, and
-      # `mkScopeId` keys off `.name`, so the scope ids are otherwise unperturbed.
+      # Because buckets are keyed by `id_hash` (context-free: kind+name, not
+      # ancestry), each in-ctx entity looks up its OWN delivered set by its OWN
+      # id_hash — no scope-string reconstruction, no ancestor stripping. Swap
+      # `.hasAspect` on every entity-kind binding; ancestors (e.g. a fleet
+      # `environment`) simply aren't keys in the owner's bucket and read false.
       overrideKinds = builtins.filter (
         k: schemaEntityKindsSet ? ${k} && builtins.isAttrs (rawScopedCtx.${k} or null)
       ) (builtins.attrNames rawScopedCtx);
-      # Host run buckets every user scope; a host-less entity uses its own.
-      ownerKind = if (rawScopedCtx.host.__pathSetByScope or null) != null then "host" else targetKind;
+      # Host run buckets every descendant scope; a host-less entity uses its own.
       ownerPathSet =
         rawScopedCtx.host.__pathSetByScope or rawScopedCtx.${targetKind}.__pathSetByScope or { };
-      # The owning entity's `__pathSetByScope` is keyed by scopes WITHIN its own
-      # resolution — the owner kind and its descendants (host → user/home/…),
-      # NOT the ANCESTOR topology kinds it inherits in a production ctx (e.g. a
-      # fleet `environment`/`fleet`). So the projected scopeId must drop those
-      # ancestor kinds, else the lookup key (`environment=…,host=…`) never matches
-      # the bucket key (`host=…`) and hasAspect always reads false. Keep
-      # `overrideKinds` for the hasAspect override (every in-ctx entity kind), but
-      # restrict the scopeId to the owner subtree.
-      inOwnerSubtree =
-        k:
-        let
-          go =
-            c:
-            c == ownerKind
-            || (
-              let
-                p = den.schema.${c}.parent or null;
-              in
-              p != null && p != c && go p
-            );
-        in
-        go k;
-      scopeIdKinds = builtins.filter inOwnerSubtree overrideKinds;
-      scopeId = mkScopeId (lib.getAttrs scopeIdKinds rawScopedCtx);
-      projected = den.lib.aspects.mkProjectedHasAspect {
-        pathSetByScope = ownerPathSet;
-        inherit scopeId;
-      };
+      projectedFor =
+        entity:
+        den.lib.aspects.mkProjectedHasAspect {
+          pathSetByScope = ownerPathSet;
+          key = entity.id_hash or null;
+        };
       scopedCtx =
-        rawScopedCtx // lib.genAttrs overrideKinds (k: rawScopedCtx.${k} // { hasAspect = projected; });
+        rawScopedCtx
+        // lib.genAttrs overrideKinds (
+          k: rawScopedCtx.${k} // { hasAspect = projectedFor rawScopedCtx.${k}; }
+        );
     in
     {
       inherit
