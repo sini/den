@@ -19,9 +19,13 @@
 #
 # DESIGN INVARIANTS (spec §2 corollaries; enforced by the entity-isolation suite
 # and the delivery-edges fixtures):
-#   - `materialize` contains the ONLY mode switch (merge | nest | nest-verbatim).
-#   - It carries NO mechanism vocabulary (no route/provides/spawn/instantiate
-#     names): mechanisms are dissolved into edges before they reach here.
+#   - `materialize` (the mode switch) contains the ONLY mode switch
+#     (merge | nest | nest-verbatim).
+#   - The mode switch carries NO mechanism vocabulary (no route/provides/spawn/
+#     instantiate names): mechanisms are dissolved into edges before they reach
+#     it. Mechanism-specific Π-*builders* (e.g. `assembleSpawnSubtree`) MAY name
+#     their mechanism — they construct mechanism-shaped Π for the generic
+#     consumer; only the switch itself stays vocabulary-free.
 #   - It performs NO isolation-flag reads: isolation is consumed at edge
 #     CONSTRUCTION (corollary 2 — isolation is edge-absence). `assembleSubtree`
 #     resolves the subtree boundary (via scope-walk.subtreeScopes, governed by
