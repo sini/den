@@ -382,11 +382,12 @@ in
   inherit
     applyRoutes
     # Exported for the read-only edge-trace extractor (edge-trace.nix), which
-    # renders the CURRENT route suppression decisions as `suppressedBy`
-    # annotations by reusing this exact logic rather than reimplementing it.
-    # Additive only — no behavior change.
+    # renders the CURRENT route suppression decisions as `suppressed` +
+    # `suppressedByChildKey` annotations by reusing this exact logic rather than
+    # reimplementing it. Additive only — no behavior change. (topoSortRoutes is
+    # NOT exported: the extractor renders unordered edges and has no consumer for
+    # the toposort; it stays internal to applyRoutes.)
     dedupRoutes
     findChildScopeKeys
-    topoSortRoutes
     ;
 }

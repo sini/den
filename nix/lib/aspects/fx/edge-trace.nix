@@ -212,6 +212,12 @@ in
               builtins.concatLists (map (sid: builtins.attrNames (scopedClassImports.${sid} or { })) subtree)
             );
             hasContent = cls: builtins.any (sid: (scopedClassImports.${sid} or { }) ? ${cls}) subtree;
+            # The normalized names of every scope this fold collects from — the
+            # isolation-aware subtree (an isolated descendant is its OWN root, so
+            # it is ABSENT here). Surfaced as an annotation so the isolation-as-
+            # edge-absence corollary can assert with teeth: an isolated child's
+            # scope name must NOT appear in its parent fold's collectedScopes.
+            collectedScopes = lib.sort (a: b: a < b) (lib.unique (map name subtree));
           in
           map (
             cls:
@@ -220,7 +226,9 @@ in
               target = rootTarget (name rootSid) cls;
               path = [ ];
               mode = "merge";
-              annotations = { };
+              annotations = {
+                inherit collectedScopes;
+              };
             }
           ) (builtins.filter hasContent classesWithContent)
         ) entityRootScopes
@@ -288,6 +296,12 @@ in
               let
                 r = builtins.head routes;
                 rest = builtins.tail routes;
+                # Identity assumption: dedupRoutes preserves original order and
+                # returns the SAME route records (by reference) it kept, so the
+                # head-of-kept structural `==` here is really reference identity —
+                # two distinct rawRoutes are never structurally equal in practice
+                # (each carries a distinct sourceScopeId/path). If dedupRoutes ever
+                # rebuilds records, switch this to a stable adapterKey@scope match.
                 isKept = kept != [ ] && builtins.head kept == r;
                 ak = r.adapterKey or null;
                 # Redundant-root shadow: an adapter route AT the root scope whose
@@ -335,6 +349,8 @@ in
             // lib.optionalAttrs appendToParent { appendToParent = true; }
             // lib.optionalAttrs (
               # §B cell 5: ensureEntry placeholder (empty target path materialized).
+              # (content-blind approx; real ensureEntry also requires empty module
+              # set — converges Phase 2)
               !isComplex && (spec.intoClass or null) != "flake" && (spec.adaptArgs or null) != null && path != [ ]
             ) { ensureTargetPath = true; }
             // lib.optionalAttrs isSuppressed { suppressed = true; }
@@ -373,7 +389,7 @@ in
             annotations =
               baseAnnotations
               // lib.optionalAttrs (adapterKey != null) {
-                adapterKey = adapterKey;
+                inherit adapterKey;
                 # §B cell 6: adapter arm resolves P dynamically at evalModules
                 # time via intoPathFn — P is not a static edge field.
                 dynamicPath = true;
@@ -413,7 +429,7 @@ in
               path = [ ];
               mode = "merge";
               annotations = {
-                spawnFrom = name from;
+                spawnFrom = if from == null then null else name from;
               };
             }
           ) classes

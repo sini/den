@@ -39,6 +39,12 @@ let
         )
       ) { } (builtins.attrNames sc);
       ren = s: hashToName.${s} or s;
+      # rewalk aspect ids are BARE id_hashes (no "<kind>:" prefix), so build a
+      # bare-hash → "<kind>:<name>" map alongside the prefixed one above.
+      bareHashToName = lib.mapAttrs' (
+        k: v: lib.nameValuePair (lib.last (lib.splitString ":" k)) v
+      ) hashToName;
+      renAspect = s: bareHashToName.${s} or (hashToName.${s} or s);
       renSource =
         src:
         if src ? collected then
@@ -47,9 +53,26 @@ let
               scope = ren src.collected.scope;
             };
           }
+        else if src ? rewalk then
+          {
+            rewalk = src.rewalk // {
+              aspect = renAspect src.rewalk.aspect;
+            };
+          }
         else
           src;
       renTarget = t: if t ? root then t // { root = ren t.root; } else t;
+      # Rename scope names inside the collectedScopes / spawnFrom annotations so
+      # default-fold and spawn edges stay readable in expected lists.
+      renAnnotations =
+        a:
+        a
+        // lib.optionalAttrs (a ? collectedScopes) {
+          collectedScopes = map ren a.collectedScopes;
+        }
+        // lib.optionalAttrs (a ? spawnFrom && a.spawnFrom != null) {
+          spawnFrom = ren a.spawnFrom;
+        };
     in
     map (
       e:
@@ -57,6 +80,7 @@ let
       // {
         source = renSource e.source;
         target = renTarget e.target;
+        annotations = renAnnotations e.annotations;
       }
     ) r.edgeTrace;
 
@@ -74,6 +98,7 @@ let
   # Edge constructors mirroring edge-trace.nix's record shape (for readable
   # expected lists).
   collected = scope: class: { collected = { inherit scope class; }; };
+  rewalk = aspect: bindings: class: { rewalk = { inherit aspect bindings class; }; };
   synthesize = forwardId: fromClass: intoClass: {
     synthesize = { inherit forwardId fromClass intoClass; };
   };
@@ -171,11 +196,23 @@ in
             source = collected "host:igloo" "homeManager";
             target = rootT "host:igloo" "homeManager";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "host:igloo"
+                "user:tux"
+              ];
+            };
           })
           (edge {
             source = collected "host:igloo" "nixos";
             target = rootT "host:igloo" "nixos";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "host:igloo"
+                "user:tux"
+              ];
+            };
           })
           (edge {
             source = collected "host:igloo" "os";
@@ -253,11 +290,27 @@ in
             source = collected "<root>" "homeManager";
             target = rootT "<root>" "homeManager";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "<root>"
+                "fleet=fleet"
+                "host:igloo"
+                "system=x86_64-linux"
+              ];
+            };
           })
           (edge {
             source = collected "<root>" "nixos";
             target = rootT "<root>" "nixos";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "<root>"
+                "fleet=fleet"
+                "host:igloo"
+                "system=x86_64-linux"
+              ];
+            };
           })
           (edge {
             source = collected "host:igloo" "os";
@@ -324,11 +377,19 @@ in
             source = collected "host:igloo" "homeManager";
             target = rootT "host:igloo" "homeManager";
             mode = "merge";
+            # The isolated guest scope is ABSENT from the host fold's collected
+            # subtree — isolation as edge-absence (spec §2).
+            annotations = {
+              collectedScopes = [ "host:igloo" ];
+            };
           })
           (edge {
             source = collected "host:igloo" "nixos";
             target = rootT "host:igloo" "nixos";
             mode = "merge";
+            annotations = {
+              collectedScopes = [ "host:igloo" ];
+            };
           })
           (edge {
             source = collected "host:igloo" "os";
@@ -355,6 +416,9 @@ in
             source = collected "host=igloo,iso-kind=guest" "nixos";
             target = rootT "host=igloo,iso-kind=guest" "nixos";
             mode = "merge";
+            annotations = {
+              collectedScopes = [ "host=igloo,iso-kind=guest" ];
+            };
           })
         ];
       }
@@ -388,11 +452,25 @@ in
             source = collected "<root>" "homeManager";
             target = rootT "<root>" "homeManager";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "<root>"
+                "home:solo"
+                "system=x86_64-linux"
+              ];
+            };
           })
           (edge {
             source = collected "<root>" "nixos";
             target = rootT "<root>" "nixos";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "<root>"
+                "home:solo"
+                "system=x86_64-linux"
+              ];
+            };
           })
         ];
       }
@@ -503,11 +581,31 @@ in
             source = collected "<root>" "homeManager";
             target = rootT "<root>" "homeManager";
             mode = "merge";
+            annotations = {
+              # Two distinct `ben` entities (different systems, distinct id_hashes
+              # collapsing to the same readable name) both fold into the flake root.
+              collectedScopes = [
+                "<root>"
+                "home:ben"
+                "home:ben"
+                "system=aarch64-linux"
+                "system=x86_64-linux"
+              ];
+            };
           })
           (edge {
             source = collected "<root>" "nixos";
             target = rootT "<root>" "nixos";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "<root>"
+                "home:ben"
+                "home:ben"
+                "system=aarch64-linux"
+                "system=x86_64-linux"
+              ];
+            };
           })
         ];
       }
@@ -530,6 +628,12 @@ in
             source = collected "host:apple" "darwin";
             target = rootT "host:apple" "darwin";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "host:apple"
+                "user:tux"
+              ];
+            };
           })
           (edge {
             source = collected "host:apple" "os";
@@ -540,11 +644,23 @@ in
             source = collected "host:apple" "homeManager";
             target = rootT "host:apple" "homeManager";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "host:apple"
+                "user:tux"
+              ];
+            };
           })
           (edge {
             source = collected "host:apple" "nixos";
             target = rootT "host:apple" "nixos";
             mode = "merge";
+            annotations = {
+              collectedScopes = [
+                "host:apple"
+                "user:tux"
+              ];
+            };
           })
           (edge {
             source = collected "user:tux" "os";
@@ -556,6 +672,46 @@ in
           user = "tux";
           os = "darwin";
         };
+      }
+    );
+
+    # ===== (7b) spawn (rewalk) edge — host-aspects projection ==========
+    # The host-aspects battery on a user emits a deferred policy.spawn marker at
+    # the user's OWN entity scope; the extractor renders it as a REWALK edge: the
+    # spawned class is re-walked from the PARENT (host) aspect identity with the
+    # own entity (user) bound under its kind, delivered to the user root. Identity
+    # triple only — content is NOT recorded (spec §8 rewalk determinism). We
+    # assert the full rewalk edge by value (subset + count: this topology's full
+    # list also carries the host folds + user-forward tail, large and asserted
+    # elsewhere; the mechanism under test is the single rewalk edge).
+    test-topology-host-aspects-spawn = denTest (
+      { den, lib, ... }:
+      let
+        trace = hostTrace den "nixos" den.hosts.x86_64-linux.igloo;
+        spawnEdges = lib.filter (e: e.source ? rewalk) trace;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        # A host aspect projecting homeManager content (gives the spawned class
+        # content; the spawn marker fires regardless of content).
+        den.aspects.igloo.homeManager.home.sessionVariables.X = "y";
+        den.aspects.tux.includes = [ den.batteries.host-aspects ];
+        den.aspects.igloo.nixos.networking.hostName = "igloo";
+
+        # The rewalk spawn edge, by value: source carries the PARENT (host)
+        # aspect identity, the bound kind (user), and the spawned class; target is
+        # the user root; spawnFrom names the host scope.
+        expr = spawnEdges;
+        expected = [
+          (edge {
+            source = rewalk "host:igloo" [ "user" ] "homeManager";
+            target = rootT "user:tux" "homeManager";
+            mode = "merge";
+            annotations = {
+              spawnFrom = "host:igloo";
+            };
+          })
+        ];
       }
     );
 
@@ -672,9 +828,15 @@ in
       }
     );
 
-    # Isolation-as-edge-absence: an isolated child contributes NO default fold
-    # edge INTO the parent root — the parent's nixos default fold's source is the
-    # parent scope, and the isolated child has its OWN separate fold target.
+    # Isolation-as-edge-absence: an isolated child contributes NO content to the
+    # parent root's default fold. The host root fold COLLECTS from a subtree
+    # (annotations.collectedScopes); isolation means the guest scope is ABSENT
+    # from that set — the strongest available assertion (a default fold always
+    # SOURCES from the root scope name, so a source-scope filter alone is
+    # structurally vacuous; the collectedScopes membership has real teeth: if
+    # subtreeScopesOf stopped honoring isolation, the guest scope would appear
+    # here and the test goes red — verified by scratch-flipping the isolation
+    # gate in subtreeScopesOf).
     test-corollary-isolation-edge-absence = denTest (
       { den, lib, ... }:
       let
@@ -686,25 +848,31 @@ in
           users = { };
           aspect = den.aspects.guest-aspect;
         };
+        guestScope = "host=igloo,iso-kind=guest";
         trace = hostTrace den "nixos" den.hosts.x86_64-linux.igloo;
-        # A default fold (merge, P=[]) TARGETING the host root whose SOURCE scope
-        # is the isolated guest would be an isolation leak — there must be none.
-        leakFolds = lib.filter (
+        # The host root's nixos default fold (merge, P=[], sources+targets the
+        # host root). Its collectedScopes is the isolation-aware subtree.
+        hostNixosFold = lib.filter (
           e:
           e.mode == "merge"
           && e.path == [ ]
           && e.target ? root
           && e.target.root == "host:igloo"
+          && e.target.class == "nixos"
           && e.source ? collected
-          && e.source.collected.scope == "host=igloo,iso-kind=guest"
+          && e.source.collected.scope == "host:igloo"
+          && e.source.collected.class == "nixos"
         ) trace;
-        # The isolated guest DOES have its own fold target (own entity-root).
-        guestFolds = lib.filter (
+        hostFoldScopes = (builtins.head hostNixosFold).annotations.collectedScopes;
+        # The isolated guest's OWN fold (own entity-root), and its collected set.
+        guestFold = lib.filter (
           e:
           e.mode == "merge"
           && e.path == [ ]
           && e.target ? root
-          && e.target.root == "host=igloo,iso-kind=guest"
+          && e.target.root == guestScope
+          && e.source ? collected
+          && e.source.collected.scope == guestScope
         ) trace;
       in
       {
@@ -724,12 +892,20 @@ in
         den.aspects.igloo.nixos.networking.hostName = "igloo";
 
         expr = {
-          leakIntoParent = builtins.length leakFolds;
-          guestOwnFold = builtins.length guestFolds >= 1;
+          # Exactly one host nixos fold, and the guest scope is NOT in its
+          # collected subtree (the isolation edge-absence).
+          hostFoldExists = builtins.length hostNixosFold == 1;
+          guestInHostFold = builtins.elem guestScope hostFoldScopes;
+          # The guest's OWN fold exists and collects from ITSELF (it IS an
+          # entity-root, so its subtree contains its own scope).
+          guestOwnFold = builtins.length guestFold == 1;
+          guestInOwnFold = builtins.elem guestScope (builtins.head guestFold).annotations.collectedScopes;
         };
         expected = {
-          leakIntoParent = 0;
+          hostFoldExists = true;
+          guestInHostFold = false;
           guestOwnFold = true;
+          guestInOwnFold = true;
         };
       }
     );

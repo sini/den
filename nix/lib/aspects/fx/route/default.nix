@@ -18,7 +18,6 @@ let
     applyRoutes
     dedupRoutes
     findChildScopeKeys
-    topoSortRoutes
     ;
 in
 {
@@ -27,6 +26,5 @@ in
     applyRoutes
     dedupRoutes
     findChildScopeKeys
-    topoSortRoutes
     ;
 }
