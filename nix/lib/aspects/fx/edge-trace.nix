@@ -134,7 +134,8 @@ in
       # suppression: the constructor's own dedup/suppression rules are EXACT here
       # (the `suppressed`/`suppressedByChildKey` annotations are the production
       # decisions, not the v0 approximation). Complex forwards keep
-      # `sourceVia = "unresolved"` (Task 9).
+      # `sourceVia = "unresolved"` — see the header: the collected-else-rewalk
+      # source is materialization-time path-dependent, so the trace is identity-only.
       rawRoutes = builtins.concatLists (lib.attrValues scopedRoutes);
       routeEdgeList = routeEdges {
         inherit
