@@ -282,7 +282,7 @@ in
             ];
             mode = "merge";
             annotations = {
-              resolvedRootVia = "name-infix";
+              resolvedRootVia = "scope-link";
               system = "x86_64-linux";
             };
           })
@@ -444,7 +444,7 @@ in
             ];
             mode = "merge";
             annotations = {
-              resolvedRootVia = "name-infix";
+              resolvedRootVia = "scope-link";
               system = "x86_64-linux";
             };
           })
@@ -559,7 +559,7 @@ in
             mode = "merge";
             annotations = {
               disambiguatedTo = "flake.homeConfigurations.ben@aarch64-linux";
-              resolvedRootVia = "name-infix";
+              resolvedRootVia = "scope-link";
               system = "aarch64-linux";
             };
           })
@@ -573,7 +573,7 @@ in
             mode = "merge";
             annotations = {
               disambiguatedTo = "flake.homeConfigurations.ben@x86_64-linux";
-              resolvedRootVia = "name-infix";
+              resolvedRootVia = "scope-link";
               system = "x86_64-linux";
             };
           })
@@ -790,7 +790,7 @@ in
               ];
               mode = "merge";
               annotations = {
-                resolvedRootVia = "name-infix";
+                resolvedRootVia = "scope-link";
                 system = "x86_64-linux";
               };
             })

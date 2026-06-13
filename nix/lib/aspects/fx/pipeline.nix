@@ -169,6 +169,15 @@ let
     currentScope = "__unscoped";
     scopeContexts = _: { };
     scopeParent = _: { };
+    # Spec→scope link (replaces findHostScopeId's name-infix heuristic): when
+    # resolve.to creates an entity scope (push-scope with entityKind set), record
+    # the scope it created keyed by (parentScope, entity id_hash). An instantiate
+    # spec — registered at the SAME parent scope, carrying the same entity record
+    # (hence id_hash) — looks its entity scope up directly. Key combines parent +
+    # id_hash because id_hash is context-free (kind+name, NOT ancestry), so two
+    # same-name entities on different systems share an id_hash but have distinct
+    # parent (system=…) scopes. See resolve.nix entityScopeFor.
+    scopeByEntity = _: { };
 
     # --- Policy dispatch tracking ---
     firedPolicyNames = _: { };

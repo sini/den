@@ -181,8 +181,9 @@ in
       # disambiguation by reusing the grouping INPUTS (path + system metadata
       # only — never spec.instantiate, matching disambiguated's contract) and
       # annotate collisions (disambiguatedTo). resolvedRootVia annotation =
-      # "name-infix" with the hostScopeId findHostScopeId currently returns
-      # (the heuristic to dissolve in Task 11).
+      # "scope-link": the entity scope is resolved from the scopeByEntity link
+      # recorded at scope creation (push-scope), NOT reconstructed by name-infix
+      # (findHostScopeId dissolved in Task 11).
       allInstantiates = builtins.concatLists (lib.attrValues scopedInstantiates);
       # Spec descriptors with output, mirroring applyInstantiates:specDescriptors.
       instDescriptors = builtins.concatLists (
@@ -222,10 +223,10 @@ in
             entry:
             let
               spec = entry.spec;
-              # findHostScopeId is a let-binding inside resolve.nix (not
-              # exported); we record the resolution VIA, not the heuristic. The
-              # spec carries sourceScopeId; the host scope it resolves to is a
-              # child of that by name-infix. We annotate resolvedRootVia only.
+              # The entity scope is resolved by the (parentScope, id_hash) link
+              # recorded at scope creation (resolve.nix entityScopeFor over
+              # scopeByEntity); the trace records the resolution VIA, not the
+              # scope. The source is annotated as the spec's sourceScopeId.
               outPath =
                 if isMultiSystem then
                   lib.init entry.path ++ [ "${lib.last entry.path}@${entry.system}" ]
@@ -240,7 +241,7 @@ in
               path = [ ];
               mode = "merge";
               annotations = {
-                resolvedRootVia = "name-infix";
+                resolvedRootVia = "scope-link";
                 inherit (entry) system;
               }
               // lib.optionalAttrs isMultiSystem {

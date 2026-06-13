@@ -77,46 +77,29 @@ let
     };
 
   # Phase 4: Apply entity instantiation.
-  # Find the host scope ID for an instantiate spec.
+  # Resolve the entity scope an instantiate spec targets.
+  #
   # register-instantiate records sourceScopeId = currentScope (the parent, e.g.
-  # flake-system), but the entity's scope was created by resolve.to as a child.
-  # Search child scopes of sourceScopeId matching the entity name.
-  findHostScopeId =
-    scopeParent: allScopeIds: spec:
+  # flake-system); the entity's OWN scope is a CHILD created by resolve.to during
+  # the same policy fire (push-scope, see modules/policies/flake.nix). push-scope
+  # records that child scope keyed by (parentScope, id_hash) in scopeByEntity.
+  # Since the resolve.to and the instantiate effect share the same parent scope
+  # and carry the same entity record (hence id_hash), the spec looks its scope up
+  # DIRECTLY — no name-infix reconstruction. The (parent, id_hash) key handles
+  # multi-system same-name entities: id_hash is context-free (kind+name), so two
+  # `ben` homes on different systems share an id_hash but have distinct parent
+  # (system=…) scopes, keeping their links distinct.
+  #
+  # T rule (single-child fallback, spec §3d): a spec WITHOUT a recorded entity
+  # scope (no id_hash, or no link — e.g. a non-entity collect-perSystem spec)
+  # targets its source scope's root. The caller falls through to sourceScopeId.
+  entityScopeFor =
+    scopeByEntity: spec:
     let
       sid = spec.sourceScopeId or null;
-      entityName = spec.name or null;
-      # Find child scopes of sourceScopeId (where resolve.to created the entity scope).
-      children =
-        if sid != null then
-          builtins.filter (scopeId: scopeId != sid && (scopeParent.${scopeId} or null) == sid) allScopeIds
-        else
-          [ ];
-      matchByName =
-        if entityName != null then
-          builtins.filter (scopeId: lib.hasInfix "=${entityName}" scopeId) children
-        else
-          [ ];
-      # Among matches, prefer the shortest scope ID — the entity's own scope,
-      # not a descendant (e.g., "host=lb-prod" over "host=lb-prod,user=deploy").
-      bestMatch =
-        if builtins.length matchByName <= 1 then
-          matchByName
-        else
-          let
-            sorted = builtins.sort (a: b: builtins.stringLength a < builtins.stringLength b) matchByName;
-          in
-          [ (builtins.head sorted) ];
+      idHash = spec.id_hash or null;
     in
-    if bestMatch != [ ] then
-      builtins.head bestMatch
-    # Single-child fallback only for entity specs (which carry mainModule).
-    # Non-entity instantiate specs (e.g., collect-perSystem) should fall
-    # through to sourceScopeId so they collect from the full subtree.
-    else if spec ? mainModule && builtins.length children == 1 then
-      builtins.head children
-    else
-      null;
+    if sid != null && idHash != null then scopeByEntity."${sid}\n${idHash}" or null else null;
 
   # The per-host subtree extraction that produced the complete module set for a
   # host (host-scope + user-scope + route-delivered modules, key-deduped) now
@@ -132,6 +115,7 @@ let
       scopedProvides,
       scopedRoutes,
       scopeParent,
+      scopeByEntity ? { },
       scopeEntityClass ? (_: { }),
       scopeIsolated ? { },
       spawnNodeFn,
@@ -141,7 +125,7 @@ let
     let
       allScopeIds = builtins.attrNames augmentedScopeContexts;
       hostClass = spec.class or "nixos";
-      rawHostScopeId = findHostScopeId scopeParent allScopeIds spec;
+      rawHostScopeId = entityScopeFor scopeByEntity spec;
       hostScopeId = if rawHostScopeId != null then rawHostScopeId else spec.sourceScopeId;
       preWalkedModules =
         if hostScopeId != null then
@@ -262,6 +246,7 @@ let
       scopedProvides,
       scopedRoutes,
       scopeParent,
+      scopeByEntity ? { },
       scopeEntityClass ? (_: { }),
       scopeIsolated ? { },
       spawnNodeFn,
@@ -276,6 +261,7 @@ let
           scopedProvides
           scopedRoutes
           scopeParent
+          scopeByEntity
           scopeEntityClass
           scopeIsolated
           spawnNodeFn
@@ -393,6 +379,11 @@ let
       # Kind-level isolation marks {scopeId→true}; route collection and subtree
       # extraction skip isolated descendants (the collection root is exempt).
       scopeIsolated = (result.state.scopeIsolated or (_: { })) null;
+      # Spec→scope link recorded at scope creation (push-scope), keyed by
+      # (parentScope, id_hash). Replaces findHostScopeId's name-infix heuristic;
+      # both instantiate call sites (phase4 + the B′ hostConfigs build) resolve
+      # an entity spec's scope through it.
+      scopeByEntity = (result.state.scopeByEntity or (_: { })) null;
 
       # Scan raw pipe values for config-dependent thunks (functions taking
       # { config, ... }).  If none exist, hostConfigs stays null and
@@ -426,13 +417,12 @@ let
         else
           let
             allInstantiates = lib.concatLists (lib.attrValues (result.state.scopedInstantiates null));
-            allScopeIds = builtins.attrNames scopeContexts;
             specsByHost = builtins.listToAttrs (
               lib.concatMap (
                 spec:
                 let
                   hasOutput = (spec.intoAttr or [ ]) != [ ];
-                  hostScopeId = if hasOutput then findHostScopeId scopeParent allScopeIds spec else null;
+                  hostScopeId = if hasOutput then entityScopeFor scopeByEntity spec else null;
                 in
                 if hostScopeId == null then
                   [ ]
@@ -452,6 +442,7 @@ let
                 scopedProvides
                 scopedRoutes
                 scopeParent
+                scopeByEntity
                 ;
               scopeEntityClass = result.state.scopeEntityClass or (_: { });
               inherit scopeIsolated;
@@ -664,6 +655,7 @@ let
           scopedProvides
           scopedRoutes
           scopeParent
+          scopeByEntity
           ctx
           ;
         # Pass drained class imports so pipe-arg deferred aspects are
