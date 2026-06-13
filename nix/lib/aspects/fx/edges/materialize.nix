@@ -38,26 +38,26 @@ let
 in
 rec {
   # The Π(root) record shape (§A, Task 1 census). Per-field provenance cites the
-  # census verdict that constrains it; fields not yet consumed by THIS task's
-  # default-fold port still belong in the record because Tasks 8–11 consume them
-  # (the variants become visible data instead of implicit state-threading).
+  # census verdict that constrains it. The default-fold merge consumes only
+  # perScope/scopeParent/scopeIsolated/rootScopeId/dedupMode/allScopeIds; the
+  # remaining fields are the route/provides/spawn projection inputs (the variants
+  # are visible data instead of implicit state-threading).
   #
   # Π(root) = {
-  #   scopeContexts;          # §9 subtree-only context slice. NOT consumed by the
+  #   scopeContexts;          # §9 subtree-only context slice. NOT read by the
   #                           #   default-fold merge (which reads perScope buckets
   #                           #   directly); routes/provides/synthesize materialize
-  #                           #   against it (Tasks 8–9).
+  #                           #   against it.
   #   contextsAreAugmented;   # §8 DELIBERATE (cycle-forced) — B′ gets raw contexts.
   #                           #   Carried so a unified assembleSubtree knows which it
-  #                           #   got. Not consumed this task.
+  #                           #   got.
   #   classImports;           # §2 the collected class buckets, per-scope (perScope).
   #                           #   The default-fold merge SOURCE. TARGET semantics =
-  #                           #   drained (Task 11 owns the B′ baseDrain ACCIDENT);
-  #                           #   the Π builder must NOT enshrine raw as B′'s contract.
+  #                           #   drained (the B′ baseDrain divergence is fixed via
+  #                           #   the augmented-context build, §A #8/#2/#7 option b).
   #   provides;               # §9 subtree+ancestors; §3 spawn's own suffices.
-  #                           #   Not consumed this task (provides port = Task 9).
   #   routes;                 # §9 subtree+ancestors; §4 parent-subtree routes merge
-  #                           #   into a spawn. Not consumed this task (route = Task 8).
+  #                           #   into a spawn.
   #   rootScopeId;            # §5 DELIBERATE — the subtree root (pipeline root |
   #                           #   hostScopeId | spawnRoot). The merge target's root.
   #   scopeParent;            # the parent DAG slice (subtree/ancestor walks).
@@ -83,7 +83,7 @@ rec {
   #                           #   the membership universe is WIDER than perScope alone.
   #   classInject ? null;     # §1 the resolved entity class to inject into context
   #                           #   args; no observable witness — defensive projection,
-  #                           #   default off. Not consumed this task.
+  #                           #   default off.
   # }
 
   # Resolve Π's isolation marks into the `isolated` set the subtree walk takes,
@@ -129,9 +129,10 @@ rec {
   # materialize: Π + an edge list → { class → [ modules ] }. The ONLY mode
   # switch for default-fold extraction. The merge arm here is the per-root final
   # extraction; routes/provides/spawn fold through their own entry (edges/route.nix
-  # applyRoutes / edges/provides.nix applyProvidesEdges) until their phase folds
-  # are fully absorbed (Tasks 10–11). `perScope` and the resolved subtree are
-  # passed via the closure `ctx`.
+  # applyRoutes / edges/provides.nix applyProvidesEdges) — those phase folds are
+  # kept as orchestration (the fold call-sites stay; only their per-mechanism logic
+  # moved into the edge constructors), so `assembleSubtree` carries merge edges
+  # only. `perScope` and the resolved subtree are passed via the closure `ctx`.
   materialize =
     pi: ctx: edges:
     let
@@ -148,7 +149,7 @@ rec {
             ${cls} = (acc.${cls} or [ ]) ++ collectMerge ctx.perScope ctx.subtreeScopeIds ctx.dedupMode cls;
           }
         else
-          throw "den materialize: assembleSubtree edge mode ${builtins.toJSON edge.mode} (nest/nest-verbatim route delivery folds through edges/route.nix:materializeRouteEdge, not assembleSubtree, until Tasks 10–11)";
+          throw "den materialize: assembleSubtree edge mode ${builtins.toJSON edge.mode} (nest/nest-verbatim route delivery folds through edges/route.nix:materializeRouteEdge, not assembleSubtree)";
     in
     builtins.foldl' step { } edges;
 
@@ -261,7 +262,7 @@ rec {
     }:
     let
       phase1 = wrapPerScope ctx augmented mergedClassImports;
-      phase2 = applyProvides ctx augmented ownProvides phase1;
+      phase2 = applyProvides ctx ownProvides phase1;
       phase3 =
         applyRoutes selfRef ctx augmented spawnRoot mergedScopeParent mergedScopeIsolated mergedSpawnRoutes
           phase2;

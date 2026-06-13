@@ -5,13 +5,17 @@
 # port is gated by diffing its constructor's edges against the edges this
 # extractor renders from the SAME end-state.
 #
-# v0 captures the clean edges exactly (default folds, simple routes, provides,
-# spawns, instantiates). Path-dependent decisions (route suppression,
-# findHostScopeId root selection, complex-forward source choice, @system
-# requalification) are recorded as ANNOTATIONS (spec §3a, approximate-then-
-# converge) rather than independently re-derived — re-deriving them would mean
-# re-implementing the very logic the port deletes. Annotation fidelity converges
-# to exact edge fields constructor-by-constructor in Phase 2.
+# All edge kinds (default folds, simple + complex routes, provides, spawns,
+# instantiates) now render through the SAME constructors production materializes
+# through (edges/default.nix, edges/route.nix, edges/provides.nix,
+# edges/instantiate.nix), so the v0 approximate-then-converge annotations (spec
+# §3a) have converged to exact edge fields: route suppression is the route
+# constructor's own dedup verdict; the instantiation root is the scope-link
+# (resolvedRootVia = "scope-link"), not a name-infix reconstruction; the @system
+# requalification is the shared instantiate constructor's rule. The ONE residual
+# annotation is `sourceVia = "unresolved"` for complex-forward (synthesize) edges:
+# the collected-else-rewalk source choice is materialization-time path-dependent,
+# so the trace records identity, not the resolved branch (spec §8; see routeEdges).
 #
 # Edge record:  { source; target; path; mode; annotations; }
 #   S (source)  — collected(scopeName, class) | rewalk(aspect, bindings, class)
@@ -189,8 +193,7 @@ in
       # metadata only (never spec.instantiate), so this is laziness-safe and the
       # @system rule can never diverge (spec §3a). resolvedRootVia = "scope-link":
       # the entity scope is resolved from the scopeByEntity link recorded at scope
-      # creation (push-scope), NOT reconstructed by name-infix (findHostScopeId
-      # dissolved in Task 11).
+      # creation (push-scope), not reconstructed by a name-infix heuristic.
       allInstantiates = builtins.concatLists (lib.attrValues scopedInstantiates);
       disambiguated = instantiateEdges.disambiguate (instantiateEdges.specDescriptors allInstantiates);
       instantiateEdgeList = map (

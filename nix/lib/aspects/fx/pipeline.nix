@@ -169,8 +169,8 @@ let
     currentScope = "__unscoped";
     scopeContexts = _: { };
     scopeParent = _: { };
-    # Spec→scope link (replaces findHostScopeId's name-infix heuristic): when
-    # resolve.to creates an entity scope (push-scope with entityKind set), record
+    # Spec→scope link (the entity scope is recorded, never name-infix matched):
+    # when resolve.to creates an entity scope (push-scope with entityKind set), record
     # the scope it created keyed by (parentScope, entity id_hash). An instantiate
     # spec — registered at the SAME parent scope, carrying the same entity record
     # (hence id_hash) — looks its entity scope up directly. Key combines parent +

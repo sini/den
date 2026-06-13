@@ -41,7 +41,7 @@ let
         # Spec→scope link: record the entity scope this push created, keyed by
         # (parentScope, id_hash). The instantiate spec — registered at the same
         # parent scope and carrying the same entity record — resolves its scope
-        # via this link instead of findHostScopeId's name-infix reconstruction.
+        # via this link directly (no post-hoc name-infix reconstruction).
         # Only entity scopes (entityKind set, record carries id_hash) are linked.
         entityRecord = if entityKind == null then null else scopedCtx.${entityKind} or null;
         entityIdHash = if entityRecord == null then null else entityRecord.id_hash or null;

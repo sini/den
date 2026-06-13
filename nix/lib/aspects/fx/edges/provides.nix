@@ -48,12 +48,11 @@ let
   # SOURCE scope's perScope bucket — the latter is the merge half (subtree-
   # collectible, visible to a later route's getCollectedSource / subtree walk).
   #
-  #   ctx           — the pipeline base ctx (fallback when a scope has no context).
-  #   scopeContexts — sid → context (UNREAD; kept for signature parity, reworked in Task 10/11).
+  #   ctx           — the pipeline base ctx (the wrap context for every provide).
   #   scopedProvides — sid → [ provide specs ] (the registered provides).
   #   acc           — { classImports; perScope; } (phase-1 output).
   applyProvidesEdges =
-    ctx: scopeContexts: scopedProvides: acc:
+    ctx: scopedProvides: acc:
     let
       allProvides = dedupProvides (lib.concatLists (lib.attrValues scopedProvides));
     in

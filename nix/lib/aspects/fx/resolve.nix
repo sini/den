@@ -169,7 +169,7 @@ let
             subtreeRoutes = lib.filterAttrs (sid: _: isRelevant sid) scopedRoutes;
             relevantContexts = lib.genAttrs relevantScopeIds (sid: augmentedScopeContexts.${sid});
             subtreePhase1 = wrapPerScope ctx subtreeContexts subtreeClassImports;
-            subtreePhase2 = applyProvidesEdges ctx relevantContexts subtreeProvides subtreePhase1;
+            subtreePhase2 = applyProvidesEdges ctx subtreeProvides subtreePhase1;
             subtreePhase3 =
               applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
                 subtreePhase2;
@@ -179,9 +179,11 @@ let
             # data instead of implicit state-threading. assembleSubtree resolves
             # the isolation-AWARE subtree boundary (isolationMode = "aware") and
             # merge-materializes the host class bucket (the wrapPerScope/
-            # extractSubtreeModules merge semantics). Fields not consumed by the
-            # default-fold merge (contexts/provides/routes) are carried for the
-            # per-port absorption of this re-entry (Tasks 8–11).
+            # extractSubtreeModules merge semantics). The route/provides
+            # materialization runs in subtreePhase2/3 above (the phase folds are
+            # kept as orchestration); the contexts/provides/routes carried on `pi`
+            # conform to the canonical Π record shape (§A) for symmetry with the
+            # spawn re-entry, though the default-fold merge reads only perScope.
             pi = {
               perScope = subtreePhase3.perScope;
               classImports = subtreePhase3.classImports;
@@ -315,9 +317,9 @@ let
       # extraction skip isolated descendants (the collection root is exempt).
       scopeIsolated = (result.state.scopeIsolated or (_: { })) null;
       # Spec→scope link recorded at scope creation (push-scope), keyed by
-      # (parentScope, id_hash). Replaces findHostScopeId's name-infix heuristic;
-      # both instantiate call sites (phase4 + the B′ hostConfigs build) resolve
-      # an entity spec's scope through it.
+      # (parentScope, id_hash). The instantiate spec's scope is resolved through
+      # it directly (no name-infix reconstruction); both instantiate call sites
+      # (phase4 + the B′ hostConfigs build) use the link.
       scopeByEntity = (result.state.scopeByEntity or (_: { })) null;
 
       # Scan raw pipe values for config-dependent thunks (functions taking
@@ -633,7 +635,7 @@ let
       drainedClassImportsRaw = mkDrained augmentedScopeContexts;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts drainedClassImportsRaw;
-      phase2 = applyProvidesEdges ctx augmentedScopeContexts scopedProvides phase1;
+      phase2 = applyProvidesEdges ctx scopedProvides phase1;
       phase3 =
         applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
           scopedRoutes
@@ -744,7 +746,7 @@ let
       } mkPipeline parentState;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts scopedClassImportsRaw;
-      phase2 = applyProvidesEdges ctx augmentedScopeContexts (result.state.scopedProvides null) phase1;
+      phase2 = applyProvidesEdges ctx (result.state.scopedProvides null) phase1;
       phase3 =
         applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
           (result.state.scopedRoutes null)

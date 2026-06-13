@@ -4,10 +4,11 @@
 # (materialize.nix → resolve.nix) source their edges from HERE, so extractor and
 # production can never disagree on an edge's shape (spec §3a convergence).
 #
-# This task (Task 7) lands the DEFAULT-FOLD constructor only. Routes, provides,
-# spawn, and instantiate constructors are added by Tasks 8–11; until then those
-# mechanisms' edges are still rendered by edge-trace.nix's own (soon-superseded)
-# inline arms.
+# This file holds the DEFAULT-FOLD constructor. The other mechanisms' edge
+# constructors live in their own siblings: routes + complex forwards in route.nix,
+# provides in provides.nix, the flake-output T-arm in instantiate.nix. (Spawn
+# edges have no shared constructor — the spawn drain-fold stays imperative and the
+# oracle renders its rewalk edges directly; see edge-trace.nix.)
 { lib, ... }:
 let
   inherit (import ./edge.nix { inherit lib; }) mkEdge collected rootTarget;
