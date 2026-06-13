@@ -2,14 +2,17 @@
   "nodes": {
     "den": {
       "locked": {
-        "lastModified": 0,
-        "narHash": "sha256-pY26dcZqdakXHdioTjb3Ae+ELyGZn9SGYXbkGzNp4h4=",
-        "path": "../..",
-        "type": "path"
+        "lastModified": 1781376156,
+        "narHash": "sha256-/GXybz+d8f15E4kBkUWGFZnrbK8PAqXiLmEaDF/nQjU=",
+        "owner": "denful",
+        "repo": "den",
+        "rev": "dfc4617c22e326892bf47a1a1a72a13d46aabb3e",
+        "type": "github"
       },
       "original": {
-        "path": "../..",
-        "type": "path"
+        "owner": "denful",
+        "repo": "den",
+        "type": "github"
       }
     },
     "devshell": {
