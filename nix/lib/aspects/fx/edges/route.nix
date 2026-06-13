@@ -6,15 +6,16 @@
 # the materializer's mode switch (edges/materialize.nix). No new modes — the §B
 # hybrids decompose into mode + properties.
 #
-# This file owns the SIMPLE-route half only. Complex (__complexForward) routes
-# are dispatched by route/apply.nix:applyComplexRoute (Task 9, synthesize edges)
-# and never reach here.
+# This file owns BOTH route halves: SIMPLE routes (delivery edges, §B Decision 4)
+# and COMPLEX (__complexForward) routes (synthesize edges, §B Decision 2). The
+# `applyRoutes` fold dispatches between them; resolve.nix and spawn-node thread
+# their state in and get the assembled buckets back (the phase-3 materialization).
 #
 # Two projections share ONE classification (classifyRoute):
 #   - the trace-facing edge RECORD (identity + annotations, no content) consumed
 #     by the read-only oracle (edge-trace.nix) — §8 records identity, not content;
 #   - the MATERIALIZATION (the actual wrapped module list + target scope) consumed
-#     by route/apply.nix's fold, replacing applySimpleRoute.
+#     by the `applyRoutes` fold (applySimpleRouteEdge / applyComplexRouteEdge).
 # Both derive from the same per-route cell decision, so oracle and production can
 # never disagree on which §B cell a route is.
 #
@@ -22,7 +23,7 @@
 # construction: dedupRoutes' two suppressions (adapterKey@scope identity dedup;
 # redundant-root edge-set shadowing) and topoSortRoutes' producer→consumer order
 # (now a general edge toposort with loud cycle throw).
-{ lib, ... }:
+{ lib, den }:
 let
   inherit (import ./edge.nix { inherit lib; })
     mkEdge
@@ -259,6 +260,43 @@ let
       };
     };
 
+  # materializeRouteEdge: the §B nest/nest-verbatim/merge placement for ONE
+  # simple-route edge carrying its already-resolved source modules + materializer
+  # properties → the wrapped module list to land in the target bucket. This is the
+  # ONLY mode switch for route delivery; applySimpleRouteEdge routes EVERY simple
+  # route through here so nest/nest-verbatim/merge placement is decided in one
+  # place (spec §3c materialization).
+  #
+  # `adapterKey`/`instantiate` arms replace the module list outright (cells 6/7);
+  # the remaining cells (1–5) go through materializeNest (nest | nest-verbatim |
+  # merge contribution at P=[], + the #572 combine + ensureTargetPath).
+  materializeRouteEdge =
+    m:
+    if m.kind == "instantiate" then
+      # cell 7: eager instantiate evaluated at materialization, placed at P.
+      if m.sourceModules == [ ] then
+        [ ]
+      else
+        [ { config = lib.setAttrByPath m.path m.instantiateEvaluated; } ]
+    else if m.kind == "ensure-empty" then
+      # cell 5 with empty source and ensureTargetPath: land an empty attrset at P.
+      lib.optional m.ensureTargetPath { config = lib.setAttrByPath m.path { }; }
+    else if m.kind == "adapter" then
+      # cell 6: the adapter functor module (dynamic P resolved at evalModules).
+      [ (mkAdapterFunctor m.adapterRoute m.sourceModules) ]
+    else
+      # cells 1–4: nest | nest-verbatim | merge contribution (P=[]), + #572.
+      materializeNest {
+        inherit (m)
+          modules
+          path
+          guard
+          adaptArgs
+          reinstantiate
+          ensureTargetPath
+          ;
+      };
+
   # ===== source collection (§B cell 9 — collectSubtree / isFlakeRoute) ===
   # Collect class modules from a scope and all descendants, skipping isolated
   # descendants (isolation-AWARE; collection root always included). The plain
@@ -468,30 +506,267 @@ let
   # are DROPPED for materialization but RECORDED (with suppressed=true) for the
   # trace — so the two consumers pass the full raw list + verdicts and select.
   orderedKeptRoutes = rootScopeId: rawRoutes: topoSort (keptRoutes rootScopeId rawRoutes);
+
+  # ===== synthesize source + materialization (§B Decision 2 — complex forward) =
+  # A complex (__complexForward) route is a SINGLE synthesize edge:
+  #   S = synthesize(forwardSpec, sourceModule)
+  # where sourceModule is built by ONE source rule with a fallback (NOT two edge
+  # kinds): `sourceModules = collected if non-empty else rewalk`. The fallback is
+  # internal to S-construction; the edge identity is (forwardSpec, intoClass)
+  # regardless of which branch produced the source. The synthesize constructor is
+  # `buildForwardAspect` (handlers/forward.nix) — it builds a NEW aspect from the
+  # source module (spec §2: "neither a plain collect nor a re-resolution").
+
+  # Collect class modules from a forward aspect (recursing into includes). Moved
+  # from route/wrap.nix — consumed only by the synthesize materialization (a
+  # forward-aspect class collection, not a route-nesting concern).
+  collectClassMods =
+    cls: aspect:
+    let
+      own = lib.optional (aspect ? ${cls}) aspect.${cls};
+      nested = builtins.concatMap (collectClassMods cls) (aspect.includes or [ ]);
+    in
+    own ++ nested;
+
+  # A `den.default`-tagged module — root content shared across the entity chain.
+  isDenDefaultModule = mod: lib.hasSuffix "@default" (mod.key or mod._file or "");
+
+  # Root-scope `fromClass` content a child-scope COMPLEX forward may pull in.
+  # S-construction rule (§B Decision 2): when `fromClass` is owned by an entity in
+  # the chain, root content under it is that entity's OWN declaration (not
+  # aggregation fodder) — restrict to shared `den.default`. A forward-only custom
+  # class keeps its full root content.
+  filterRootModules =
+    scopeContexts: spec: rootModules:
+    let
+      childCtx = scopeContexts.${spec.sourceScopeId} or { };
+      ownedClasses =
+        (childCtx.user.classes or [ ])
+        ++ lib.optional (childCtx ? host) childCtx.host.class
+        ++ lib.optional (childCtx ? home) childCtx.home.class;
+    in
+    if builtins.elem spec.fromClass ownedClasses then
+      builtins.filter isDenDefaultModule rootModules
+    else
+      rootModules;
+
+  # The "collected" source branch: a child-scope forward collects its own-scope
+  # fromClass modules PLUS the (filtered) root-scope fromClass modules; a root-
+  # scope (or rootless) forward collects the flat classImports aggregate.
+  getCollectedSource =
+    acc: spec: rootScopeId: scopeContexts:
+    let
+      sid = spec.sourceScopeId;
+    in
+    if rootScopeId != null && sid != rootScopeId then
+      let
+        ownModules = (acc.perScope.${sid} or { }).${spec.fromClass} or [ ];
+        rootModules = (acc.perScope.${rootScopeId} or { }).${spec.fromClass} or [ ];
+      in
+      filterRootModules scopeContexts spec rootModules ++ ownModules
+    else
+      acc.classImports.${spec.fromClass} or [ ];
+
+  # The "rewalk" source branch (fallback when collected == []): re-resolve the
+  # source aspect via spawnNode with FULL fleet visibility. `from = scopeParent`
+  # of sourceScopeId (the HOST scope) so the spawn's policyBoundAncestor sees
+  # fleet peers — using sourceScopeId directly gives a self-parent edge → zero
+  # peers (§B Decision 2 fleet-visibility deciding evidence).
+  resolveSourceFallback =
+    spec: spawnNode: scopeParent:
+    if !(spec ? sourceAspect) || spawnNode == null || !(spec ? sourceScopeId) then
+      [ ]
+    else
+      (spawnNode {
+        from = scopeParent.${spec.sourceScopeId} or spec.sourceScopeId;
+        class = spec.fromClass;
+        aspect = den.lib.aspects.normalizeRoot spec.sourceAspect;
+        bindings = { };
+      }).imports;
+
+  # Append synthesized modules to a class bucket at a scope (flat + perScope).
+  appendToClass = acc: cls: sid: newMods: {
+    classImports = acc.classImports // {
+      ${cls} = (acc.classImports.${cls} or [ ]) ++ newMods;
+    };
+    perScope = acc.perScope // {
+      ${sid} = (acc.perScope.${sid} or { }) // {
+        ${cls} = ((acc.perScope.${sid} or { }).${cls} or [ ]) ++ newMods;
+      };
+    };
+  };
+
+  # Materialize ONE synthesize edge: build the source module (collected-else-
+  # rewalk), run it through the forward constructor (buildForwardAspect), collect
+  # its intoClass modules, and append to the intoClass bucket at sourceScopeId.
+  # The synthesize edge records identity (forwardSpec, intoClass); the CONTENT is
+  # constructed here at materialization time (spec §8: synthesize records identity,
+  # not content).
+  applyComplexRouteEdge =
+    acc:
+    {
+      route,
+      rootScopeId,
+      scopeContexts,
+      scopeParent,
+      spawnNode,
+      buildForwardAspect,
+    }:
+    let
+      spec = route;
+      collectedSource = getCollectedSource acc spec rootScopeId scopeContexts;
+      sourceModules =
+        if collectedSource != [ ] then
+          collectedSource
+        else
+          resolveSourceFallback spec spawnNode scopeParent;
+      sourceModule = spec.mapModule { imports = sourceModules; };
+      newMods = collectClassMods spec.intoClass (buildForwardAspect spec sourceModule);
+    in
+    appendToClass acc spec.intoClass spec.sourceScopeId newMods;
+
+  # Materialize ONE simple-route edge: classify (§B cell), collect source, run the
+  # nest/nest-verbatim/merge mode switch (materializeRouteEdge), append to the
+  # target bucket. The cell decision (classifyRoute), source collection
+  # (sourceModulesOf), and target scope (appendScopeIdOf) come from THIS file; the
+  # placement (mode switch) from materializeRouteEdge below.
+  applySimpleRouteEdge =
+    acc:
+    {
+      route,
+      wrappedPerScope,
+      scopeParent,
+      scopeIsolated,
+    }:
+    let
+      c = classifyRoute route;
+      sourceModules = sourceModulesOf {
+        inherit
+          route
+          wrappedPerScope
+          scopeParent
+          scopeIsolated
+          ;
+      };
+      adapterMod = route.adapterModule or null;
+      modulesWithAdapter = if adapterMod == null then sourceModules else sourceModules ++ [ adapterMod ];
+      # The §B materialize payload selecting the cell arm.
+      kind =
+        if c.hasInstantiate then
+          "instantiate"
+        else if modulesWithAdapter == [ ] then
+          "ensure-empty"
+        else if c.isAdapterRoute then
+          "adapter"
+        else
+          "nest";
+      # cell 5 ensureTargetPath predicate (apply-time, content-aware): empty
+      # module set + adaptArgs + non-flake + path≠[].
+      ensureTargetPath =
+        !c.isFlakeRoute && c.adaptArgs != null && c.path != [ ] && modulesWithAdapter == [ ];
+      # cell 7 instantiate: eager evaluation at materialization.
+      instantiateEvaluated =
+        let
+          adaptArgsFn = route.adaptArgs or (_: { });
+          extraArgs = adaptArgsFn { };
+        in
+        if c.hasInstantiate then route.instantiate ({ modules = sourceModules; } // extraArgs) else null;
+      wrappedModules = materializeRouteEdge {
+        inherit kind ensureTargetPath instantiateEvaluated;
+        inherit (c)
+          path
+          adaptArgs
+          guard
+          reinstantiate
+          ;
+        modules = modulesWithAdapter;
+        sourceModules = sourceModules;
+        adapterPresent = adapterMod != null;
+        adapterRoute = route;
+      };
+    in
+    appendToClass acc route.intoClass (appendScopeIdOf scopeParent route) wrappedModules;
+
+  # The route fold: dedup + toposort routes, fold applying each (complex synthesize
+  # vs simple delivery edge). The ONLY consumer-facing route entry — resolve.nix
+  # and spawn-node thread their state in, get the assembled { classImports; perScope }
+  # back. Simple + complex routes are both delivery edges now; the phase-3 fold is
+  # the materialization of the route edge set in topo order.
+  applyRoutes =
+    {
+      scopedRoutes,
+      wrappedPerScope,
+      classImports,
+      scopeParent ? { },
+      scopeIsolated ? { },
+      scopeContexts ? { },
+      spawnNode ? null,
+      rootScopeId ? null,
+      buildForwardAspect ? null,
+    }:
+    let
+      allRoutes = orderedKeptRoutes rootScopeId (lib.concatLists (lib.attrValues scopedRoutes));
+    in
+    builtins.foldl'
+      (
+        acc: route:
+        if route.__complexForward or false then
+          applyComplexRouteEdge acc {
+            inherit
+              route
+              rootScopeId
+              scopeContexts
+              scopeParent
+              spawnNode
+              buildForwardAspect
+              ;
+          }
+        else
+          applySimpleRouteEdge acc {
+            inherit
+              route
+              wrappedPerScope
+              scopeParent
+              scopeIsolated
+              ;
+          }
+      )
+      {
+        inherit classImports;
+        perScope = wrappedPerScope;
+      }
+      allRoutes;
 in
 {
   inherit
     materializeNest
+    materializeRouteEdge
     mkAdapterFunctor
     sourceModulesOf
     classifyRoute
     appendScopeIdOf
     suppressionVerdicts
-    findChildScopeKeys
     keptRoutes
     orderedKeptRoutes
     topoSort
+    applyRoutes
     ;
-  # Compat alias: the old apply.nix `dedupRoutes` returned the kept (non-
-  # suppressed) routes in original order — exactly keptRoutes. Retained for the
-  # route/default.nix re-export; the extractor now consumes routeEdges directly.
-  dedupRoutes = keptRoutes;
 
   # ===== trace-facing route edge constructor (§8 identity, no content) ===
   # Renders the simple+complex route specs as edge RECORDS for the oracle
-  # (edge-trace.nix). Identity + annotations only; suppression verdicts are now
-  # EXACT (the constructor's own dedup rules), not the v0 path-dependent
-  # approximation. sourceVia for complex forwards stays "unresolved" (Task 9).
+  # (edge-trace.nix). Identity + annotations only; suppression verdicts are
+  # EXACT (the constructor's own dedup rules), not a path-dependent approximation.
+  #
+  # sourceVia for complex forwards is PERMANENTLY "unresolved" — this is NOT a
+  # deferred annotation. The trace renders construction-time data (the edge
+  # identity triple), but the collected-else-rewalk source choice (§B Decision 2)
+  # is MATERIALIZATION-time path-dependent: it depends on whether `getCollectedSource`
+  # found content in the assembled `acc.perScope` AT the synthesize edge's fold
+  # position (which itself depends on provides + earlier simple routes feeding the
+  # source class). The synthesize edge records identity, not which branch fired
+  # (spec §8: synthesize records identity, not content), so "unresolved" is the
+  # correct, final disposition — recording a concrete branch here would require
+  # re-running the materialization the trace is meant to be independent of.
   #
   #   name        — sid → stable scope name (edge.nix scopeName).
   #   scopeParent — parent DAG (for appendToParent target resolution).

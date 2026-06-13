@@ -24,7 +24,7 @@
 # Trace normalization (spec §8): sort key (T, P, S, M); entity scopes named by
 # id_hash (parent-blind identity), non-entity scopes by their mkScopeId string;
 # rewalk/synthesize edges record the identity triple, NOT resolved content.
-{ lib, ... }:
+{ lib, den, ... }:
 let
   # The shared edge record, sort key, scope-naming, and S/T constructors — the
   # ONE edge definition production (edges/default.nix) and this oracle share, so
@@ -46,13 +46,21 @@ let
   # one constructor (spec §3a).
   inherit (import ./edges/default.nix { inherit lib; }) defaultFoldEdges;
   # The route edge constructor — the SAME constructor production materializes
-  # simple routes through (route/apply.nix → edges/materialize.nix). v0's inline
+  # simple + complex routes through (edges/route.nix applyRoutes). v0's inline
   # route arm + its own dedup/suppression re-derivation is REPLACED by this
   # import: the oracle and production now converge on ONE route constructor
   # (spec §3a). The `suppressed` annotations are now EXACT (the constructor's own
   # dedup rules), not the v0 path-dependent approximation; `sourceVia` for complex
-  # forwards stays "unresolved" (Task 9).
-  inherit (import ./edges/route.nix { inherit lib; }) routeEdges;
+  # forwards stays "unresolved" (the collected-else-rewalk source choice is
+  # materialization-time path-dependent — see routeEdges' note).
+  inherit (import ./edges/route.nix { inherit lib den; }) routeEdges;
+  # The provides edge constructor — the SAME constructor production materializes
+  # provides through (resolve.nix phase-2 → edges/provides.nix applyProvidesEdges).
+  # v0's inline provides arm + its own dedup is REPLACED by this import: oracle and
+  # production converge on ONE provides constructor (spec §3a). The two-edge
+  # decomposition (nest into source bucket, merge half = default-fold) is recorded
+  # by the constructor's `mergeHalf` annotation (§B Decision 1).
+  inherit (import ./edges/provides.nix { inherit lib den; }) providesEdges;
 in
 {
   # extractEdgeTrace: pipeline end-state → stably-sorted normalized edge list.
@@ -68,7 +76,6 @@ in
       scopedSpawns,
       scopedInstantiates,
       rootScopeId,
-      dedupProvides,
     }:
     let
       nameArgs = { inherit scopeEntityKind scopeContexts; };
@@ -102,39 +109,13 @@ in
       };
 
       # ===== provides edges (two-edge decomposition, §B Decision 1) ======
-      # A provides spec → a nest edge into the SOURCE scope's bucket
-      # (setAttrByPath path module). The merge half is the default fold edge
-      # already emitted above (the perScope append is subtree-collectible) — we
-      # render only the nest edge, annotated providesPolicyName, with a note that
-      # the merge half is the default fold. Dedup key = (policyName, class, path)
-      # — the SAME composite key applyProvides/dedupProvides uses (NOT scope-
-      # keyed): two provides from one policy into one class+path collapse to one
-      # edge regardless of registering scope.
-      allProvides = builtins.concatLists (lib.attrValues scopedProvides);
-      dedupedProvides = dedupProvides allProvides;
-      providesEdges = map (
-        spec:
-        let
-          path = spec.path or [ ];
-          sid = spec.sourceScopeId;
-        in
-        mkEdge {
-          # Source is the provided module placed at P (nest construction);
-          # rendered as a collected source into the source scope's class bucket.
-          source = collected (name sid) spec.class;
-          target = rootTarget (name sid) spec.class;
-          inherit path;
-          # P=[] degenerates to a plain merge contribution (no nesting); P!=[]
-          # is the setAttrByPath nest construction.
-          mode = if path == [ ] then "merge" else "nest";
-          annotations = {
-            providesPolicyName = spec.__providePolicyName or null;
-            # The merge half (delivery to the entity root) is the default fold
-            # edge above; this nest edge only constructs the placed module.
-            mergeHalf = "default-fold";
-          };
-        }
-      ) dedupedProvides;
+      # Rendered by the SHARED provides constructor (edges/provides.nix
+      # providesEdges) — the SAME constructor production materializes provides
+      # through (resolve.nix phase-2 → applyProvidesEdges). Each spec → a nest edge
+      # into the SOURCE scope's bucket; the merge half is the default-fold edge
+      # (annotated mergeHalf). Dedup key = (policyName, class, path), NOT scope-
+      # keyed (§B Decision 1).
+      providesEdgeList = providesEdges { inherit name scopedProvides; };
 
       # ===== route edges =================================================
       # Rendered by the SHARED route constructor (edges/route.nix routeEdges) —
@@ -270,7 +251,7 @@ in
         ) instGrouped
       );
 
-      allEdges = defaultFold ++ providesEdges ++ routeEdgeList ++ spawnEdges ++ instantiateEdges;
+      allEdges = defaultFold ++ providesEdgeList ++ routeEdgeList ++ spawnEdges ++ instantiateEdges;
     in
     sortEdges allEdges;
 }

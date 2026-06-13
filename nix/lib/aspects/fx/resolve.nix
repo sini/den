@@ -9,10 +9,11 @@ let
   inherit (import ./wrap-classes.nix { inherit lib den; }) wrapCollectedClasses;
   inherit (import ./assemble-pipes.nix { inherit lib den; }) assemblePipes;
   inherit (import ./spawn-node.nix { inherit lib den; }) mkSpawnNode;
-  route = import ./route { inherit lib den; };
+  routeEdges = import ./edges/route.nix { inherit lib den; };
   inherit (import ./edge-trace.nix { inherit lib den; }) extractEdgeTrace;
   inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./edges/materialize.nix { inherit lib; }) assembleSubtree;
+  inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges;
   handlers = den.lib.aspects.fx.handlers;
 
   # Check if `ancestor` is an ancestor of `descendant` in the scopeParent tree.
@@ -25,15 +26,6 @@ let
       false
     else
       parent == ancestor || isAncestorOf scopeParent ancestor parent;
-
-  # Dedup provides by composite key (policyName/class/path).
-  dedupProvides = dedupByKey (
-    s:
-    let
-      pn = s.__providePolicyName or null;
-    in
-    if pn != null then "${pn}/${s.class}/${lib.concatStringsSep "/" (s.path or [ ])}" else null
-  );
 
   # Phase 1: Wrap collected class imports per-scope.
   # Deduplicates modules with identical keys across scopes: when a shared
@@ -60,46 +52,9 @@ let
       perScope = wrappedPerScope;
     };
 
-  # Phase 2: Apply policy.provide — inject modules into target classes.
-  applyProvides =
-    ctx: scopeContexts: scopedProvides: acc:
-    let
-      allProvides = dedupProvides (lib.concatLists (lib.attrValues scopedProvides));
-    in
-    builtins.foldl' (
-      prev: spec:
-      let
-        targetClass = spec.class;
-        path = spec.path or [ ];
-        sid = spec.sourceScopeId;
-        scopeCtx = scopeContexts.${sid} or ctx;
-        rawModule = if path == [ ] then spec.module else lib.setAttrByPath path spec.module;
-        wrapped = den.lib.aspects.fx.aspect.wrapClassModule {
-          inherit ctx;
-          module = rawModule;
-          aspectPolicy = null;
-          globalPolicy = null;
-        };
-        wrappedMod =
-          if wrapped.unsatisfied or false then
-            [ ]
-          else
-            let
-              loc = "${targetClass}@<provide>/${lib.concatStringsSep "/" path}";
-            in
-            [ (lib.setDefaultModuleLocation loc wrapped.module) ];
-      in
-      {
-        classImports = prev.classImports // {
-          ${targetClass} = (prev.classImports.${targetClass} or [ ]) ++ wrappedMod;
-        };
-        perScope = prev.perScope // {
-          ${sid} = (prev.perScope.${sid} or { }) // {
-            ${targetClass} = ((prev.perScope.${sid} or { }).${targetClass} or [ ]) ++ wrappedMod;
-          };
-        };
-      }
-    ) acc allProvides;
+  # Phase 2 (policy.provide → target classes) is now an edge constructor:
+  # edges/provides.nix applyProvidesEdges. The nest-into-source-bucket
+  # materialization + the (policyName/class/path) dedup live there (§B Decision 1).
 
   # Phase 3: Apply routes. The first positional is the node spawn primitive
   # (threaded with this pipeline's parent scope-tree state) used to resolve a
@@ -107,13 +62,12 @@ let
   # isolated fxResolve fallback).
   applyRoutes =
     spawnNode: ctx: scopeContexts: rootScopeId: scopeParent: scopeIsolated: scopedRoutes: acc:
-    route.applyRoutes {
+    routeEdges.applyRoutes {
       inherit
         scopedRoutes
         scopeContexts
         scopeParent
         scopeIsolated
-        ctx
         rootScopeId
         spawnNode
         ;
@@ -230,7 +184,7 @@ let
             subtreeRoutes = lib.filterAttrs (sid: _: isRelevant sid) scopedRoutes;
             relevantContexts = lib.genAttrs relevantScopeIds (sid: augmentedScopeContexts.${sid});
             subtreePhase1 = wrapPerScope ctx subtreeContexts subtreeClassImports;
-            subtreePhase2 = applyProvides ctx relevantContexts subtreeProvides subtreePhase1;
+            subtreePhase2 = applyProvidesEdges ctx relevantContexts subtreeProvides subtreePhase1;
             subtreePhase3 =
               applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
                 subtreePhase2;
@@ -545,7 +499,8 @@ let
       # runtime when a resolved aspect carries a complex non-collected forward,
       # and a finite forward nesting terminates.
       spawnNode = mkSpawnNode {
-        inherit wrapPerScope applyProvides applyRoutes;
+        inherit wrapPerScope applyRoutes;
+        applyProvides = applyProvidesEdges;
         inherit (den.lib.aspects) normalizeRoot;
         inherit (den.lib.aspects.fx.aspect) ctxFromHandlers;
         selfRef = spawnNode;
@@ -695,7 +650,7 @@ let
         ) baseDrain (builtins.attrNames allHomeNodes);
 
       phase1 = wrapPerScope ctx augmentedScopeContexts drainedClassImportsRaw;
-      phase2 = applyProvides ctx augmentedScopeContexts scopedProvides phase1;
+      phase2 = applyProvidesEdges ctx augmentedScopeContexts scopedProvides phase1;
       phase3 =
         applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
           scopedRoutes
@@ -737,7 +692,6 @@ let
           scopeEntityKind
           scopedProvides
           scopedRoutes
-          dedupProvides
           ;
         scopedClassImports = scopedClassImportsRaw;
         scopedSpawns = (result.state.scopedSpawns or (_: { })) null;
@@ -798,14 +752,15 @@ let
       # so a nested complex forward inside a spawned node resolves its source via
       # the same fleet-visible spawn (matching resolveSourceFallback's contract).
       spawnNode = mkSpawnNode {
-        inherit wrapPerScope applyProvides applyRoutes;
+        inherit wrapPerScope applyRoutes;
+        applyProvides = applyProvidesEdges;
         inherit (den.lib.aspects) normalizeRoot;
         inherit (den.lib.aspects.fx.aspect) ctxFromHandlers;
         selfRef = spawnNode;
       } mkPipeline parentState;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts scopedClassImportsRaw;
-      phase2 = applyProvides ctx augmentedScopeContexts (result.state.scopedProvides null) phase1;
+      phase2 = applyProvidesEdges ctx augmentedScopeContexts (result.state.scopedProvides null) phase1;
       phase3 =
         applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
           (result.state.scopedRoutes null)
@@ -821,6 +776,5 @@ in
     fxResolveWithPaths
     fxResolveImports
     wrapCollectedClasses
-    dedupProvides
     ;
 }

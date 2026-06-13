@@ -4,11 +4,13 @@
 # re-entries' final extraction; phase ordering becomes edge toposort (corollary
 # 5) as later mechanisms are ported.
 #
-# Tasks 7–8 are complete: `merge` (default-fold port) and `nest`/`nest-verbatim`
-# (route delivery via materializeRouteEdge) are both live. The else-throw in the
-# `materialize` switch below is NOT a Task 8 stub — it is permanently correct:
-# `assembleSubtree` carries merge edges only; route nest/nest-verbatim delivery
-# folds through route/apply.nix:applySimpleRoute → materializeRouteEdge.
+# Tasks 7–9 are complete: `merge` (default-fold port) is live here; `nest`/
+# `nest-verbatim` (route delivery via materializeRouteEdge) and the synthesize
+# (complex-forward) + provides edge materialization live in edges/route.nix +
+# edges/provides.nix. The else-throw in the `materialize` switch below is NOT a
+# stub — it is permanently correct: `assembleSubtree` carries merge edges only;
+# route nest/nest-verbatim + synthesize delivery folds through edges/route.nix
+# (applyRoutes → materializeRouteEdge), provides through edges/provides.nix.
 #
 # DESIGN INVARIANTS (spec §2 corollaries; enforced by the entity-isolation suite
 # and the delivery-edges fixtures):
@@ -24,7 +26,6 @@
 let
   inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./default.nix { inherit lib; }) defaultFoldEdges;
-  inherit (import ./route.nix { inherit lib; }) materializeNest mkAdapterFunctor;
 in
 rec {
   # The Π(root) record shape (§A, Task 1 census). Per-field provenance cites the
@@ -88,51 +89,12 @@ rec {
     in
     dedupByKey (m: m.key or null) raw;
 
-  # materializeRouteEdge: the §B nest/nest-verbatim/merge placement for ONE
-  # simple-route edge carrying its already-resolved source modules + materializer
-  # properties → the wrapped module list to land in the target bucket. This is
-  # the ONLY mode switch for route delivery; the route fold (route/apply.nix)
-  # routes EVERY simple route through here so nest/nest-verbatim/merge placement
-  # is decided in one place (spec §3c materialization).
-  #
-  # The edge carries a `materialize` payload:
-  #   { modules; path; mode; adaptArgs; guard; reinstantiate; ensureTargetPath;
-  #     adapterKey; adapterRoute; sourceModules; instantiateEvaluated; }
-  # `adapterKey`/`instantiate` arms replace the module list outright (cells 6/7);
-  # the remaining cells (1–5) go through materializeNest (nest | nest-verbatim |
-  # merge contribution at P=[], + the #572 combine + ensureTargetPath).
-  materializeRouteEdge =
-    m:
-    if m.kind == "instantiate" then
-      # cell 7: eager instantiate evaluated at materialization, placed at P.
-      if m.sourceModules == [ ] then
-        [ ]
-      else
-        [ { config = lib.setAttrByPath m.path m.instantiateEvaluated; } ]
-    else if m.kind == "ensure-empty" then
-      # cell 5 with empty source and ensureTargetPath: land an empty attrset at P.
-      lib.optional m.ensureTargetPath { config = lib.setAttrByPath m.path { }; }
-    else if m.kind == "adapter" then
-      # cell 6: the adapter functor module (dynamic P resolved at evalModules).
-      [ (mkAdapterFunctor m.adapterRoute m.sourceModules) ]
-    else
-      # cells 1–4: nest | nest-verbatim | merge contribution (P=[]), + #572.
-      materializeNest {
-        inherit (m)
-          modules
-          path
-          guard
-          adaptArgs
-          reinstantiate
-          ensureTargetPath
-          ;
-      };
-
   # materialize: Π + an edge list → { class → [ modules ] }. The ONLY mode
-  # switch for default-fold extraction. Routes/provides/spawn fold through their
-  # own entry (route/apply.nix → materializeRouteEdge) until their phase folds are
-  # absorbed (Tasks 9–11); the merge arm here is the per-root final extraction.
-  # `perScope` and the resolved subtree are passed via the closure `ctx`.
+  # switch for default-fold extraction. The merge arm here is the per-root final
+  # extraction; routes/provides/spawn fold through their own entry (edges/route.nix
+  # applyRoutes / edges/provides.nix applyProvidesEdges) until their phase folds
+  # are fully absorbed (Tasks 10–11). `perScope` and the resolved subtree are
+  # passed via the closure `ctx`.
   materialize =
     pi: ctx: edges:
     let
@@ -148,7 +110,7 @@ rec {
             ${cls} = (acc.${cls} or [ ]) ++ collectMerge ctx.perScope ctx.subtreeScopeIds cls;
           }
         else
-          throw "den materialize: assembleSubtree edge mode ${builtins.toJSON edge.mode} (nest/nest-verbatim route delivery folds through route/apply.nix:materializeRouteEdge, not assembleSubtree, until Tasks 9–11)";
+          throw "den materialize: assembleSubtree edge mode ${builtins.toJSON edge.mode} (nest/nest-verbatim route delivery folds through edges/route.nix:materializeRouteEdge, not assembleSubtree, until Tasks 10–11)";
     in
     builtins.foldl' step { } edges;
 
