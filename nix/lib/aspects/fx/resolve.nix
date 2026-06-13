@@ -414,7 +414,7 @@ let
         inherit scopeParent;
       };
 
-      # §A #2/#7 B′ baseDrain ACCIDENT fix (two-pass, option c).
+      # §A #8/#2/#7 B′ raw-context ACCIDENT fix (option b: augmented-context build).
       #
       # hostConfigs (re-entry B′) builds each peer host's full config for cross-
       # host config-dependent pipe-thunk resolution. Pre-fix it built those from
