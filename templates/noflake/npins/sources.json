@@ -4,13 +4,13 @@
       "type": "Git",
       "repository": {
         "type": "GitHub",
-        "owner": "vic",
+        "owner": "denful",
         "repo": "den"
       },
       "branch": "main",
       "submodules": false,
       "revision": "fba67817bd16955e10ff158c9758874031af089c",
-      "url": "https://github.com/vic/den/archive/fba67817bd16955e10ff158c9758874031af089c.tar.gz",
+      "url": "https://github.com/denful/den/archive/fba67817bd16955e10ff158c9758874031af089c.tar.gz",
       "hash": "sha256-eo2Snm2hoYAq8MA7bfjnn8p36riLcpJDA74Fzx9gcsY="
     },
     "hjem": {
