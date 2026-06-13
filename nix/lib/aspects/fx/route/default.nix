@@ -5,26 +5,14 @@
   ...
 }:
 let
-  inherit (import ./wrap.nix { inherit lib den; }) wrapRouteModules collectClassMods;
+  inherit (import ./wrap.nix { inherit lib den; }) collectClassMods;
   inherit
     (import ./apply.nix {
-      inherit
-        lib
-        den
-        wrapRouteModules
-        collectClassMods
-        ;
+      inherit lib den collectClassMods;
     })
     applyRoutes
-    dedupRoutes
-    findChildScopeKeys
     ;
 in
 {
-  inherit
-    wrapRouteModules
-    applyRoutes
-    dedupRoutes
-    findChildScopeKeys
-    ;
+  inherit applyRoutes;
 }

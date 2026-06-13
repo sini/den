@@ -1,25 +1,35 @@
-# Apply registered routes — fold over deduped route specs,
-# dispatching complex (forward-derived) vs simple (path nesting).
+# Apply registered routes — fold over deduped + toposorted route specs,
+# dispatching complex (forward-derived, Task 9) vs simple (delivery-edge, Task 8).
+#
+# Simple routes are now DELIVERY EDGES: their §B-matrix classification, dedup,
+# ordering, and source collection live in edges/route.nix; their nest /
+# nest-verbatim / merge materialization lives in edges/materialize.nix's mode
+# switch (materializeRouteEdge). This file keeps only the COMPLEX-forward
+# (synthesize) path inline (filterRootModules / getCollectedSource /
+# resolveSourceFallback / mkAdapterFunctor-for-complex), which Task 9 ports.
 {
   lib,
   den,
-  wrapRouteModules,
   collectClassMods,
 }:
 let
-  inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes;
-  # Root-scope `fromClass` content a child-scope forward may pull in. When
-  # `fromClass` is a class some entity in the chain owns, root content under it
-  # is that entity's own declaration, not aggregation fodder — restrict to
-  # shared `den.default` (host class content reaches users opt-in via
-  # host-aspects). A custom forward-only class (e.g. `atuin`) only exists to
-  # feed forwards, so its root content is a legitimate source; keep it in full.
+  routeEdges = import ../edges/route.nix { inherit lib; };
+  inherit (import ../edges/materialize.nix { inherit lib; }) materializeRouteEdge;
+  inherit (routeEdges)
+    classifyRoute
+    sourceModulesOf
+    appendScopeIdOf
+    orderedKeptRoutes
+    ;
+
+  # Root-scope `fromClass` content a child-scope COMPLEX forward may pull in.
+  # When `fromClass` is owned by an entity in the chain, root content under it is
+  # that entity's own declaration, not aggregation fodder — restrict to shared
+  # `den.default`. A forward-only custom class keeps its full root content.
   filterRootModules =
     scopeContexts: spec: rootModules: isDenDefaultModule:
     let
       childCtx = scopeContexts.${spec.sourceScopeId} or { };
-      # Classes owned by each entity kind in the chain. Total over kinds so the
-      # filter never falls open for a non-user-owned scope (host, standalone home).
       ownedClasses =
         (childCtx.user.classes or [ ])
         ++ lib.optional (childCtx ? host) childCtx.host.class
@@ -46,24 +56,13 @@ let
 
   resolveSourceFallback =
     spec: spawnNode: scopeParent: scopeContexts: ctx:
-    # Early-out to no source: the spec has nothing to resolve from (no source
-    # aspect/scope), or spawnNode wasn't threaded (non-home callers pass
-    # null via the applyRoutes default).
     if !(spec ? sourceAspect) || spawnNode == null || !(spec ? sourceScopeId) then
       [ ]
     else
       (spawnNode {
-        # spec.sourceScopeId is the USER scope (the forward compiles at the
-        # current scope, per compile-forward.nix sourceScopeId = scope). `from`
-        # must be the HOST scope = the user scope's parent. Using sourceScopeId
-        # directly gives a self-parent edge -> policyBoundAncestor returns null
-        # -> zero fleet peers (and spawnNode's spawnRoot == from assert trips).
         from = scopeParent.${spec.sourceScopeId} or spec.sourceScopeId;
         class = spec.fromClass;
         aspect = den.lib.aspects.normalizeRoot spec.sourceAspect;
-        # The user binding is re-supplied by the source aspect's __scopeHandlers
-        # (ctxFromHandlers in spawnNode's seedCtx), so spawnRoot resolves to
-        # the user scope; do NOT strip it here.
         bindings = { };
       }).imports;
 
@@ -103,64 +102,13 @@ let
     in
     appendToClass acc spec.intoClass spec.sourceScopeId newMods;
 
-  mkAdapterFunctor =
-    route: sourceModules:
-    let
-      adapterMod = route.adapterModule or null;
-      sourceModule = {
-        imports = sourceModules;
-      };
-      guardFn = route.guard or (_: lib.id);
-      adaptArgsFn = route.adaptArgs or (_: { });
-      intoPathFn = route.intoPathFn or (_: route.path);
-      key = route.adapterKey;
-      guardArgs = route.guardArgs or { };
-      intoPathArgs = route.intoPathArgs or { };
-      adaptArgv = route.adaptArgv or { };
-      freeformMod =
-        route.freeformMod or {
-          config._module.freeformType = lib.types.lazyAttrsOf lib.types.unspecified;
-        };
-      adapterMods =
-        if adapterMod != null then
-          [
-            freeformMod
-            adapterMod
-          ]
-        else
-          [ freeformMod ];
-    in
-    {
-      __functionArgs = guardArgs // intoPathArgs // adaptArgv;
-      __functor = _: args: {
-        options.den.fwd.${key} = lib.mkOption {
-          defaultText = lib.literalExpression "{ }";
-          default = { };
-          type = lib.types.submoduleWith {
-            specialArgs = adaptArgsFn args;
-            modules = adapterMods ++ [ sourceModule ];
-          };
-        };
-        config = guardFn args (lib.setAttrByPath (intoPathFn args) args.config.den.fwd.${key});
-      };
-    };
+  isDenDefaultModule = mod: lib.hasSuffix "@default" (mod.key or mod._file or "");
 
-  # Collect class modules from a scope and all its descendants — skipping
-  # isolated descendants (and their subtrees). The collection root is always
-  # included so an isolated entity's own delivery route still collects itself.
-  collectFromSubtree =
-    wrappedPerScope: scopeParent: scopeIsolated: rootScopeId: fromClass:
-    let
-      # Isolation-AWARE walk.
-      scopes = subtreeScopes {
-        inherit scopeParent;
-        isolated = scopeIsolated;
-        root = rootScopeId;
-        allScopeIds = builtins.attrNames wrappedPerScope;
-      };
-    in
-    lib.concatMap (sid: wrappedPerScope.${sid}.${fromClass} or [ ]) scopes;
-
+  # Simple route → delivery edge → materialized module list, appended to the
+  # target bucket. The §B cell decision (classifyRoute), source collection
+  # (sourceModulesOf), and target scope (appendScopeIdOf) come from
+  # edges/route.nix; the nest/nest-verbatim/merge placement from
+  # materializeRouteEdge (the mode switch).
   applySimpleRoute =
     acc:
     {
@@ -170,158 +118,55 @@ let
       scopeIsolated,
     }:
     let
-      isFlakeRoute = route.intoClass == "flake";
-      # Subtree collection only for flake routes — parametric class keys
-      # resolve at entity scopes (host/user) which are descendants of the
-      # route's scope.  Non-flake routes (e.g. into "flake-parts") collect
-      # only from their own scope to avoid pulling modules from unrelated
-      # entity subtrees whose scope args won't be available after adaptArgs.
-      sourceModules =
-        if isFlakeRoute || (route.collectSubtree or false) then
-          collectFromSubtree wrappedPerScope scopeParent scopeIsolated route.sourceScopeId route.fromClass
-        else
-          let
-            scopeExists = wrappedPerScope ? ${route.sourceScopeId};
-          in
-          if !scopeExists then [ ] else wrappedPerScope.${route.sourceScopeId}.${route.fromClass} or [ ];
-      hasInstantiate = route.instantiate or null != null;
+      c = classifyRoute route;
+      sourceModules = sourceModulesOf {
+        inherit
+          route
+          wrappedPerScope
+          scopeParent
+          scopeIsolated
+          ;
+      };
       adapterMod = route.adapterModule or null;
       modulesWithAdapter = if adapterMod == null then sourceModules else sourceModules ++ [ adapterMod ];
-      ensureEntry =
-        lib.optional
-          (
-            !isFlakeRoute
-            && route.adaptArgs or null != null
-            && route.path or [ ] != [ ]
-            && modulesWithAdapter == [ ]
-          )
-          {
-            config = lib.setAttrByPath route.path { };
-          };
-      isAdapterRoute = route.adapterKey or null != null;
-      adapterWrapped = lib.optional isAdapterRoute (mkAdapterFunctor route sourceModules);
-      # Route with instantiate: collect modules, call instantiate function,
-      # place the result (a derivation) at the target path.
-      instantiateWrapped =
+      # The §B materialize payload selecting the cell arm.
+      kind =
+        if c.hasInstantiate then
+          "instantiate"
+        else if modulesWithAdapter == [ ] then
+          "ensure-empty"
+        else if c.isAdapterRoute then
+          "adapter"
+        else
+          "nest";
+      # cell 5 ensureTargetPath predicate (apply-time, content-aware): empty
+      # module set + adaptArgs + non-flake + path≠[].
+      ensureTargetPath =
+        !c.isFlakeRoute && c.adaptArgs != null && c.path != [ ] && modulesWithAdapter == [ ];
+      # cell 7 instantiate: eager evaluation at materialization.
+      instantiateEvaluated =
         let
           adaptArgsFn = route.adaptArgs or (_: { });
           extraArgs = adaptArgsFn { };
-          evaluated = route.instantiate ({ modules = sourceModules; } // extraArgs);
         in
-        [
-          {
-            config = lib.setAttrByPath route.path evaluated;
-          }
-        ];
-      wrappedModules =
-        if hasInstantiate then
-          if sourceModules == [ ] then [ ] else instantiateWrapped
-        else if modulesWithAdapter == [ ] then
-          ensureEntry
-        else if isAdapterRoute then
-          adapterWrapped
-        else
-          wrapRouteModules {
-            modules = modulesWithAdapter;
-            inherit (route) path;
-            guard = route.guard or null;
-            adaptArgs = route.adaptArgs or null;
-            reinstantiate = route.reinstantiate or false;
-          };
-      # Delivery routes registered inside an isolated child collect rooted at
-      # their own scope but must land the result on the PARENT — the child
-      # scope is skipped by isolation-aware extraction, so appending there
-      # would drop the content.
-      appendScopeId =
-        if route.appendToParent or false then
-          scopeParent.${route.sourceScopeId} or route.sourceScopeId
-        else
-          route.sourceScopeId;
+        if c.hasInstantiate then route.instantiate ({ modules = sourceModules; } // extraArgs) else null;
+      wrappedModules = materializeRouteEdge {
+        inherit kind ensureTargetPath instantiateEvaluated;
+        inherit (c)
+          path
+          adaptArgs
+          guard
+          reinstantiate
+          ;
+        modules = modulesWithAdapter;
+        sourceModules = sourceModules;
+        adapterPresent = adapterMod != null;
+        adapterRoute = route;
+      };
     in
-    appendToClass acc route.intoClass appendScopeId wrappedModules;
+    appendToClass acc route.intoClass (appendScopeIdOf scopeParent route) wrappedModules;
 
-  isDenDefaultModule = mod: lib.hasSuffix "@default" (mod.key or mod._file or "");
-
-  # Collect adapterKeys that exist at child (non-root) scopes.
-  findChildScopeKeys =
-    rootScopeId: rawRoutes:
-    builtins.foldl' (
-      acc: r:
-      let
-        ak = r.adapterKey or null;
-      in
-      if ak != null && rootScopeId != null && r.sourceScopeId != rootScopeId then
-        acc // { ${ak} = true; }
-      else
-        acc
-    ) { } rawRoutes;
-
-  # Dedup routes: suppress root-scope when child-scope handles the same forward,
-  # and dedup same adapterKey@scope.
-  dedupRoutes =
-    rootScopeId: rawRoutes:
-    let
-      childScopeKeys = findChildScopeKeys rootScopeId rawRoutes;
-      go =
-        seen: routes:
-        if routes == [ ] then
-          [ ]
-        else
-          let
-            r = builtins.head routes;
-            rest = builtins.tail routes;
-            ak = r.adapterKey or null;
-            isRedundantRoot =
-              ak != null && rootScopeId != null && r.sourceScopeId == rootScopeId && childScopeKeys ? ${ak};
-            key = if ak != null then "${ak}@${r.sourceScopeId}" else null;
-          in
-          if isRedundantRoot then
-            go seen rest
-          else if key != null && seen ? ${key} then
-            go seen rest
-          else
-            [ r ] ++ go (if key != null then seen // { ${key} = true; } else seen) rest;
-    in
-    go { } rawRoutes;
-
-  # Topologically sort routes: when forward A's intoClass feeds forward
-  # B's fromClass at the same scope, A must fire before B.  Only
-  # reorders __complexForward routes; non-forward routes keep their
-  # original position relative to other non-forwards.  (#567)
-  topoSortRoutes =
-    routes:
-    let
-      indexed = lib.imap0 (i: r: { inherit i r; }) routes;
-      # Build producer map: intoClass@scope → [route indices].  Both simple
-      # routes and complex forwards are producers: a simple route injecting
-      # into a home-env class (e.g. homeManager) feeds the complex forward that
-      # carries that class to its host output (makeHomeEnv's userForward).
-      # Complex forwards read from the accumulating fold state, so any producer
-      # of their fromClass must fire first or the injected content is lost.
-      producerMap = builtins.foldl' (
-        acc:
-        { i, r }:
-        let
-          key = "${r.intoClass}@${r.sourceScopeId}";
-        in
-        acc // { ${key} = (acc.${key} or [ ]) ++ [ i ]; }
-      ) { } indexed;
-      # A complex forward "depends on producers" when its fromClass@scope has
-      # producer entries from *other* routes (meaning another route produces
-      # into the class it consumes).  Simple routes read the original per-scope
-      # data, not the fold state, so they never depend on ordering themselves.
-      hasDeps =
-        { i, r }:
-        (r.__complexForward or false)
-        && builtins.any (j: j != i) (producerMap."${r.fromClass}@${r.sourceScopeId}" or [ ]);
-      # Partition: routes without deps first, routes with deps last.
-      # This is a single-level toposort (sufficient for A→B chains).
-      noDeps = builtins.filter (ir: !hasDeps ir) indexed;
-      withDeps = builtins.filter hasDeps indexed;
-    in
-    map (ir: ir.r) (noDeps ++ withDeps);
-
-  # Main entry: dedup routes, fold applying each.
+  # Main entry: dedup + toposort routes, fold applying each (complex vs simple).
   applyRoutes =
     {
       scopedRoutes,
@@ -336,9 +181,7 @@ let
       buildForwardAspect ? null,
     }:
     let
-      allRoutes = topoSortRoutes (
-        dedupRoutes rootScopeId (lib.concatLists (lib.attrValues scopedRoutes))
-      );
+      allRoutes = orderedKeptRoutes rootScopeId (lib.concatLists (lib.attrValues scopedRoutes));
     in
     builtins.foldl'
       (
@@ -373,15 +216,10 @@ let
       allRoutes;
 in
 {
-  inherit
-    applyRoutes
-    # Exported for the read-only edge-trace extractor (edge-trace.nix), which
-    # renders the CURRENT route suppression decisions as `suppressed` +
-    # `suppressedByChildKey` annotations by reusing this exact logic rather than
-    # reimplementing it. Additive only — no behavior change. (topoSortRoutes is
-    # NOT exported: the extractor renders unordered edges and has no consumer for
-    # the toposort; it stays internal to applyRoutes.)
-    dedupRoutes
-    findChildScopeKeys
-    ;
+  # applyRoutes is the only consumer-facing entry: the route fold. Simple routes
+  # are delivery edges (edges/route.nix + edges/materialize.nix); the old
+  # dedupRoutes/findChildScopeKeys exports (consumed by the v0 edge-trace arm)
+  # are dead now that the oracle renders routes via the shared routeEdges
+  # constructor — dropped here. Suppression/dedup lives in edges/route.nix.
+  inherit applyRoutes;
 }

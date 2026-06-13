@@ -24,12 +24,8 @@
 # Trace normalization (spec §8): sort key (T, P, S, M); entity scopes named by
 # id_hash (parent-blind identity), non-entity scopes by their mkScopeId string;
 # rewalk/synthesize edges record the identity triple, NOT resolved content.
-{ lib, den }:
+{ lib, ... }:
 let
-  # Reuse the ACTUAL route suppression logic (not a reimplementation): the
-  # point of the extractor is to render the decisions the current code makes.
-  route = import ./route { inherit lib den; };
-  inherit (route) dedupRoutes findChildScopeKeys;
   # The shared edge record, sort key, scope-naming, and S/T constructors — the
   # ONE edge definition production (edges/default.nix) and this oracle share, so
   # they can never diverge (spec §3a convergence). EXTRACTED to edges/edge.nix.
@@ -49,6 +45,14 @@ let
   # fold arm is REPLACED by this import so extractor and production converge on
   # one constructor (spec §3a).
   inherit (import ./edges/default.nix { inherit lib; }) defaultFoldEdges;
+  # The route edge constructor — the SAME constructor production materializes
+  # simple routes through (route/apply.nix → edges/materialize.nix). v0's inline
+  # route arm + its own dedup/suppression re-derivation is REPLACED by this
+  # import: the oracle and production now converge on ONE route constructor
+  # (spec §3a). The `suppressed` annotations are now EXACT (the constructor's own
+  # dedup rules), not the v0 path-dependent approximation; `sourceVia` for complex
+  # forwards stays "unresolved" (Task 9).
+  inherit (import ./edges/route.nix { inherit lib; }) routeEdges;
 in
 {
   # extractEdgeTrace: pipeline end-state → stably-sorted normalized edge list.
@@ -133,132 +137,22 @@ in
       ) dedupedProvides;
 
       # ===== route edges =================================================
-      # From scopedRoutes specs (post the ACTUAL dedupRoutes — reused, not
-      # reimplemented). Simple routes and complex (synthesize) forwards.
+      # Rendered by the SHARED route constructor (edges/route.nix routeEdges) —
+      # the SAME constructor production materializes simple routes through
+      # (route/apply.nix → edges/materialize.nix). The oracle no longer re-derives
+      # suppression: the constructor's own dedup/suppression rules are EXACT here
+      # (the `suppressed`/`suppressedByChildKey` annotations are the production
+      # decisions, not the v0 approximation). Complex forwards keep
+      # `sourceVia = "unresolved"` (Task 9).
       rawRoutes = builtins.concatLists (lib.attrValues scopedRoutes);
-      # The suppression decisions: which adapterKey@scope routes dedupRoutes
-      # keeps, and which child keys shadow root-scope adapter routes. Reuse the
-      # real functions over the SAME rootScopeId the pipeline used.
-      keptRoutes = dedupRoutes rootScopeId rawRoutes;
-      childKeys = findChildScopeKeys rootScopeId rawRoutes;
-      # Per-position suppression verdicts. A rawRoute is suppressed iff
-      # dedupRoutes (the ACTUAL logic, reused — not reimplemented) dropped it,
-      # i.e. it is not the kept instance of its identity. keptRoutes preserves
-      # original order and keeps the FIRST instance per identity, so a verdict is
-      # derived by consuming keptRoutes positionally as rawRoutes are walked: the
-      # head of keptRoutes is the kept route until matched, then advances.
-      # `byChild` (redundant-root shadow, §B rule 2) is recomputed from the same
-      # findChildScopeKeys output dedupRoutes consumes.
-      suppressVerdicts =
-        let
-          go =
-            kept: routes:
-            if routes == [ ] then
-              [ ]
-            else
-              let
-                r = builtins.head routes;
-                rest = builtins.tail routes;
-                # Identity assumption: dedupRoutes preserves original order and
-                # returns the SAME route records (by reference) it kept, so the
-                # head-of-kept structural `==` here is really reference identity —
-                # two distinct rawRoutes are never structurally equal in practice
-                # (each carries a distinct sourceScopeId/path). If dedupRoutes ever
-                # rebuilds records, switch this to a stable adapterKey@scope match.
-                isKept = kept != [ ] && builtins.head kept == r;
-                ak = r.adapterKey or null;
-                # Redundant-root shadow: an adapter route AT the root scope whose
-                # adapterKey also exists at a child scope (findChildScopeKeys).
-                byChild = ak != null && rootScopeId != null && r.sourceScopeId == rootScopeId && childKeys ? ${ak};
-                verdict = {
-                  suppressed = !isKept;
-                  inherit byChild;
-                };
-              in
-              [ verdict ] ++ go (if isKept then builtins.tail kept else kept) rest;
-        in
-        go keptRoutes rawRoutes;
-
-      # A forward identity triple component (§B Decision 2): adapterKey if
-      # present (the dynamic-P adapter arm, cell 6), else a structural composite.
-      forwardId =
-        spec:
-        spec.adapterKey or "${spec.fromClass}>${spec.intoClass}@${spec.sourceScopeId}/${
-          lib.concatStringsSep "/" (spec.staticIntoPath or spec.path or [ ])
-        }";
-
-      routeEdge =
-        verdict: spec:
-        let
-          sid = spec.sourceScopeId;
-          isComplex = spec.__complexForward or false;
-          path = spec.path or spec.staticIntoPath or [ ];
-          appendToParent = spec.appendToParent or false;
-          appendSid = if appendToParent then scopeParent.${sid} or sid else sid;
-          adapterKey = spec.adapterKey or null;
-          reinstantiate = spec.reinstantiate or false;
-          # Suppression verdict for this position (path-dependent — depends on
-          # the SET of routes present, §B path-dependent suppression rule).
-          # Recorded as an annotation until the route port (spec §3a).
-          isSuppressed = verdict.suppressed;
-          suppressedByChild = verdict.byChild;
-
-          baseAnnotations =
-            lib.optionalAttrs (spec.adaptArgs or null != null) { adaptArgs = true; }
-            // lib.optionalAttrs (spec.guard or null != null) { guard = true; }
-            // lib.optionalAttrs (spec.collectSubtree or false) { collectSubtree = true; }
-            // lib.optionalAttrs ((spec.intoClass or null) == "flake") { isFlakeRoute = true; }
-            // lib.optionalAttrs ((spec.instantiate or null) != null) { instantiate = true; }
-            // lib.optionalAttrs appendToParent { appendToParent = true; }
-            // lib.optionalAttrs (
-              # §B cell 5: ensureEntry placeholder (empty target path materialized).
-              # (content-blind approx; real ensureEntry also requires empty module
-              # set — converges Phase 2)
-              !isComplex && (spec.intoClass or null) != "flake" && (spec.adaptArgs or null) != null && path != [ ]
-            ) { ensureTargetPath = true; }
-            // lib.optionalAttrs isSuppressed { suppressed = true; }
-            // lib.optionalAttrs suppressedByChild { suppressedByChildKey = adapterKey; };
-        in
-        if isComplex then
-          # Complex forward → synthesize edge. Identity triple only (no content,
-          # spec §8). sourceVia is path-dependent (getCollectedSource's collected-
-          # else-rewalk branch depends on the assembled perScope, which v0 does
-          # not reconstruct) — recorded as the approximate annotation
-          # "unresolved" per the Task-3 brief.
-          mkEdge {
-            source = synthesize (forwardId spec) spec.fromClass spec.intoClass;
-            target = rootTarget (name appendSid) spec.intoClass;
-            inherit path;
-            mode = "nest";
-            annotations = baseAnnotations // {
-              complexForward = true;
-              sourceVia = "unresolved";
-            };
-          }
-        else
-          mkEdge {
-            source = collected (name sid) spec.fromClass;
-            target = rootTarget (name appendSid) spec.intoClass;
-            inherit path;
-            # §B Decision 4: reinstantiate ⇒ nest-verbatim; P=[] ⇒ merge;
-            # else nest. Adapter routes (cell 6) carry dynamic P — annotated.
-            mode =
-              if reinstantiate then
-                "nest-verbatim"
-              else if path == [ ] then
-                "merge"
-              else
-                "nest";
-            annotations =
-              baseAnnotations
-              // lib.optionalAttrs (adapterKey != null) {
-                inherit adapterKey;
-                # §B cell 6: adapter arm resolves P dynamically at evalModules
-                # time via intoPathFn — P is not a static edge field.
-                dynamicPath = true;
-              };
-          };
-      routeEdges = lib.imap0 (i: spec: routeEdge (builtins.elemAt suppressVerdicts i) spec) rawRoutes;
+      routeEdgeList = routeEdges {
+        inherit
+          name
+          scopeParent
+          rootScopeId
+          rawRoutes
+          ;
+      };
 
       # ===== spawn (rewalk) edges ========================================
       # scopedSpawns: each marker lives at an OWN entity scope (ownKind); the
@@ -376,7 +270,7 @@ in
         ) instGrouped
       );
 
-      allEdges = defaultFold ++ providesEdges ++ routeEdges ++ spawnEdges ++ instantiateEdges;
+      allEdges = defaultFold ++ providesEdges ++ routeEdgeList ++ spawnEdges ++ instantiateEdges;
     in
     sortEdges allEdges;
 }

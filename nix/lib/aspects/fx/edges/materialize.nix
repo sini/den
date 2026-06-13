@@ -22,6 +22,7 @@
 let
   inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./default.nix { inherit lib; }) defaultFoldEdges;
+  inherit (import ./route.nix { inherit lib; }) materializeNest mkAdapterFunctor;
 in
 rec {
   # The Π(root) record shape (§A, Task 1 census). Per-field provenance cites the
@@ -85,10 +86,53 @@ rec {
     in
     dedupByKey (m: m.key or null) raw;
 
+  # materializeRouteEdge: the §B nest/nest-verbatim/merge placement for ONE
+  # simple-route edge carrying its already-resolved source modules + materializer
+  # properties → the wrapped module list to land in the target bucket. This is
+  # the ONLY mode switch for route delivery; the route fold (route/apply.nix)
+  # routes EVERY simple route through here so nest/nest-verbatim/merge placement
+  # is decided in one place (spec §3c materialization).
+  #
+  # The edge carries a `materialize` payload:
+  #   { modules; path; mode; adaptArgs; guard; reinstantiate; ensureTargetPath;
+  #     adapterKey; adapterRoute; sourceModules; instantiateEvaluated; }
+  # `adapterKey`/`instantiate` arms replace the module list outright (cells 6/7);
+  # the remaining cells (1–5) go through materializeNest (nest | nest-verbatim |
+  # merge contribution at P=[], + the #572 combine + ensureTargetPath).
+  materializeRouteEdge =
+    m:
+    if m.kind == "instantiate" then
+      # cell 7: eager instantiate evaluated at materialization, placed at P.
+      if m.sourceModules == [ ] then
+        [ ]
+      else
+        [ { config = lib.setAttrByPath m.path m.instantiateEvaluated; } ]
+    else if m.kind == "ensure-empty" then
+      # cell 5 with empty source and ensureTargetPath: land an empty attrset at P.
+      lib.optional m.ensureTargetPath { config = lib.setAttrByPath m.path { }; }
+    else if m.kind == "adapter" then
+      # cell 6: the adapter functor module (dynamic P resolved at evalModules).
+      lib.optional (m.modules != [ ] || m.adapterPresent) (
+        mkAdapterFunctor m.adapterRoute m.sourceModules
+      )
+    else
+      # cells 1–4: nest | nest-verbatim | merge contribution (P=[]), + #572.
+      materializeNest {
+        inherit (m)
+          modules
+          path
+          guard
+          adaptArgs
+          reinstantiate
+          ensureTargetPath
+          ;
+      };
+
   # materialize: Π + an edge list → { class → [ modules ] }. The ONLY mode
-  # switch. This task exercises `merge`; nest arms are explicit unreachables
-  # (Task 8). `perScope` and the resolved subtree are passed via the closure
-  # `ctx` so the switch stays a pure per-edge dispatch.
+  # switch for default-fold extraction. Routes/provides/spawn fold through their
+  # own entry (route/apply.nix → materializeRouteEdge) until their phase folds are
+  # absorbed (Tasks 9–11); the merge arm here is the per-root final extraction.
+  # `perScope` and the resolved subtree are passed via the closure `ctx`.
   materialize =
     pi: ctx: edges:
     let
@@ -103,12 +147,8 @@ rec {
           // {
             ${cls} = (acc.${cls} or [ ]) ++ collectMerge ctx.perScope ctx.subtreeScopeIds cls;
           }
-        else if edge.mode == "nest" then
-          throw "den materialize: mode \"nest\" not yet ported (TODO(Task 8))"
-        else if edge.mode == "nest-verbatim" then
-          throw "den materialize: mode \"nest-verbatim\" not yet ported (TODO(Task 8))"
         else
-          throw "den materialize: unknown mode ${builtins.toJSON edge.mode}";
+          throw "den materialize: assembleSubtree edge mode ${builtins.toJSON edge.mode} (nest/nest-verbatim route delivery folds through route/apply.nix:materializeRouteEdge, not assembleSubtree, until Tasks 9–11)";
     in
     builtins.foldl' step { } edges;
 
