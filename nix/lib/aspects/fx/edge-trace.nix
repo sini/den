@@ -61,6 +61,12 @@ let
   # decomposition (nest into source bucket, merge half = default-fold) is recorded
   # by the constructor's `mergeHalf` annotation (§B Decision 1).
   inherit (import ./edges/provides.nix { inherit lib den; }) providesEdges;
+  # The flake-output T-arm constructor — the SAME descriptors + @system
+  # disambiguation production maps to lazy instantiate thunks (resolve.nix
+  # applyInstantiates). The oracle's inline disambiguation re-derivation is
+  # REPLACED by this import (spec §3a convergence): the @system rule is now
+  # production's, not a parallel render.
+  instantiateEdges = import ./edges/instantiate.nix { inherit lib; };
 in
 {
   # extractEdgeTrace: pipeline end-state → stably-sorted normalized edge list.
@@ -176,83 +182,45 @@ in
 
       # ===== instantiate edges (flake-output T-arm) ======================
       # scopedInstantiates → flake-output edges. T = [ "flake" ] ++ intoAttr.
-      # @system disambiguation: when the SAME output path is targeted by specs
-      # on DIFFERENT systems, each is qualified <name>@<system>. We render the
-      # disambiguation by reusing the grouping INPUTS (path + system metadata
-      # only — never spec.instantiate, matching disambiguated's contract) and
-      # annotate collisions (disambiguatedTo). resolvedRootVia annotation =
-      # "scope-link": the entity scope is resolved from the scopeByEntity link
-      # recorded at scope creation (push-scope), NOT reconstructed by name-infix
-      # (findHostScopeId dissolved in Task 11).
+      # Rendered by the SHARED flake-output T-arm constructor (edges/instantiate.nix)
+      # — the SAME descriptors + @system disambiguation production maps to lazy
+      # instantiate thunks (resolve.nix applyInstantiates). The oracle maps the
+      # disambiguated descriptors to edge records instead; both touch path + system
+      # metadata only (never spec.instantiate), so this is laziness-safe and the
+      # @system rule can never diverge (spec §3a). resolvedRootVia = "scope-link":
+      # the entity scope is resolved from the scopeByEntity link recorded at scope
+      # creation (push-scope), NOT reconstructed by name-infix (findHostScopeId
+      # dissolved in Task 11).
       allInstantiates = builtins.concatLists (lib.attrValues scopedInstantiates);
-      # Spec descriptors with output, mirroring applyInstantiates:specDescriptors.
-      instDescriptors = builtins.concatLists (
-        map (
-          spec:
-          let
-            hasOutput = (spec.intoAttr or [ ]) != [ ];
-          in
-          if !hasOutput then
-            [ ]
-          else
-            [
-              {
-                path = [ "flake" ] ++ spec.intoAttr;
-                system = spec.system or null;
-                inherit spec;
-              }
-            ]
-        ) allInstantiates
-      );
-      # Group by output path (the disambiguated grouping inputs).
-      instGrouped = builtins.foldl' (
-        acc: entry:
+      disambiguated = instantiateEdges.disambiguate (instantiateEdges.specDescriptors allInstantiates);
+      instantiateEdgeList = map (
+        entry:
         let
-          k = lib.concatStringsSep "." entry.path;
+          spec = entry.spec;
+          # @system-qualified when disambiguate rewrote the path-tail (the last
+          # element gained an `@<system>` suffix). The constructor owns the rule;
+          # the oracle reads its decision off the resulting path.
+          baseName = lib.last ([ "flake" ] ++ (spec.intoAttr or [ ]));
+          isMultiSystem = lib.last entry.path != baseName;
         in
-        acc // { ${k} = (acc.${k} or [ ]) ++ [ entry ]; }
-      ) { } instDescriptors;
-      instantiateEdges = builtins.concatLists (
-        lib.mapAttrsToList (
-          _: entries:
-          let
-            systems = lib.unique (map (e: e.system or null) entries);
-            isMultiSystem = builtins.length entries > 1 && builtins.length systems > 1;
-          in
-          map (
-            entry:
-            let
-              spec = entry.spec;
-              # The entity scope is resolved by the (parentScope, id_hash) link
-              # recorded at scope creation (resolve.nix entityScopeFor over
-              # scopeByEntity); the trace records the resolution VIA, not the
-              # scope. The source is annotated as the spec's sourceScopeId.
-              outPath =
-                if isMultiSystem then
-                  lib.init entry.path ++ [ "${lib.last entry.path}@${entry.system}" ]
-                else
-                  entry.path;
-            in
-            mkEdge {
-              # Source content comes from the host subtree (collected); we record
-              # the source as the spec's source scope + class.
-              source = collected (name (spec.sourceScopeId or rootScopeId)) (spec.class or "nixos");
-              target = outputTarget outPath;
-              path = [ ];
-              mode = "merge";
-              annotations = {
-                resolvedRootVia = "scope-link";
-                inherit (entry) system;
-              }
-              // lib.optionalAttrs isMultiSystem {
-                disambiguatedTo = lib.concatStringsSep "." outPath;
-              };
-            }
-          ) entries
-        ) instGrouped
-      );
+        mkEdge {
+          # Source content comes from the host subtree (collected); the source is
+          # the spec's source scope + class.
+          source = collected (name (spec.sourceScopeId or rootScopeId)) (spec.class or "nixos");
+          target = outputTarget entry.path;
+          path = [ ];
+          mode = "merge";
+          annotations = {
+            resolvedRootVia = "scope-link";
+            inherit (entry) system;
+          }
+          // lib.optionalAttrs isMultiSystem {
+            disambiguatedTo = lib.concatStringsSep "." entry.path;
+          };
+        }
+      ) disambiguated;
 
-      allEdges = defaultFold ++ providesEdgeList ++ routeEdgeList ++ spawnEdges ++ instantiateEdges;
+      allEdges = defaultFold ++ providesEdgeList ++ routeEdgeList ++ spawnEdges ++ instantiateEdgeList;
     in
     sortEdges allEdges;
 }

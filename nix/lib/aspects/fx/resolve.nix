@@ -14,6 +14,7 @@ let
   inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./edges/materialize.nix { inherit lib; }) assembleSubtree;
   inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges;
+  instantiateEdges = import ./edges/instantiate.nix { inherit lib; };
   handlers = den.lib.aspects.fx.handlers;
 
   # Check if `ancestor` is an ancestor of `descendant` in the scopeParent tree.
@@ -271,78 +272,12 @@ let
 
       allInstantiates = lib.concatLists (lib.attrValues scopedInstantiates);
 
-      # Build spec descriptors: { path, system, spec } without calling instantiate.
-      # concatMap is strict in the list but the instantiate thunk is deferred.
-      specDescriptors = lib.concatMap (
-        spec:
-        let
-          hasOutput = (spec.intoAttr or [ ]) != [ ];
-        in
-        if !hasOutput then
-          [ ]
-        else
-          [
-            {
-              path = [ "flake" ] ++ spec.intoAttr;
-              system = spec.system or null;
-              inherit spec;
-            }
-          ]
-      ) allInstantiates;
-
-      # Disambiguate instantiate entries targeting the same output path from
-      # different entities. When the same user name appears on multiple systems
-      # (e.g. den.homes.x86_64-linux.ben + den.homes.aarch64-darwin.ben both
-      # producing homeConfigurations.ben), lib.recursiveUpdate would deeply
-      # merge the two independent module-system evaluations, corrupting both.
-      # Fix: qualify each colliding entry's output name with its system so both
-      # are accessible (e.g. homeConfigurations."ben@x86_64-linux").
-      # Same-entity duplicates (e.g. fleet + direct policy) are left as-is
-      # since they produce compatible modules.
-      #
-      # Only inspects path and system metadata — never touches spec.instantiate.
-      disambiguated =
-        let
-          pathStr = builtins.concatStringsSep ".";
-          grouped = builtins.foldl' (
-            acc: entry:
-            let
-              key = pathStr entry.path;
-            in
-            acc // { ${key} = (acc.${key} or [ ]) ++ [ entry ]; }
-          ) { } specDescriptors;
-          resolve =
-            _: entries:
-            if builtins.length entries <= 1 then
-              entries
-            else
-              let
-                systems = map (e: e.system or null) entries;
-                uniqueSystems = lib.unique systems;
-                isMultiSystem = builtins.length uniqueSystems > 1;
-              in
-              if isMultiSystem then
-                # Different systems: qualify each output name with @system.
-                map (
-                  e:
-                  let
-                    basePath = lib.init e.path;
-                    baseName = lib.last e.path;
-                  in
-                  e // { path = basePath ++ [ "${baseName}@${e.system}" ]; }
-                ) entries
-              else
-                # Same entity via multiple policy paths: deduplicate.
-                let
-                  entry = lib.last entries;
-                in
-                lib.warnIf (builtins.length entries > 1)
-                  "den: multiple instantiate specs target ${builtins.concatStringsSep "." entry.path} on ${
-                    if entry.system != null then entry.system else "unknown"
-                  }; keeping last"
-                  [ entry ];
-        in
-        lib.concatLists (lib.mapAttrsToList resolve grouped);
+      # Flake-output T-arm edge construction (spec §2: T = a flake-output path).
+      # The descriptors + @system disambiguation are the T-arm-LOCAL rules, shared
+      # with the read-only oracle (edge-trace.nix) via edges/instantiate.nix so
+      # production and oracle agree on the @system rule (spec §3a). Both touch
+      # path + system metadata only — never spec.instantiate (laziness-safe).
+      disambiguated = instantiateEdges.disambiguate (instantiateEdges.specDescriptors allInstantiates);
 
       # Build lazy output tree.  Each leaf calls spec.instantiate on first access.
       instantiateConfigs = map (
