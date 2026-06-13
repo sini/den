@@ -246,7 +246,12 @@ let
             pi = {
               perScope = subtreePhase3.perScope;
               classImports = subtreePhase3.classImports;
-              scopeContexts = relevantContexts;
+              # §A #9: scopeContexts is the subtree-ONLY context slice (NOT
+              # subtree+ancestors). provides/routes are the wider subtree+ancestor
+              # fields. Inert for the default-fold merge (which reads perScope),
+              # but the correct scope-set for the Tasks 8/9 materializers that
+              # consume pi.scopeContexts.
+              scopeContexts = subtreeContexts;
               contextsAreAugmented = true;
               provides = subtreeProvides;
               routes = subtreeRoutes;

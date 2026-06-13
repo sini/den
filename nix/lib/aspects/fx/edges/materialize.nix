@@ -21,6 +21,7 @@
 { lib, ... }:
 let
   inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
+  inherit (import ./default.nix { inherit lib; }) defaultFoldEdges;
 in
 rec {
   # The Π(root) record shape (§A, Task 1 census). Per-field provenance cites the
@@ -127,25 +128,35 @@ rec {
     { root, pi }:
     let
       allScopeIds = builtins.attrNames pi.perScope;
+      # The isolation set the subtree boundary uses, governed by pi.isolationMode.
+      # Computed ONCE here so the merge-collection walk and the edge constructor's
+      # own internal subtree walk agree on the boundary.
+      isolated = isolatedSetOf pi;
       subtreeScopeIds = subtreeScopes {
         inherit (pi) scopeParent;
-        isolated = isolatedSetOf pi;
-        inherit root allScopeIds;
+        inherit isolated root allScopeIds;
       };
-      # Default-fold edges for THIS root: one merge edge per class with content
-      # in the bounded subtree (corollary 1). Constructed inline against the
-      # bounded scope list — the same edge edges/default.nix and edge-trace.nix
-      # describe, reduced to what the merge materialization consumes (T.class).
-      classesWithContent = lib.unique (
-        builtins.concatMap (sid: builtins.attrNames (pi.perScope.${sid} or { })) subtreeScopeIds
-      );
-      edges = map (cls: {
-        target = {
-          inherit root;
-          class = cls;
-        };
-        mode = "merge";
-      }) classesWithContent;
+      # Default-fold edges for THIS root, built by the SHARED constructor
+      # (edges/default.nix defaultFoldEdges) — the same function the read-only
+      # oracle (edge-trace.nix) consumes, so production and oracle agree on the
+      # CONSTRUCTOR, not merely the primitives (spec §3a convergence).
+      # Adaptation to assembleSubtree's per-root, isolationMode-governed call:
+      #   - entityRootScopes = [ root ] (this single root; isolated descendants
+      #     are their own roots, materialized by their own assembleSubtree).
+      #   - scopeIsolated = `isolated` (already resolved through isolationMode, so
+      #     the constructor's internal subtree walk matches subtreeScopeIds).
+      #   - classContentAt = pi.perScope (only `? class` membership is read).
+      #   - name = identity: the merge switch reads ONLY edge.target.class, so the
+      #     T.root naming used by the oracle is irrelevant here; identity keeps the
+      #     emitted target.root = the raw sid, unchanged from the prior inline form.
+      edges = defaultFoldEdges {
+        name = sid: sid;
+        inherit (pi) scopeParent;
+        scopeIsolated = isolated;
+        classContentAt = pi.perScope;
+        inherit allScopeIds;
+        entityRootScopes = [ root ];
+      };
     in
     materialize pi {
       inherit (pi) perScope;
