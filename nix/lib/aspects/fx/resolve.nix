@@ -371,9 +371,23 @@ let
               ) allInstantiates
             );
             mkArgs = mkInstantiateArgs {
-              augmentedScopeContexts = scopeContexts;
+              # §A #8/#2/#7 fix (option b): B′ builds peer configs over the
+              # hostConfigs-NULL ASSEMBLED contexts (pipe values resolved), not
+              # raw scopeContexts. The census flagged B′'s raw-context use as
+              # cycle-forced (assemblePipes-with-hostConfigs needs hostConfigs);
+              # but the hostConfigs-NULL pass is cycle-free and resolves every
+              # pipeline-parametric pipe value. A pipe-CONSUMING peer aspect (one
+              # that reads a quirk value via context, e.g. `{ feat, ... }`) thus
+              # gets its pipe value injected — pre-fix the raw context left `feat`
+              # unbound and the peer config threw `feat missing` instead of
+              # matching its real instantiate output (variant B). Witnessed by
+              # deadbugs/bprime-basedrain-crosshost.
+              augmentedScopeContexts = augmentedScopeContextsNoCfg;
+              # …and over the matching DRAINED import map (deferred includes whose
+              # pipeline-parametric pipe-args are now resolved). Pre-fix this was
+              # raw scopedClassImportsRaw — the §A #2/#7 baseDrain carry-over.
+              scopedClassImportsRaw = drainedForHostConfigs;
               inherit
-                scopedClassImportsRaw
                 scopedProvides
                 scopedRoutes
                 scopeParent
@@ -397,6 +411,39 @@ let
         scopedPipeEffects = result.state.scopedPipeEffects null;
         inherit scopeParent;
       };
+
+      # §A #2/#7 B′ baseDrain ACCIDENT fix (two-pass, option c).
+      #
+      # hostConfigs (re-entry B′) builds each peer host's full config for cross-
+      # host config-dependent pipe-thunk resolution. Pre-fix it built those from
+      # RAW (undrained) imports, so a peer whose config depends on a DEFERRED
+      # include (one that deferred on a pipe-name / enrichment arg) diverged from
+      # the peer's real instantiate output (variant B) — throwing `feat missing`
+      # instead of resolving. Witnessed by deadbugs/bprime-basedrain-crosshost.
+      #
+      # The fix: B′ consumes a DRAINED import map. The cycle that forced raw —
+      # baseDrain → augmentedScopeContexts → hostConfigs → (B′ would read the
+      # drained map) — is broken by draining over a hostConfigs-NULL augmented
+      # contexts here. assemblePipes with hostConfigs=null resolves every
+      # PIPELINE-PARAMETRIC pipe value (host/user-derived, no config dependency)
+      # and leaves config-dependent pipe thunks deferred (__configThunk), so:
+      #   - pipe-arg-deferred includes whose pipe is pipeline-parametric (the
+      #     common case, incl. the witness `feat`) DRAIN correctly for B′;
+      #   - the rarer deferred-include-on-a-CONFIG-dependent-pipe sub-case stays
+      #     deferred under B′ (its pipe value genuinely needs a peer's config,
+      #     which is the cross-host thunk B′ is mid-resolving — a real recursion
+      #     no pass can break; it remains a documented limitation).
+      # No cycle: augmentedScopeContextsNoCfg / drainedForHostConfigs / spawnNode /
+      # parentState all read RAW scopeContexts + scopedClassImports only, never
+      # hostConfigs or augmentedScopeContexts.
+      augmentedScopeContextsNoCfg = assemblePipes {
+        inherit scopeContexts scopeEntityKind;
+        hostConfigs = null;
+        scopedClassImports = scopedClassImportsRaw;
+        scopedPipeEffects = result.state.scopedPipeEffects null;
+        inherit scopeParent;
+      };
+      drainedForHostConfigs = mkDrained augmentedScopeContextsNoCfg;
 
       # Parent-state bundle for node spawns. Uses the RAW scopeContexts and
       # scopedClassImports (not the augmented/drained maps): the spawned node
@@ -432,15 +479,22 @@ let
         selfRef = spawnNode;
       } mkPipeline parentState;
 
-      # Post-assembly drain: resolve deferred includes.
-      # Two categories of deferred includes are drained here:
+      # Post-assembly drain: resolve deferred includes. Parameterized by the
+      # augmented contexts the deferred-include resolution reads, so the SAME
+      # drain logic produces two maps with different cycle constraints:
+      #   - drainedClassImportsRaw       — over the hostConfigs-augmented contexts
+      #     (the host's OWN phase1–4 path; hostConfigs already resolved by then).
+      #   - drainedForHostConfigs        — over the hostConfigs-NULL augmented
+      #     contexts (the cross-host B′ peer-config build, §A #2/#7 ACCIDENT fix).
+      # Two categories of deferred includes are drained:
       # 1. Pipe-arg deferred: required args are pipe names, now available
       #    from assemblePipes.
       # 2. Enrichment-deferred: required args (e.g., isNixos) were provided
       #    by a parent scope's policy enrichment but weren't available when
       #    the child scope was walked. The drain inherits parent scope context
       #    to resolve these.
-      drainedClassImportsRaw =
+      mkDrained =
+        augmentedContexts:
         let
           allDeferred = (result.state.scopedDeferredIncludes or (_: { })) null;
           inherit (den.lib.aspects.fx.keyClassification) classifyKeys;
@@ -452,7 +506,7 @@ let
           enrichedScopeCtx =
             scopeId:
             let
-              ownCtx = augmentedScopeContexts.${scopeId} or { };
+              ownCtx = augmentedContexts.${scopeId} or { };
               inherit' =
                 sid:
                 let
@@ -462,7 +516,7 @@ let
                   { }
                 else
                   let
-                    parentCtx = augmentedScopeContexts.${pid} or { };
+                    parentCtx = augmentedContexts.${pid} or { };
                     grandparentCtx = inherit' pid;
                   in
                   grandparentCtx // parentCtx;
@@ -574,6 +628,9 @@ let
                 );
             }
         ) baseDrain (builtins.attrNames allHomeNodes);
+
+      # The host's OWN phase1–4 drain, over the hostConfigs-augmented contexts.
+      drainedClassImportsRaw = mkDrained augmentedScopeContexts;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts drainedClassImportsRaw;
       phase2 = applyProvidesEdges ctx augmentedScopeContexts scopedProvides phase1;
