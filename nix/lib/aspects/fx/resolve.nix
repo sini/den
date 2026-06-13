@@ -11,6 +11,7 @@ let
   inherit (import ./spawn-node.nix { inherit lib den; }) mkSpawnNode;
   route = import ./route { inherit lib den; };
   inherit (import ./edge-trace.nix { inherit lib den; }) extractEdgeTrace;
+  inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   handlers = den.lib.aspects.fx.handlers;
 
   # Check if `ancestor` is an ancestor of `descendant` in the scopeParent tree.
@@ -25,26 +26,13 @@ let
       parent == ancestor || isAncestorOf scopeParent ancestor parent;
 
   # Dedup provides by composite key (policyName/class/path).
-  dedupProvides =
-    raw:
+  dedupProvides = dedupByKey (
+    s:
     let
-      go =
-        seen: specs:
-        if specs == [ ] then
-          [ ]
-        else
-          let
-            s = builtins.head specs;
-            rest = builtins.tail specs;
-            pn = s.__providePolicyName or null;
-            key = if pn != null then "${pn}/${s.class}/${lib.concatStringsSep "/" (s.path or [ ])}" else null;
-          in
-          if key != null && seen ? ${key} then
-            go seen rest
-          else
-            [ s ] ++ go (if key != null then seen // { ${key} = true; } else seen) rest;
+      pn = s.__providePolicyName or null;
     in
-    go { } raw;
+    if pn != null then "${pn}/${s.class}/${lib.concatStringsSep "/" (s.path or [ ])}" else null
+  );
 
   # Phase 1: Wrap collected class imports per-scope.
   # Deduplicates modules with identical keys across scopes: when a shared
@@ -57,50 +45,14 @@ let
       wrappedPerScope = lib.mapAttrs (
         scopeId: scopeClasses: wrapCollectedClasses (scopeContexts.${scopeId} or ctx) scopeClasses
       ) scopedClassImportsRaw;
-      # Fold scopes, deduplicating keyed modules (first occurrence wins).
-      merged =
-        let
-          go =
-            acc: scopeData:
-            let
-              allClasses = lib.unique (builtins.attrNames acc.classes ++ builtins.attrNames scopeData);
-            in
-            builtins.foldl' (
-              a: cls:
-              let
-                existing = a.classes.${cls} or [ ];
-                seenKeys = a.keys.${cls} or { };
-                newMods = scopeData.${cls} or [ ];
-                filtered = builtins.filter (
-                  m:
-                  let
-                    k = m.key or null;
-                  in
-                  k == null || !(seenKeys ? ${k})
-                ) newMods;
-                addedKeys = builtins.foldl' (
-                  ks: m:
-                  let
-                    k = m.key or null;
-                  in
-                  if k == null then ks else ks // { ${k} = true; }
-                ) seenKeys filtered;
-              in
-              {
-                classes = a.classes // {
-                  ${cls} = existing ++ filtered;
-                };
-                keys = a.keys // {
-                  ${cls} = addedKeys;
-                };
-              }
-            ) acc allClasses;
-          final = builtins.foldl' go {
-            classes = { };
-            keys = { };
-          } (builtins.attrValues wrappedPerScope);
-        in
-        final.classes;
+      # Per class, concatenate every scope's modules (scope attr-name order)
+      # and dedup by key first-occurrence-wins. Equivalent to the old per-class
+      # cross-scope seenKeys fold; null-keyed (anon) modules are never deduped.
+      scopeData = builtins.attrValues wrappedPerScope;
+      allClasses = lib.unique (builtins.concatMap builtins.attrNames scopeData);
+      merged = lib.genAttrs allClasses (
+        cls: dedupByKey (m: m.key or null) (builtins.concatMap (sd: sd.${cls} or [ ]) scopeData)
+      );
     in
     {
       classImports = merged;
@@ -217,46 +169,21 @@ let
   extractSubtreeModules =
     perScope: scopeParent: scopeIsolated: rootScopeId: targetClass:
     let
-      allScopeIds = builtins.attrNames perScope;
-      # Collect descendant scope IDs by walking scopeParent — skipping isolated
-      # descendants (and everything below them). The collection root is always
-      # included: isolation gates crossing INTO an entity, not collecting AT it.
-      isInSubtree =
-        sid:
-        sid == rootScopeId
-        || (
-          !(scopeIsolated.${sid} or false)
-          && (
-            let
-              parent = scopeParent.${sid} or null;
-            in
-            parent != null && parent != sid && isInSubtree parent
-          )
-        );
-      subtreeScopes = builtins.filter isInSubtree allScopeIds;
+      # Isolation-AWARE walk: skip isolated descendants (and everything below
+      # them). The collection root is always included: isolation gates crossing
+      # INTO an entity, not collecting AT it.
+      scopes = subtreeScopes {
+        inherit scopeParent;
+        isolated = scopeIsolated;
+        root = rootScopeId;
+        allScopeIds = builtins.attrNames perScope;
+      };
       # Collect modules from all subtree scopes, deduplicating by key.
       # Same aspect included at multiple scope levels (host default + user default)
       # produces identical static modules; first occurrence wins.
       # Named modules carry `key`; anon modules carry `_file` from setDefaultModuleLocation.
-      raw = lib.concatMap (sid: perScope.${sid}.${targetClass} or [ ]) subtreeScopes;
-      deduped =
-        let
-          go =
-            seen: mods:
-            if mods == [ ] then
-              [ ]
-            else
-              let
-                m = builtins.head mods;
-                rest = builtins.tail mods;
-                k = m.key or null;
-              in
-              if k != null && seen ? ${k} then
-                go seen rest
-              else
-                [ m ] ++ go (if k != null then seen // { ${k} = true; } else seen) rest;
-        in
-        go { } raw;
+      raw = lib.concatMap (sid: perScope.${sid}.${targetClass} or [ ]) scopes;
+      deduped = dedupByKey (m: m.key or null) raw;
     in
     if deduped == [ ] then null else deduped;
 
@@ -283,15 +210,17 @@ let
       preWalkedModules =
         if hostScopeId != null then
           let
-            isInSubtree =
-              sid:
-              sid == hostScopeId
-              || (
-                let
-                  parent = scopeParent.${sid} or null;
-                in
-                parent != null && parent != sid && isInSubtree parent
-              );
+            # Isolation-BLIND collect (census #10): the per-host re-walk collects
+            # sub-phases over the blind set, then extractSubtreeModules extracts
+            # over the isolation-AWARE set below. Pass `isolated = {}` explicitly
+            # — defaulting it would collapse this deliberate blind/aware split.
+            subtreeScopeIds = subtreeScopes {
+              inherit scopeParent allScopeIds;
+              isolated = { };
+              root = hostScopeId;
+            };
+            subtreeSet = lib.genAttrs subtreeScopeIds (_: true);
+            isInSubtree = sid: subtreeSet ? ${sid};
             isAncestor =
               sid:
               let
@@ -299,7 +228,6 @@ let
               in
               sid == parent || (parent != null && parent != hostScopeId && isAncestorOf scopeParent sid parent);
             isRelevant = sid: isInSubtree sid || isAncestor sid;
-            subtreeScopeIds = builtins.filter isInSubtree allScopeIds;
             relevantScopeIds = builtins.filter isRelevant allScopeIds;
             scopeEntityClassMap = scopeEntityClass null;
             subtreeContexts = lib.genAttrs subtreeScopeIds (

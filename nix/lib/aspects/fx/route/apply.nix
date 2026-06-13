@@ -7,6 +7,7 @@
   collectClassMods,
 }:
 let
+  inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes;
   # Root-scope `fromClass` content a child-scope forward may pull in. When
   # `fromClass` is a class some entity in the chain owns, root content under it
   # is that entity's own declaration, not aggregation fodder — restrict to
@@ -150,22 +151,15 @@ let
   collectFromSubtree =
     wrappedPerScope: scopeParent: scopeIsolated: rootScopeId: fromClass:
     let
-      allScopeIds = builtins.attrNames wrappedPerScope;
-      isInSubtree =
-        sid:
-        sid == rootScopeId
-        || (
-          !(scopeIsolated.${sid} or false)
-          && (
-            let
-              parent = scopeParent.${sid} or null;
-            in
-            parent != null && parent != sid && isInSubtree parent
-          )
-        );
-      subtreeScopes = builtins.filter isInSubtree allScopeIds;
+      # Isolation-AWARE walk.
+      scopes = subtreeScopes {
+        inherit scopeParent;
+        isolated = scopeIsolated;
+        root = rootScopeId;
+        allScopeIds = builtins.attrNames wrappedPerScope;
+      };
     in
-    lib.concatMap (sid: wrappedPerScope.${sid}.${fromClass} or [ ]) subtreeScopes;
+    lib.concatMap (sid: wrappedPerScope.${sid}.${fromClass} or [ ]) scopes;
 
   applySimpleRoute =
     acc:

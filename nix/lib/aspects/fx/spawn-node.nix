@@ -9,6 +9,7 @@
 { lib, den }:
 let
   inherit (import ./assemble-pipes.nix { inherit lib den; }) assemblePipes;
+  inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes;
   inherit (import ./handlers/route.nix { inherit lib; }) routeKey;
   pipeNamesSet = lib.genAttrs (builtins.attrNames (den.quirks or { })) (_: true);
 in
@@ -125,8 +126,22 @@ in
       # can register in both pipelines, and a duplicated path != [] simple
       # route would re-nest content in fresh keyless wrappers and conflict
       # at the target.
+      # Isolation-BLIND subtree membership rooted at spawnRoot, over the merged
+      # parent DAG. `isolated = {}` is passed EXPLICITLY (census #6 documented
+      # invariant: isolated entities resolve via resolve.to in the host pipeline,
+      # never through spawnNode, so no isolated descendant can appear under
+      # spawnRoot). Walked over mergedScopeParent + route-scope keys (NOT
+      # phase3.perScope) to avoid a cycle: phase3 depends on parentSubtreeRoutes.
+      subtreeSet = lib.genAttrs (subtreeScopes {
+        scopeParent = mergedScopeParent;
+        isolated = { };
+        root = spawnRoot;
+        allScopeIds = lib.unique (
+          builtins.attrNames mergedScopeParent ++ builtins.attrNames parentState.scopedRoutes
+        );
+      }) (_: true);
       spawnRoutes = result.state.scopedRoutes null;
-      parentSubtreeRoutes = lib.filterAttrs (sid: _: isInSubtree sid) parentState.scopedRoutes;
+      parentSubtreeRoutes = lib.filterAttrs (sid: _: subtreeSet ? ${sid}) parentState.scopedRoutes;
       mergedSpawnRoutes =
         spawnRoutes
         // lib.mapAttrs (
@@ -150,22 +165,13 @@ in
       # on the same host) — so reading it directly would leak a peer user's
       # homeManager content into this node. The fleet pipe values still resolve
       # correctly because assemblePipes ran over the full merged state; only the
-      # final per-scope class buckets are subtree-restricted here.
-      # Isolation-blind by design: isolated entities resolve via resolve.to in
-      # the host pipeline, never through spawnNode, so no isolated descendant
-      # can appear under spawnRoot. Revisit if that invariant ever changes.
-      isInSubtree =
-        sid:
-        sid == spawnRoot
-        || (
-          let
-            parent = mergedScopeParent.${sid} or null;
-          in
-          parent != null && parent != sid && isInSubtree parent
-        );
-      subtreeScopes = builtins.filter isInSubtree (builtins.attrNames phase3.perScope);
+      # final per-scope class buckets are subtree-restricted here (subtreeSet,
+      # the isolation-blind membership defined above with the parentSubtreeRoutes
+      # filter — both consumers share one blind walk).
     in
     {
-      imports = lib.concatMap (sid: phase3.perScope.${sid}.${class} or [ ]) subtreeScopes;
+      imports = lib.concatMap (sid: phase3.perScope.${sid}.${class} or [ ]) (
+        builtins.filter (sid: subtreeSet ? ${sid}) (builtins.attrNames phase3.perScope)
+      );
     };
 }

@@ -30,6 +30,9 @@ let
   # point of the extractor is to render the decisions the current code makes.
   route = import ./route { inherit lib den; };
   inherit (route) dedupRoutes findChildScopeKeys;
+  # Share the ONE subtree walk with production (resolve.nix / route / spawn) so
+  # the oracle and the real pipeline can never diverge on subtree membership.
+  inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes;
 
   # --- scope naming -------------------------------------------------------
 
@@ -92,21 +95,10 @@ let
       allScopeIds,
     }:
     root:
-    let
-      isIn =
-        sid:
-        sid == root
-        || (
-          !(scopeIsolated.${sid} or false)
-          && (
-            let
-              parent = scopeParent.${sid} or null;
-            in
-            parent != null && parent != sid && isIn parent
-          )
-        );
-    in
-    builtins.filter isIn allScopeIds;
+    subtreeScopes {
+      inherit scopeParent allScopeIds root;
+      isolated = scopeIsolated;
+    };
 
   # --- edge record + sort -------------------------------------------------
 
