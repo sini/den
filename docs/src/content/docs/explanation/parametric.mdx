@@ -46,6 +46,35 @@ den.aspects.firewall = {
 };
 ```
 
+## The binding rule
+
+When a parametric aspect at some scope **S** destructures an **entity-kind** arg
+(`host`, `user`, `home`, …), exactly one of three things happens:
+
+1. **In-context → bind once at S.** If the kind is already in S's context (e.g.
+   a `{ user, … }` aspect included at a user scope), the arg binds and the aspect
+   emits once, at S.
+2. **Schema-DAG descendant → fan out, emit at S.** If the kind is a *descendant*
+   of S in the entity schema (e.g. a `{ user, … }` aspect included at the **host**
+   scope — users live under hosts), the aspect fans out once per matching
+   descendant, each emitting **class-locally at S**. This is how a host-scope
+   `{ user, … }` aspect produces per-user content on the host.
+3. **Neither → inert, silently.** If the kind is neither in-context nor a
+   descendant of S — including a misplaced arg, or **any entity-kind arg at the
+   root/flake scope** — the aspect contributes nothing. There is **no warning**
+   (a warning was considered and deliberately rejected: legitimate fan-out and
+   misplacement are indistinguishable without whole-fleet context, so a warning
+   would fire on correct code).
+
+<Aside type="caution" title="The silent-inert footgun">
+Because case 3 is silent, a parametric aspect that destructures an entity kind
+**not reachable from where it is included** simply does nothing — no error, no
+warning. If a parametric aspect "isn't applying," check that the arg's kind is
+in-context or a schema descendant of the include scope. Cross-entity delivery
+(e.g. a host wanting to configure a *sibling* host) is **not** expressible this
+way — use `provides` or a policy.
+</Aside>
+
 ## Where Parametric Args Work
 
 <Aside type="tip" title="Aspect level only">

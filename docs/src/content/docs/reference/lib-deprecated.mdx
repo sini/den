@@ -105,22 +105,32 @@ helper (does not warn).
 
 ## Context shortcuts
 
-Run an aspect only at a specific context level. Each returns a parametric wrapper
-(declaring deeper context keys as optional) that yields `{}` when resolved at a
-deeper level, and warns. Prefer a plain function with the level's keys, e.g.
-`({ host, user, ... }: { ... })`.
+Wrap an aspect so it requires a specific set of context keys. Each returns a
+parametric wrapper and **warns**. They are now thin aliases for a plain function
+with the same keys — i.e. `den.lib.perHost f` behaves as `({ host, ... }: f { … })`:
+the arg binds once at the emitting scope if in-ctx, fans out class-locally over
+that scope's descendants otherwise, and is inert if misplaced. Prefer the plain
+function form, e.g. `({ host, user, ... }: { ... })`.
+
+<Aside type="caution" title="Semantics changed">
+Earlier releases made these wrappers *self-suppress* — yield `{}` when resolved
+at a deeper context level. That was the cross-scope-deferral behavior fixed in
+the binding-half rewrite (see [Parametric Aspects](/explanation/parametric/)).
+The shims no longer self-suppress; they deliver the current binding rule. A
+config that relied on the old silent `{}` will now see the wrapped aspect bind.
+</Aside>
 
 ### `den.lib.perHost aspect`
 
-Run `aspect` only in `{ host }` contexts.
+Wrap `aspect` to require `{ host }`.
 
 ### `den.lib.perUser aspect`
 
-Run `aspect` only in `{ host, user }` contexts.
+Wrap `aspect` to require `{ host, user }`.
 
 ### `den.lib.perHome aspect`
 
-Run `aspect` only in `{ home }` contexts.
+Wrap `aspect` to require `{ home }`.
 
 ## `den.lib.resolveStage`
 

@@ -131,12 +131,13 @@ nix-repl> cfg.networking.hostName
 from `den.default`, but parametric functions in `den.default.includes`
 run at every context stage. The pipeline handles dispatch automatically
 based on function argument shape — write a bare function with the context
-args you need. The `den.lib.perHost`, `perUser`, and `perHome` shims have
-been removed; use plain parametric aspects instead:
+args you need. The `den.lib.perHost`, `perUser`, and `perHome` shims still
+exist but are deprecated (they warn and forward to the current binding rule);
+prefer plain parametric aspects:
 
 ```nix
-# Old shims (removed): den.lib.perHost, den.lib.perUser, den.lib.perHome
-# Migration — plain parametric aspect; only runs in host contexts:
+# Deprecated (warns): den.lib.perHost, den.lib.perUser, den.lib.perHome
+# Preferred — plain parametric aspect; binds host at its scope / fans out:
 ({ host, ... }: { nixos.x = 1; })
 ```
 
