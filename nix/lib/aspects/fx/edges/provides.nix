@@ -49,7 +49,7 @@ let
   # collectible, visible to a later route's getCollectedSource / subtree walk).
   #
   #   ctx           — the pipeline base ctx (fallback when a scope has no context).
-  #   scopeContexts — sid → context (for the wrap's collision policy resolution).
+  #   scopeContexts — sid → context (UNREAD; kept for signature parity, reworked in Task 10/11).
   #   scopedProvides — sid → [ provide specs ] (the registered provides).
   #   acc           — { classImports; perScope; } (phase-1 output).
   applyProvidesEdges =

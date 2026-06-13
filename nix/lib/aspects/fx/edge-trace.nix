@@ -120,7 +120,7 @@ in
       # ===== route edges =================================================
       # Rendered by the SHARED route constructor (edges/route.nix routeEdges) —
       # the SAME constructor production materializes simple routes through
-      # (route/apply.nix → edges/materialize.nix). The oracle no longer re-derives
+      # (edges/route.nix applyRoutes → materializeRouteEdge). The oracle no longer re-derives
       # suppression: the constructor's own dedup/suppression rules are EXACT here
       # (the `suppressed`/`suppressedByChildKey` annotations are the production
       # decisions, not the v0 approximation). Complex forwards keep
