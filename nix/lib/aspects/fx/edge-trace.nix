@@ -30,130 +30,25 @@ let
   # point of the extractor is to render the decisions the current code makes.
   route = import ./route { inherit lib den; };
   inherit (route) dedupRoutes findChildScopeKeys;
-  # Share the ONE subtree walk with production (resolve.nix / route / spawn) so
-  # the oracle and the real pipeline can never diverge on subtree membership.
-  inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes;
-
-  # --- scope naming -------------------------------------------------------
-
-  # Entity kind for a scope, if any. scopeEntityKind covers scopes created by
-  # `resolve.to`, but NOT the pipeline root (it is seeded from ctx, never
-  # `resolve.to`-created). For the root (and any ctx-seeded entity scope), scan
-  # the scope's own ctx for a kind-keyed record carrying an id_hash.
-  entityKindOf =
-    { scopeEntityKind, scopeContexts }:
-    sid:
-    let
-      viaKind = scopeEntityKind.${sid} or null;
-      ctx = scopeContexts.${sid} or { };
-      # A ctx key whose value is an entity record (has id_hash). Sorted for
-      # determinism; first wins (a scope carries one own-entity record).
-      ctxKinds = lib.filter (k: builtins.isAttrs (ctx.${k} or null) && (ctx.${k} ? id_hash)) (
-        lib.sort (a: b: a < b) (builtins.attrNames ctx)
-      );
-    in
-    if viaKind != null then
-      viaKind
-    else if ctxKinds != [ ] then
-      builtins.head ctxKinds
-    else
-      null;
-
-  # id_hash of the own-entity record at a scope, if the scope is an entity scope.
-  idHashOf =
-    args@{ scopeEntityKind, scopeContexts }:
-    sid:
-    let
-      kind = entityKindOf args sid;
-      erec = if kind == null then null else (scopeContexts.${sid} or { }).${kind} or null;
-    in
-    if erec == null then null else erec.id_hash or null;
-
-  # Stable scope NAME for S/T. Entity scopes → "<kind>:<id_hash>" (parent-blind
-  # identity, stable across re-keying and same-name siblings collapse by design,
-  # spec §8). Non-entity scopes (system=…, root "") → the mkScopeId string.
-  scopeName =
-    args@{ scopeEntityKind, scopeContexts }:
-    sid:
-    let
-      kind = entityKindOf args sid;
-      idHash = idHashOf args sid;
-    in
-    if kind != null && idHash != null then
-      "${kind}:${idHash}"
-    else
-      (if sid == "" then "<root>" else sid);
-
-  # --- subtree walk (isolation-aware, matching extractSubtreeModules) ------
-
-  # Scope IDs in root's subtree: root always included; isolation gates crossing
-  # INTO a descendant (resolve.nix:extractSubtreeModules / collectFromSubtree).
-  subtreeScopesOf =
-    {
-      scopeParent,
-      scopeIsolated,
-      allScopeIds,
-    }:
-    root:
-    subtreeScopes {
-      inherit scopeParent allScopeIds root;
-      isolated = scopeIsolated;
-    };
-
-  # --- edge record + sort -------------------------------------------------
-
-  mkEdge =
-    {
-      source,
-      target,
-      path ? [ ],
-      mode,
-      annotations ? { },
-    }:
-    {
-      inherit
-        source
-        target
-        path
-        mode
-        annotations
-        ;
-    };
-
-  # Canonical string keys for stable sort (spec §8: T, P, S, M).
-  targetKey =
-    t: if t ? output then "out:${lib.concatStringsSep "." t.output}" else "root:${t.root}/${t.class}";
-  pathKey = p: lib.concatStringsSep "/" p;
-  sourceKey =
-    s:
-    if s ? collected then
-      "collected:${s.collected.scope}/${s.collected.class}"
-    else if s ? rewalk then
-      "rewalk:${s.rewalk.aspect}/${lib.concatStringsSep "+" s.rewalk.bindings}/${s.rewalk.class}"
-    else if s ? synthesize then
-      "synthesize:${s.synthesize.forwardId}/${s.synthesize.fromClass}>${s.synthesize.intoClass}"
-    else
-      "empty";
-  edgeSortKey =
-    e:
-    lib.concatStringsSep " | " [
-      (targetKey e.target)
-      (pathKey e.path)
-      (sourceKey e.source)
-      e.mode
-    ];
-
-  sortEdges = edges: lib.sort (a: b: edgeSortKey a < edgeSortKey b) edges;
-
-  # --- S/T constructors ---------------------------------------------------
-
-  collected = scope: class: { collected = { inherit scope class; }; };
-  rewalk = aspect: bindings: class: { rewalk = { inherit aspect bindings class; }; };
-  synthesize = forwardId: fromClass: intoClass: {
-    synthesize = { inherit forwardId fromClass intoClass; };
-  };
-  rootTarget = root: class: { inherit root class; };
-  outputTarget = output: { inherit output; };
+  # The shared edge record, sort key, scope-naming, and S/T constructors — the
+  # ONE edge definition production (edges/default.nix) and this oracle share, so
+  # they can never diverge (spec §3a convergence). EXTRACTED to edges/edge.nix.
+  inherit (import ./edges/edge.nix { inherit lib; })
+    entityKindOf
+    scopeName
+    mkEdge
+    sortEdges
+    collected
+    rewalk
+    synthesize
+    rootTarget
+    outputTarget
+    ;
+  # The default-fold edge constructor — the SAME constructor production resolves
+  # the per-host extraction through (edges/materialize.nix). v0's inline default-
+  # fold arm is REPLACED by this import so extractor and production converge on
+  # one constructor (spec §3a).
+  inherit (import ./edges/default.nix { inherit lib; }) defaultFoldEdges;
 in
 {
   # extractEdgeTrace: pipeline end-state → stably-sorted normalized edge list.
@@ -186,45 +81,21 @@ in
       );
 
       # ===== default fold edges ==========================================
-      # One per entity-root scope per class with content:
-      #   collected(subtree minus isolated, class) → (root, class), P=[], M=merge.
-      # Source content is collected from the isolation-aware subtree; the edge
-      # records the source as the subtree's ROOT scope name + class (the
-      # collection is keyed by root, not enumerated per-scope — spec §8 records
-      # the collected(scope,class) identity, not content).
-      defaultFoldEdges = builtins.concatLists (
-        map (
-          rootSid:
-          let
-            subtree = subtreeScopesOf {
-              inherit scopeParent scopeIsolated allScopeIds;
-            } rootSid;
-            # Classes with any content anywhere in the subtree.
-            classesWithContent = lib.unique (
-              builtins.concatLists (map (sid: builtins.attrNames (scopedClassImports.${sid} or { })) subtree)
-            );
-            hasContent = cls: builtins.any (sid: (scopedClassImports.${sid} or { }) ? ${cls}) subtree;
-            # The normalized names of every scope this fold collects from — the
-            # isolation-aware subtree (an isolated descendant is its OWN root, so
-            # it is ABSENT here). Surfaced as an annotation so the isolation-as-
-            # edge-absence corollary can assert with teeth: an isolated child's
-            # scope name must NOT appear in its parent fold's collectedScopes.
-            collectedScopes = lib.sort (a: b: a < b) (lib.unique (map name subtree));
-          in
-          map (
-            cls:
-            mkEdge {
-              source = collected (name rootSid) cls;
-              target = rootTarget (name rootSid) cls;
-              path = [ ];
-              mode = "merge";
-              annotations = {
-                inherit collectedScopes;
-              };
-            }
-          ) (builtins.filter hasContent classesWithContent)
-        ) entityRootScopes
-      );
+      # The SAME constructor production routes the per-host extraction through
+      # (edges/default.nix defaultFoldEdges → edges/materialize.nix). v0's inline
+      # arm is gone; the oracle and production share one constructor (spec §3a).
+      # classContentAt = the per-scope class buckets (only `? class` membership is
+      # read for content presence).
+      defaultFold = defaultFoldEdges {
+        inherit
+          name
+          scopeParent
+          scopeIsolated
+          allScopeIds
+          entityRootScopes
+          ;
+        classContentAt = scopedClassImports;
+      };
 
       # ===== provides edges (two-edge decomposition, §B Decision 1) ======
       # A provides spec → a nest edge into the SOURCE scope's bucket
@@ -505,7 +376,7 @@ in
         ) instGrouped
       );
 
-      allEdges = defaultFoldEdges ++ providesEdges ++ routeEdges ++ spawnEdges ++ instantiateEdges;
+      allEdges = defaultFold ++ providesEdges ++ routeEdges ++ spawnEdges ++ instantiateEdges;
     in
     sortEdges allEdges;
 }

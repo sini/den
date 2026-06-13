@@ -12,6 +12,7 @@ let
   route = import ./route { inherit lib den; };
   inherit (import ./edge-trace.nix { inherit lib den; }) extractEdgeTrace;
   inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
+  inherit (import ./edges/materialize.nix { inherit lib; }) assembleSubtree;
   handlers = den.lib.aspects.fx.handlers;
 
   # Check if `ancestor` is an ancestor of `descendant` in the scopeParent tree.
@@ -163,29 +164,10 @@ let
     else
       null;
 
-  # Extract merged modules for a scope subtree (the scope + all descendants).
-  # This produces the complete module set for a host: host-scope modules,
-  # user-scope modules, and route-delivered modules — all in one list.
-  extractSubtreeModules =
-    perScope: scopeParent: scopeIsolated: rootScopeId: targetClass:
-    let
-      # Isolation-AWARE walk: skip isolated descendants (and everything below
-      # them). The collection root is always included: isolation gates crossing
-      # INTO an entity, not collecting AT it.
-      scopes = subtreeScopes {
-        inherit scopeParent;
-        isolated = scopeIsolated;
-        root = rootScopeId;
-        allScopeIds = builtins.attrNames perScope;
-      };
-      # Collect modules from all subtree scopes, deduplicating by key.
-      # Same aspect included at multiple scope levels (host default + user default)
-      # produces identical static modules; first occurrence wins.
-      # Named modules carry `key`; anon modules carry `_file` from setDefaultModuleLocation.
-      raw = lib.concatMap (sid: perScope.${sid}.${targetClass} or [ ]) scopes;
-      deduped = dedupByKey (m: m.key or null) raw;
-    in
-    if deduped == [ ] then null else deduped;
+  # The per-host subtree extraction that produced the complete module set for a
+  # host (host-scope + user-scope + route-delivered modules, key-deduped) now
+  # routes through the edge materializer's merge mode (edges/materialize.nix
+  # assembleSubtree) — the default-fold port (Task 7). See mkInstantiateArgs.
 
   # Build instantiateArgs for a spec without calling spec.instantiate.
   # Factored out so both applyInstantiates and hostConfigs can reuse it.
@@ -252,8 +234,34 @@ let
             subtreePhase3 =
               applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
                 subtreePhase2;
+            # Default-fold port (Task 7): the per-host final extraction routes
+            # through the edge materializer. This re-entry (census variant B)
+            # constructs an EXPLICIT Π(root) record — the variant becomes visible
+            # data instead of implicit state-threading. assembleSubtree resolves
+            # the isolation-AWARE subtree boundary (isolationMode = "aware") and
+            # merge-materializes the host class bucket (the wrapPerScope/
+            # extractSubtreeModules merge semantics). Fields not consumed by the
+            # default-fold merge (contexts/provides/routes) are carried for the
+            # per-port absorption of this re-entry (Tasks 8–11).
+            pi = {
+              perScope = subtreePhase3.perScope;
+              classImports = subtreePhase3.classImports;
+              scopeContexts = relevantContexts;
+              contextsAreAugmented = true;
+              provides = subtreeProvides;
+              routes = subtreeRoutes;
+              rootScopeId = hostScopeId;
+              inherit scopeParent scopeIsolated;
+              isolationMode = "aware";
+              classInject = null;
+            };
+            assembled = assembleSubtree {
+              root = hostScopeId;
+              inherit pi;
+            };
+            hostModules = assembled.${hostClass} or [ ];
           in
-          extractSubtreeModules subtreePhase3.perScope scopeParent scopeIsolated hostScopeId hostClass
+          if hostModules == [ ] then null else hostModules
         else
           null;
       modules =
