@@ -189,8 +189,8 @@ let
               classImports = subtreePhase3.classImports;
               # §A #9: scopeContexts is the subtree-ONLY context slice (NOT
               # subtree+ancestors). provides/routes are the wider subtree+ancestor
-              # fields. Inert for the default-fold merge (which reads perScope),
-              # but the correct scope-set for the Tasks 8/9 materializers that
+              # fields. Inert for the default-fold merge (which reads perScope);
+              # the correct scope-set for the route/provides materializers that
               # consume pi.scopeContexts.
               scopeContexts = subtreeContexts;
               contextsAreAugmented = true;
