@@ -13,7 +13,6 @@ let
     resolveResultOption
     pathSetByScopeOption
     resolvedCtxModule
-    reservedSystems
     preprocessHosts
     ;
 

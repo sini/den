@@ -7,7 +7,6 @@
   ...
 }:
 let
-
   lookupEntries =
     registry: nodeIdentity:
     let
