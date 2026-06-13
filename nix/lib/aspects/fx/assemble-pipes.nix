@@ -139,7 +139,10 @@ let
   #                                         each value with its SOURCE scope)
   #   passthrough wrapped -> bool         (skip filter/transform — the plain
   #                                         path passes __configThunk markers
-  #                                         through unchanged; provenance never)
+  #                                         through unchanged; provenance never:
+  #                                         the legacy provenance interpreter had
+  #                                         no __configThunk guard, preserved
+  #                                         bug-for-bug — do not "fix")
   idFunctor = {
     unwrap = v: v;
     rewrap = _old: raw: raw;
