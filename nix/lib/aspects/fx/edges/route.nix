@@ -1,7 +1,7 @@
 # route.nix — the simple-route edge constructor (spec §3c "edge collection",
 # §B Decision 4 matrix). A `scopedRoutes` simple-route spec becomes a delivery
 # edge per the §B 10-cell reachable matrix; the edge's MODE (merge | nest |
-# nest-verbatim) and edge PROPERTIES (adaptArgs, guard, combineSingleEval,
+# nest-verbatim) and edge PROPERTIES (adaptArgs, guard, #572-combine,
 # ensureTargetPath, adapterKey, instantiate, collectSubtree, to=parent) drive
 # the materializer's mode switch (edges/materialize.nix). No new modes — the §B
 # hybrids decompose into mode + properties.
@@ -49,6 +49,7 @@ let
         values = map (d: d.value) defs;
         first = builtins.head values;
         allLists = builtins.all builtins.isList values;
+        # Derivations are attrsets but must not deep-merge — treat as opaque.
         allMergeableAttrs = builtins.all (v: builtins.isAttrs v && !(lib.isDerivation v)) values;
       in
       if builtins.length defs == 1 then
@@ -197,11 +198,7 @@ let
     let
       adapted = map (adaptModule adaptArgs path) modules;
     in
-    if adapted == [ ] then
-      # cell 5: ensureTargetPath materializes an empty attrset at P so the option
-      # lands; otherwise no module.
-      lib.optional ensureTargetPath { config = lib.setAttrByPath path { }; }
-    else if adaptArgs != null && path != [ ] && !reinstantiate then
+    if adaptArgs != null && path != [ ] && !reinstantiate then
       # cell 3 (#572): ONE combined evalModules.
       [
         (guardModule guard (nestWithAdaptArgs path adaptArgs { imports = adapted; }))

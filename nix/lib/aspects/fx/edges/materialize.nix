@@ -4,9 +4,11 @@
 # re-entries' final extraction; phase ordering becomes edge toposort (corollary
 # 5) as later mechanisms are ported.
 #
-# This task (Task 7) exercises the `merge` mode only — the default-fold port. The
-# `nest`/`nest-verbatim` arms throw an explicit "not yet ported" marker
-# (Task 8); an explicit unreachable beats a silent wrong materialization.
+# Tasks 7–8 are complete: `merge` (default-fold port) and `nest`/`nest-verbatim`
+# (route delivery via materializeRouteEdge) are both live. The else-throw in the
+# `materialize` switch below is NOT a Task 8 stub — it is permanently correct:
+# `assembleSubtree` carries merge edges only; route nest/nest-verbatim delivery
+# folds through route/apply.nix:applySimpleRoute → materializeRouteEdge.
 #
 # DESIGN INVARIANTS (spec §2 corollaries; enforced by the entity-isolation suite
 # and the delivery-edges fixtures):
@@ -112,9 +114,7 @@ rec {
       lib.optional m.ensureTargetPath { config = lib.setAttrByPath m.path { }; }
     else if m.kind == "adapter" then
       # cell 6: the adapter functor module (dynamic P resolved at evalModules).
-      lib.optional (m.modules != [ ] || m.adapterPresent) (
-        mkAdapterFunctor m.adapterRoute m.sourceModules
-      )
+      [ (mkAdapterFunctor m.adapterRoute m.sourceModules) ]
     else
       # cells 1–4: nest | nest-verbatim | merge contribution (P=[]), + #572.
       materializeNest {

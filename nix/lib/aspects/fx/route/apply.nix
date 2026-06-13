@@ -77,6 +77,7 @@ let
     };
   };
 
+  # Task 9: scheduled deletion (complex-forward port).
   applyComplexRoute =
     acc:
     {
