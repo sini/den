@@ -120,7 +120,8 @@ policy.route {
 
 Deliver a module directly to a target class, bypassing the aspect tree. A
 permanent sugar shim over [`policy.deliver`](#policydeliver-spec) with a module
-source (`class`→`to`, `module`→`from.module`, `path`→`at`):
+source (`class`→`to`, `module`→`from.module`, `path`→`at`; `mode` is derived
+from `path` — `merge` at the root, `nest` under a non-empty `path`):
 
 ```nix
 policy.provide { class = "nixos"; module = { pkgs, ... }: { ... }; }

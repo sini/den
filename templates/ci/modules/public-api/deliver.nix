@@ -170,36 +170,69 @@ in
     );
 
     # ===== mode rejects unknown values ==================================
+    # tryEval can't capture the throw message, so pair the failing call with a
+    # positive control differing ONLY in `mode` — proves the throw is mode
+    # validation, not an unrelated eval error giving a false `success = false`.
     test-deliver-bad-mode-throws = denTest (
       { den, ... }:
       {
-        expr =
-          (builtins.tryEval (
-            den.lib.policy.deliver {
-              from = "x";
-              to = "y";
-              mode = "bogus";
-            }
-          )).success;
-        expected = false;
+        expr = {
+          bogus =
+            (builtins.tryEval (
+              den.lib.policy.deliver {
+                from = "x";
+                to = "y";
+                mode = "bogus";
+              }
+            )).success;
+          control =
+            (builtins.tryEval (
+              den.lib.policy.deliver {
+                from = "x";
+                to = "y";
+                mode = "merge";
+              }
+            )).success;
+        };
+        expected = {
+          bogus = false;
+          control = true;
+        };
       }
     );
 
     # ===== verbatim rejected for module sources =========================
+    # Positive control: the SAME module source with mode = "nest" succeeds, so
+    # the failure is the verbatim×module rule, not the module shape.
     test-deliver-verbatim-module-throws = denTest (
       { den, ... }:
       {
-        expr =
-          (builtins.tryEval (
-            den.lib.policy.deliver {
-              from = {
-                module = { };
-              };
-              to = "y";
-              mode = "verbatim";
-            }
-          )).success;
-        expected = false;
+        expr = {
+          verbatim =
+            (builtins.tryEval (
+              den.lib.policy.deliver {
+                from = {
+                  module = { };
+                };
+                to = "y";
+                mode = "verbatim";
+              }
+            )).success;
+          control =
+            (builtins.tryEval (
+              den.lib.policy.deliver {
+                from = {
+                  module = { };
+                };
+                to = "y";
+                mode = "nest";
+              }
+            )).success;
+        };
+        expected = {
+          verbatim = false;
+          control = true;
+        };
       }
     );
 
