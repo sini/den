@@ -90,10 +90,11 @@ let
     in
     builtins.any inScope allEntries;
 
-  # In-flight pathSet is not class-partitioned, so forClass approximates
-  # as forAnyClass (may produce false positives across classes, never false
-  # negatives). Accurate enough for guards — the pathSet reflects all
-  # classes walked so far in the current resolution.
+  # The pathSet handed in is the scope-restricted union (scopedPathSet over
+  # currentScope + ancestors, #613) — an entity's own + inherited membership.
+  # It is not class-partitioned, so forClass approximates as forAnyClass (may
+  # produce false positives across classes within that scope, never false
+  # negatives).
   mkPipelineHasAspect = pathSet: excludeCheck: {
     __functor =
       _: ref:

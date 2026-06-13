@@ -116,6 +116,10 @@ let
       };
   };
 
+  # UNUSED since #613 (conditional guards now read the scope-restricted
+  # pathSetByScope from state directly, not this flat-pathSet effect). Zero
+  # senders remain; kept only because it is installed in ~17 handler sets
+  # (pipeline + internal-api tests) — remove in a dead-code sweep, not here.
   pathSetHandler = {
     "get-path-set" =
       { param, state }:
