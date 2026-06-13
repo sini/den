@@ -1,6 +1,6 @@
 # Typed policy effect constructors.
 # Policies return lists of these; the pipeline dispatches on __policyEffect.
-{ ... }:
+{ lib, ... }:
 let
   # Coerce a value into an inner policy record for use in `for` / `when`.
   # Accepts: policies (__isPolicy), effect descriptors (__policyEffect),
@@ -32,8 +32,95 @@ let
         name = "<inline>";
         fn = p;
       };
+
+  # ===== deliver — the user-facing delivery-edge constructor ============
+  # `deliver` is the public primitive over the edge layer (spec §4): it declares
+  # ONE delivery edge `(S, T, P, M)` and nothing else. `route` and `provides`
+  # (the attrset entries below) are PERMANENT shims that desugar onto it, so
+  # `deliver` lives in this `let` block where both can reference it.
+  #
+  #   deliver {
+  #     from;            # the source S:
+  #                      #   - a class name (string)  → collect that class's bucket
+  #                      #     and move it (the route case);
+  #                      #   - { module = <mod>; }      → inject a NEW module that
+  #                      #     did not come from the walk (the provides case).
+  #     to;              # target class T (the instantiation-root class).
+  #     at ? [ ];        # attrpath P inside T's config ([] = merge at root).
+  #     mode ? "merge";  # M, explicit and exhaustive: "merge" | "nest" | "verbatim".
+  #     guard ? null;    # optional conditional gate (class-source only).
+  #     adaptArgs ? null;# optional specialArgs adapter (class-source only).
+  #   }
+  #
+  # Surface rules (spec §4, binding):
+  #   - `mode = "verbatim"` is EXPLICIT — there is no `reinstantiate` flag on
+  #     `deliver` and no isolation-derived verbatim magic (rejected by the spec).
+  #     The `route` shim maps its legacy `reinstantiate = true` to `mode =
+  #     "verbatim"` so existing users keep working without touching `deliver`.
+  #   - `appendToParent` is NOT accepted here — `to` already names the target;
+  #     parent-targeting is constructor-internal (Task 8 fixed T = parent root at
+  #     construction) and reachable only through the `route` shim for compat.
+  #
+  # `deliver` produces the same effect descriptor the edge constructors already
+  # consume (`route` / `provide`), so the materializer never learns a new
+  # mechanism name (spec §2 invariant). Shims thread their mechanism-only fields
+  # through the internal `__extra` escape hatch — never part of the user surface.
+  deliver =
+    {
+      from,
+      to,
+      at ? [ ],
+      mode ? "merge",
+      guard ? null,
+      adaptArgs ? null,
+      __extra ? { },
+    }:
+    let
+      validModes = {
+        merge = true;
+        nest = true;
+        verbatim = true;
+      };
+      isModuleSource = builtins.isAttrs from && from ? module;
+    in
+    if !(validModes ? ${mode}) then
+      throw "den: deliver: mode must be one of merge|nest|verbatim, got '${toString mode}'"
+    else if isModuleSource then
+      # Module source S = the provided module — a `provide` edge (nest ∘ merge,
+      # §B Decision 1). `verbatim` is meaningless for injected content (there is
+      # no collected wrapper to keep by reference) — reject it explicitly.
+      if mode == "verbatim" then
+        throw "den: deliver: mode \"verbatim\" applies to class sources (collected modules), not module sources"
+      else
+        {
+          __policyEffect = "provide";
+          value = {
+            class = to;
+            inherit (from) module;
+            path = at;
+          }
+          // __extra;
+        }
+    else
+      # Class source S = collected(from) — a `route` edge. mode → reinstantiate
+      # (verbatim) is the ONLY mode→flag translation; nest/merge are derived by
+      # the route classifier from path, matching the legacy route shape.
+      {
+        __policyEffect = "route";
+        value = {
+          fromClass = from;
+          intoClass = to;
+          path = at;
+          reinstantiate = mode == "verbatim";
+        }
+        // lib.optionalAttrs (guard != null) { inherit guard; }
+        // lib.optionalAttrs (adaptArgs != null) { inherit adaptArgs; }
+        // __extra;
+      };
 in
 {
+  inherit deliver;
+
   # Create a new context scope (fan-out). Each resolve creates a parallel
   # branch — a sibling context with new bindings merged into parent.
   # policy.resolve {} (empty bindings) is a no-op.
@@ -100,6 +187,16 @@ in
   # Route class or quirk content from one scope partition into a target class.
   # Tier 1 delivery — replaces den.batteries.forward for the common case.
   #
+  # SHIM over `deliver` (spec §4): `route` is PERMANENT user-API sugar and may
+  # live on indefinitely. It desugars its full legacy signature onto a single
+  # `deliver` edge: `fromClass`→`from`, `intoClass`→`to`, `path`/`intoPath`→`at`,
+  # and `reinstantiate = true`→`mode = "verbatim"`. The mechanism-only fields
+  # (`collectSubtree`, `appendToParent`, `instantiate`, `adapterKey`,
+  # `adapterModule`, …) are route-internal and ride through `deliver`'s `__extra`
+  # escape hatch — they are NOT part of the `deliver` surface.
+  #
+  # TODO: add deprecation warning before any future removal.
+  #
   # `intoPath` is the public target-path name — it pairs with `intoClass` and
   # `fromClass`, matching the forward API. `path` is kept as a back-compat
   # alias; both normalize to the internal `path` key the route handler reads.
@@ -109,15 +206,36 @@ in
     spec:
     let
       path = spec.intoPath or spec.path or [ ];
+      reinstantiate = spec.reinstantiate or false;
+      # Everything that is not a clean `deliver` field is a route-internal
+      # mechanism field threaded verbatim through __extra.
+      extra = builtins.removeAttrs spec [
+        "fromClass"
+        "intoClass"
+        "intoPath"
+        "path"
+        "reinstantiate"
+        "guard"
+        "adaptArgs"
+      ];
     in
     if (spec ? intoPath) && (spec ? path) then
       throw "den: policy.route: pass either `intoPath` or `path`, not both"
     else
-      {
-        __policyEffect = "route";
-        value = builtins.removeAttrs spec [ "intoPath" ] // {
-          inherit path;
-        };
+      deliver {
+        from = spec.fromClass or "?";
+        to = spec.intoClass or "?";
+        at = path;
+        mode =
+          if reinstantiate then
+            "verbatim"
+          else if path == [ ] then
+            "merge"
+          else
+            "nest";
+        guard = spec.guard or null;
+        adaptArgs = spec.adaptArgs or null;
+        __extra = extra;
       };
 
   # Request post-pipeline instantiation of an entity's class content.
@@ -131,10 +249,32 @@ in
   # Unlike route (which moves existing pipeline content), provide injects
   # new content that didn't come from the pipeline walk.
   # spec: { class, module, path? }
-  provide = spec: {
-    __policyEffect = "provide";
-    value = spec;
-  };
+  #
+  # SHIM over `deliver` (spec §4): `provide` is PERMANENT user-API sugar. It
+  # desugars onto a module-source `deliver` edge: `class`→`to`, `module`→
+  # `from.module`, `path`→`at` (P=[] degenerates to a plain merge contribution,
+  # P≠[] is the `nest ∘ merge` decomposition). Any extra spec fields ride
+  # through `__extra`.
+  #
+  # TODO: add deprecation warning before any future removal.
+  provide =
+    spec:
+    let
+      extra = builtins.removeAttrs spec [
+        "class"
+        "module"
+        "path"
+      ];
+    in
+    deliver {
+      from = {
+        inherit (spec) module;
+      };
+      to = spec.class;
+      at = spec.path or [ ];
+      mode = if (spec.path or [ ]) == [ ] then "merge" else "nest";
+      __extra = extra;
+    };
 
   # Request a deferred node spawn. Records a marker resolved post-walk
   # over the parent pipeline's full scope-tree state (host + siblings), so the

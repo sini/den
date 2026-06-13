@@ -66,9 +66,47 @@ Remove an aspect via the constraint registry:
 policy.exclude den.aspects.unwanted
 ```
 
+### `policy.deliver spec`
+
+The user-facing **delivery primitive**: declare one delivery edge from a source
+into a target class at a path, with an explicit mode. `route` and `provide`
+(below) are sugar shims over `deliver`.
+
+```nix
+# Class source — move a class's collected content (the `route` case):
+policy.deliver {
+  from = "myClass";              # class name → collect that class's bucket
+  to = "nixos";                  # target class
+  at = [ "services" "myService" ]; # attrpath ([] = merge at the class root)
+  mode = "nest";                 # "merge" | "nest" | "verbatim"
+}
+
+# Module source — inject a NEW module (the `provide` case):
+policy.deliver {
+  from = { module = { pkgs, ... }: { ... }; };
+  to = "nixos";
+}
+```
+
+`mode` is exhaustive and explicit:
+
+- `merge` (default) — union into the target class bucket (use with `at = []`).
+- `nest` — evaluate and place the source at `at`.
+- `verbatim` — place the collected module wrappers _by reference_ so a target
+  whose option `merge` re-instantiates them (e.g. a microvm guest config) sees
+  the live modules together with its base modules. There is **no
+  `reinstantiate` flag** — verbatim is requested by `mode` directly. `verbatim`
+  applies only to class sources, not module sources.
+
+`deliver` deliberately does **not** expose `appendToParent` (parent-targeting is
+constructor-internal) — use a class source whose `to` already names the target.
+
 ### `policy.route spec`
 
-Route class or quirk content from one scope partition into a target class:
+Route class or quirk content from one scope partition into a target class. A
+permanent sugar shim over [`policy.deliver`](#policydeliver-spec) —
+`fromClass`→`from`, `intoClass`→`to`, `path`→`at`, and `reinstantiate = true`→
+`mode = "verbatim"`:
 
 ```nix
 policy.route {
@@ -80,7 +118,9 @@ policy.route {
 
 ### `policy.provide spec`
 
-Deliver a module directly to a target class, bypassing the aspect tree:
+Deliver a module directly to a target class, bypassing the aspect tree. A
+permanent sugar shim over [`policy.deliver`](#policydeliver-spec) with a module
+source (`class`→`to`, `module`→`from.module`, `path`→`at`):
 
 ```nix
 policy.provide { class = "nixos"; module = { pkgs, ... }: { ... }; }
