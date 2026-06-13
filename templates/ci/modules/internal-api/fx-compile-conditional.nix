@@ -29,9 +29,17 @@
           identity = "cond-node";
           ctx = { };
         };
+        # Guards read membership from `pathSetByScope`, scoped to the current
+        # scope + ancestors (#613). defaultState's currentScope is "__unscoped",
+        # so seed dep-a there.
         state = den.lib.aspects.fx.pipeline.defaultState // {
           pathSet = _: {
             ${identity.key { name = "dep-a"; }} = true;
+          };
+          pathSetByScope = _: {
+            "__unscoped" = {
+              ${identity.key { name = "dep-a"; }} = true;
+            };
           };
         };
         # Stub downstream effects that emitIncludes triggers.

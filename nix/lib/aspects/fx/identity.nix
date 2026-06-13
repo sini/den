@@ -84,9 +84,21 @@ let
               in
               prev
               // {
-                ${scope} = scopeSet // {
-                  ${nodeBaseKey} = true;
-                };
+                # Mirror the flat pathSet's key space (both the ctx-qualified
+                # nodeKey and the base key) so a scope-restricted union of these
+                # buckets is key-equivalent to the flat set — letting conditional
+                # guards check membership scoped to an entity's own subtree
+                # rather than the fleet-wide flat set (#613). The entity-surface
+                # projected hasAspect only reads the base key, so the extra
+                # nodeKey entry is inert there.
+                ${scope} =
+                  scopeSet
+                  // {
+                    ${nodeKey} = true;
+                  }
+                  // lib.optionalAttrs (nodeBaseKey != nodeKey) {
+                    ${nodeBaseKey} = true;
+                  };
               };
           }
           // lib.optionalAttrs (!isExcluded && !isEntityRoot) {

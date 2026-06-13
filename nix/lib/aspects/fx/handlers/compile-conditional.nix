@@ -51,6 +51,27 @@ let
     in
     go;
 
+  # Union the per-scope path sets over `scope` + its ancestors — an entity's
+  # own + inherited membership, EXCLUDING sibling / other-entity subtrees.
+  # Mirrors collectScopeConstraints' scope+ancestor walk. Guards consult THIS
+  # instead of the fleet-wide flat pathSet, which accumulated every walked
+  # scope's aspects and leaked sibling membership in an eval-order-dependent
+  # way (#613: a host's `hasAspect` guard saw an aspect another host included).
+  # pathSetByScope mirrors the flat set's key space (identity.nix), so the
+  # guard's `pathSet ? identity.key ref` check works unchanged against this union.
+  scopedPathSet =
+    pathSetByScope: scopeParentMap: scope:
+    let
+      go =
+        s: acc:
+        let
+          merged = acc // (pathSetByScope.${s} or { });
+          parent = scopeParentMap.${s} or null;
+        in
+        if parent == null || parent == s then merged else go parent merged;
+    in
+    if scope == null then { } else go scope { };
+
   # Reuse constraint lookup from constraint.nix to avoid duplicating
   # the prefix-matching logic (identity path splitting + prefix search).
   inherit (import ./constraint.nix { inherit lib den; }) lookupEntries;
@@ -168,24 +189,27 @@ in
         # Evaluate guard with exclude awareness. The constraint registry
         # has already been populated by emitPolicyEffectsThen (which
         # registers excludes before processing includes).
-        resume = fx.bind (fx.send "get-path-set" null) (
-          pathSet:
-          fx.bind fx.effects.state.get (
-            currentState:
-            let
-              scopedRegistry = (currentState.scopedConstraintRegistry or (_: { })) null;
-              scopeParentMap = (currentState.scopeParent or (_: { })) null;
-              constraintRegistry =
-                collectScopeConstraints scopedRegistry scopeParentMap currentState.currentScope
-                  { };
-              guardCtx = mkGuardCtx {
-                inherit pathSet constraintRegistry;
-                scopeHandlers = condNode.__scopeHandlers or { };
-              };
-              pass = condNode.meta.guard guardCtx;
-            in
-            if pass then emitGuardedAspects condNode else deferConditional condNode
-          )
+        # Scope the guard's membership view to this entity's own subtree
+        # (currentScope + ancestors), NOT the fleet-wide flat pathSet — the
+        # same scope+ancestor restriction already applied to the constraint
+        # registry below. Otherwise a sibling host that included the aspect
+        # earlier in the walk leaks into this guard (#613).
+        resume = fx.bind fx.effects.state.get (
+          currentState:
+          let
+            scope = currentState.currentScope;
+            pathSetByScope = (currentState.pathSetByScope or (_: { })) null;
+            scopeParentMap = (currentState.scopeParent or (_: { })) null;
+            scopedRegistry = (currentState.scopedConstraintRegistry or (_: { })) null;
+            constraintRegistry = collectScopeConstraints scopedRegistry scopeParentMap scope { };
+            guardCtx = mkGuardCtx {
+              pathSet = scopedPathSet pathSetByScope scopeParentMap scope;
+              inherit constraintRegistry;
+              scopeHandlers = condNode.__scopeHandlers or { };
+            };
+            pass = condNode.meta.guard guardCtx;
+          in
+          if pass then emitGuardedAspects condNode else deferConditional condNode
         );
         inherit state;
       };
@@ -225,57 +249,59 @@ in
             let
               drainPass =
                 pending: prevResults:
-                fx.bind (fx.send "get-path-set" null) (
-                  pathSet:
-                  fx.bind fx.effects.state.get (
-                    currentState:
-                    let
-                      # Build scope-specific constraint registry from current
-                      # scope and ancestors — tux's excludes don't leak to pingu.
-                      scopedRegistry = (currentState.scopedConstraintRegistry or (_: { })) null;
-                      scopeParentMap = (currentState.scopeParent or (_: { })) null;
-                      constraintRegistry = collectScopeConstraints scopedRegistry scopeParentMap scope { };
-                      len = builtins.length pending;
-                      go =
-                        idx: acc:
-                        if idx >= len then
-                          acc
-                        else
-                          let
-                            condNode = builtins.elemAt pending idx;
-                            guardCtx = mkGuardCtx {
-                              inherit pathSet constraintRegistry;
-                              scopeHandlers = condNode.__scopeHandlers or { };
-                            };
-                            pass = condNode.meta.guard guardCtx;
-                          in
-                          go (idx + 1) (
-                            fx.bind acc (
-                              prev:
-                              if pass then
-                                fx.bind (emitGuardedAspects condNode) (
-                                  results:
-                                  fx.pure {
-                                    emitted = prev.emitted ++ results;
-                                    failed = prev.failed;
-                                    progressed = true;
-                                  }
-                                )
-                              else
+                fx.bind fx.effects.state.get (
+                  currentState:
+                  let
+                    # Build scope-specific constraint registry AND membership
+                    # set from this deferred conditional's scope + ancestors —
+                    # tux's excludes don't leak to pingu, and a sibling host's
+                    # aspects don't leak into this guard's hasAspect (#613).
+                    scopedRegistry = (currentState.scopedConstraintRegistry or (_: { })) null;
+                    scopeParentMap = (currentState.scopeParent or (_: { })) null;
+                    pathSetByScope = (currentState.pathSetByScope or (_: { })) null;
+                    constraintRegistry = collectScopeConstraints scopedRegistry scopeParentMap scope { };
+                    guardPathSet = scopedPathSet pathSetByScope scopeParentMap scope;
+                    len = builtins.length pending;
+                    go =
+                      idx: acc:
+                      if idx >= len then
+                        acc
+                      else
+                        let
+                          condNode = builtins.elemAt pending idx;
+                          guardCtx = mkGuardCtx {
+                            pathSet = guardPathSet;
+                            inherit constraintRegistry;
+                            scopeHandlers = condNode.__scopeHandlers or { };
+                          };
+                          pass = condNode.meta.guard guardCtx;
+                        in
+                        go (idx + 1) (
+                          fx.bind acc (
+                            prev:
+                            if pass then
+                              fx.bind (emitGuardedAspects condNode) (
+                                results:
                                 fx.pure {
-                                  inherit (prev) emitted progressed;
-                                  failed = prev.failed ++ [ condNode ];
+                                  emitted = prev.emitted ++ results;
+                                  failed = prev.failed;
+                                  progressed = true;
                                 }
-                            )
-                          );
-                    in
-                    go 0 (
-                      fx.pure {
-                        emitted = prevResults;
-                        failed = [ ];
-                        progressed = false;
-                      }
-                    )
+                              )
+                            else
+                              fx.pure {
+                                inherit (prev) emitted progressed;
+                                failed = prev.failed ++ [ condNode ];
+                              }
+                          )
+                        );
+                  in
+                  go 0 (
+                    fx.pure {
+                      emitted = prevResults;
+                      failed = [ ];
+                      progressed = false;
+                    }
                   )
                 );
 
