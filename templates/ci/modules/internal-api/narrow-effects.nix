@@ -66,7 +66,6 @@ let
     rootScopeId = "__test";
     scopedIncludesChain = _: { };
     scopedConstraintRegistry = _: { };
-    scopedConstraintFilters = _: { };
     paths = [ ];
   };
 in

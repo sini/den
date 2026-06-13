@@ -83,7 +83,6 @@
           state = {
             currentScope = "__test";
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
             scopedIncludesChain = _: { };
           };
         } comp;
@@ -104,7 +103,6 @@
           state = {
             currentScope = "__test";
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
             scopedIncludesChain = _: { };
           };
         } comp;
@@ -141,7 +139,6 @@
           state = {
             currentScope = "__test";
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
             scopedIncludesChain = _: { };
           };
         } comp;
@@ -390,7 +387,6 @@
             currentScope = "__test";
             scopedIncludesChain = _: { };
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
           };
         } comp;
       in
@@ -432,7 +428,6 @@
             currentScope = "__test";
             scopedIncludesChain = _: { };
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
           };
         } comp;
       in
@@ -474,7 +469,6 @@
             currentScope = "__test";
             scopedIncludesChain = _: { };
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
           };
         } comp;
       in
@@ -510,7 +504,6 @@
             currentScope = "__test";
             scopedIncludesChain = _: { };
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
           };
         } comp;
       in
@@ -552,7 +545,6 @@
             currentScope = "__test";
             scopedIncludesChain = _: { };
             scopedConstraintRegistry = _: { };
-            scopedConstraintFilters = _: { };
           };
         } comp;
       in
