@@ -7,7 +7,6 @@
   ...
 }:
 let
-  inherit (import ./state-util.nix) scopedAppend;
 
   lookupEntries =
     registry: nodeIdentity:
@@ -67,7 +66,7 @@ let
         in
         {
           resume = null;
-          state = (scopedAppend state "scopedConstraintFilters" currentScope filterEntry) // {
+          state = state // {
             flatConstraintFilters = (state.flatConstraintFilters or [ ]) ++ [ filterEntry ];
           };
         }

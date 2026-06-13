@@ -14,15 +14,9 @@ let
       in
       {
         resume = null;
-        state =
-          (scopedMerge state "scopedAspectPolicies" state.currentScope {
-            ${param.name} = entry;
-          })
-          // {
-            flatAspectPolicies = (state.flatAspectPolicies or { }) // {
-              ${param.name} = entry;
-            };
-          };
+        state = scopedMerge state "scopedAspectPolicies" state.currentScope {
+          ${param.name} = entry;
+        };
       };
   };
 in

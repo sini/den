@@ -145,13 +145,10 @@ let
     # --- Scope-partitioned output state (handlers write here) ---
     scopedClassImports = _: { };
     scopedAspectPolicies = _: { };
-    # Pre-merged flat view (avoid O(S) rebuild per installPolicies call).
-    flatAspectPolicies = { };
     scopedDeferredIncludes = _: { };
     scopedDeferredConditionals = _: { };
     scopedIncludesChain = _: { };
     scopedConstraintRegistry = _: { };
-    scopedConstraintFilters = _: { };
     # Pre-merged flat views (avoid O(S) rebuild per check-constraint call).
     flatConstraintRegistry = { };
     flatConstraintFilters = [ ];
