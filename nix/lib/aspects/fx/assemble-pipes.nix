@@ -129,25 +129,63 @@ let
     hostConfigs: scopeContexts: scopeId: values:
     builtins.concatMap (resolveEntry hostConfigs scopeContexts scopeId) values;
 
-  # Apply a single transform stage to a value list.
-  # Config thunk markers (__configThunk) pass through filter/transform unchanged.
-  applyStage =
-    values: stage:
+  # Value functor: lets ONE stage interpreter run over either bare values (the
+  # plain path) or provenance-tagged values ({ __pv = value; __ps = scopeId; }).
+  # Each functor supplies:
+  #   unwrap     wrapped -> raw           (read the underlying value)
+  #   rewrap     wrapped -> raw -> wrapped (replace value, keep tag — transform)
+  #   seed       scopeId -> raw -> wrapped (tag a fresh value at a given scope —
+  #                                         fold/append/for re-tag, collect tags
+  #                                         each value with its SOURCE scope)
+  #   passthrough wrapped -> bool         (skip filter/transform — the plain
+  #                                         path passes __configThunk markers
+  #                                         through unchanged; provenance never)
+  idFunctor = {
+    unwrap = v: v;
+    rewrap = _old: raw: raw;
+    seed = _scope: raw: raw;
+    passthrough = v: v ? __configThunk;
+  };
+  pvFunctor = {
+    unwrap = v: v.__pv;
+    rewrap = old: raw: old // { __pv = raw; };
+    seed = scope: raw: {
+      __pv = raw;
+      __ps = scope;
+    };
+    passthrough = _v: false;
+  };
+
+  # Apply a single filter/transform/fold/append/for stage to a value list,
+  # interpreted through `functor`. `currentScopeId` is the scope new values
+  # (fold/append/for results) are re-tagged to.
+  applyStageWith =
+    functor: currentScopeId: values: stage:
     let
       t = stage.__pipeStage or "";
+      inherit (functor)
+        unwrap
+        rewrap
+        passthrough
+        ;
+      seed = functor.seed currentScopeId;
     in
     if t == "filter" then
-      builtins.filter (v: v ? __configThunk || stage.fn v) values
+      builtins.filter (v: passthrough v || stage.fn (unwrap v)) values
     else if t == "transform" then
-      map (v: if v ? __configThunk then v else stage.fn v) values
+      map (v: if passthrough v then v else rewrap v (stage.fn (unwrap v))) values
     else if t == "fold" then
-      [ (builtins.foldl' stage.fn stage.init values) ]
+      [ (seed (builtins.foldl' (acc: v: stage.fn acc (unwrap v)) stage.init values)) ]
     else if t == "append" then
-      values ++ [ stage.value ]
+      values ++ [ (seed stage.value) ]
     else if t == "for" then
-      stage.fn values
+      map seed (stage.fn (map unwrap values))
     else
       values;
+
+  # Plain-path single-stage application (identity functor, no provenance tag).
+  # Config thunk markers (__configThunk) pass through filter/transform unchanged.
+  applyStage = applyStageWith idFunctor null;
 
   # Apply all transform stages from a pipe effect.
   applyTransformStages =
@@ -235,70 +273,16 @@ let
     in
     builtins.filter predicateMatches candidates;
 
-  # Collect quirks from all scopes matching a predicate (no parent constraint).
-  collectFromAll =
-    {
-      scopeContexts,
-      scopeEntityKind ? { },
-      scopedClassImports,
-      currentScopeId,
-      pipeName,
-      hostConfigs ? null,
-    }:
-    predicate:
-    let
-      matchingScopes = findMatchingAll {
-        inherit
-          scopeContexts
-          scopeEntityKind
-          currentScopeId
-          ;
-      } predicate;
-    in
-    lib.concatMap (
-      sid:
-      let
-        entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
-        values = flattenAndExtract entries;
-      in
-      resolveThunks hostConfigs scopeContexts sid values
-    ) matchingScopes;
-
-  # Collect quirks from sibling scopes matching a predicate.
-  collectFromPeers =
-    {
-      scopeContexts,
-      scopeParent,
-      scopeEntityKind ? { },
-      scopedClassImports,
-      currentScopeId,
-      pipeName,
-      hostConfigs ? null,
-    }:
-    predicate:
-    let
-      matchingScopes = findMatchingSiblings {
-        inherit
-          scopeContexts
-          scopeParent
-          scopeEntityKind
-          currentScopeId
-          ;
-      } predicate;
-    in
-    lib.concatMap (
-      sid:
-      let
-        entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
-        values = flattenAndExtract entries;
-      in
-      resolveThunks hostConfigs scopeContexts sid values
-    ) matchingScopes;
-
   # Process stages sequentially, including collect and withProvenance stages.
   # When withProvenance is present, values are internally tagged with source
   # scope IDs: { __pv = value; __ps = scopeId; }. The withProvenance stage
   # converts these to user-visible { value; source; } format.
+  #
+  # One interpreter, lifted over a value functor (idFunctor for the plain path,
+  # pvFunctor when withProvenance is present). filter/transform/fold/append/for
+  # go through applyStageWith; collect/collectAll resolve matching scopes and
+  # tag each collected value with its SOURCE scope (seed sid), which is the
+  # identity for the plain path and the provenance tag for the provenance path.
   processStagesWithCollect =
     {
       scopeContexts,
@@ -312,6 +296,7 @@ let
     initialValues: stages:
     let
       hasProvenance = builtins.any (s: (s.__pipeStage or "") == "withProvenance") stages;
+      functor = if hasProvenance then pvFunctor else idFunctor;
       relevantStages = builtins.filter (
         s:
         builtins.elem (s.__pipeStage or "") [
@@ -325,14 +310,21 @@ let
           "withProvenance"
         ]
       ) stages;
-      taggedInitial =
-        if hasProvenance then
-          map (v: {
-            __pv = v;
-            __ps = currentScopeId;
-          }) initialValues
-        else
-          initialValues;
+      # Tag initial values at the current scope (identity for the plain path).
+      taggedInitial = map (functor.seed currentScopeId) initialValues;
+      # Resolve a list of matching scopes into collected values, each tagged with
+      # its SOURCE scope id (not currentScopeId).
+      collectTagged =
+        matchingScopes:
+        lib.concatMap (
+          sid:
+          let
+            entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
+            rawValues = flattenAndExtract entries;
+            resolved = resolveThunks hostConfigs scopeContexts sid rawValues;
+          in
+          map (functor.seed sid) resolved
+        ) matchingScopes;
     in
     builtins.foldl' (
       values: stage:
@@ -340,113 +332,35 @@ let
         t = stage.__pipeStage or "";
       in
       if t == "collect" then
-        if hasProvenance then
-          let
-            matchingScopes = findMatchingSiblings {
-              inherit
-                scopeContexts
-                scopeParent
-                scopeEntityKind
-                currentScopeId
-                ;
-            } stage.fn;
-            collected = lib.concatMap (
-              sid:
-              let
-                entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
-                rawValues = flattenAndExtract entries;
-                resolved = resolveThunks hostConfigs scopeContexts sid rawValues;
-              in
-              map (v: {
-                __pv = v;
-                __ps = sid;
-              }) resolved
-            ) matchingScopes;
-          in
-          values ++ collected
-        else
-          values
-          ++ collectFromPeers {
+        values
+        ++ collectTagged (
+          findMatchingSiblings {
             inherit
               scopeContexts
               scopeParent
               scopeEntityKind
-              scopedClassImports
               currentScopeId
-              pipeName
-              hostConfigs
               ;
           } stage.fn
+        )
       else if t == "collectAll" then
-        if hasProvenance then
-          let
-            matchingScopes = findMatchingAll {
-              inherit
-                scopeContexts
-                scopeEntityKind
-                currentScopeId
-                ;
-            } stage.fn;
-            collected = lib.concatMap (
-              sid:
-              let
-                entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
-                rawValues = flattenAndExtract entries;
-                resolved = resolveThunks hostConfigs scopeContexts sid rawValues;
-              in
-              map (v: {
-                __pv = v;
-                __ps = sid;
-              }) resolved
-            ) matchingScopes;
-          in
-          values ++ collected
-        else
-          values
-          ++ collectFromAll {
+        values
+        ++ collectTagged (
+          findMatchingAll {
             inherit
               scopeContexts
               scopeEntityKind
-              scopedClassImports
               currentScopeId
-              pipeName
-              hostConfigs
               ;
           } stage.fn
+        )
       else if t == "withProvenance" then
         map (v: {
           value = v.__pv;
           source = scopeContexts.${v.__ps};
         }) values
-      else if hasProvenance then
-        if t == "filter" then
-          builtins.filter (v: stage.fn v.__pv) values
-        else if t == "transform" then
-          map (v: v // { __pv = stage.fn v.__pv; }) values
-        else if t == "fold" then
-          [
-            {
-              __pv = builtins.foldl' (acc: v: stage.fn acc v.__pv) stage.init values;
-              __ps = currentScopeId;
-            }
-          ]
-        else if t == "append" then
-          values
-          ++ [
-            {
-              __pv = stage.value;
-              __ps = currentScopeId;
-            }
-          ]
-        else if t == "for" then
-          map (v: {
-            __pv = v;
-            __ps = currentScopeId;
-          }) (stage.fn (map (v: v.__pv) values))
-        else
-          values
       else
-        applyStage values stage
+        applyStageWith functor currentScopeId values stage
     ) taggedInitial relevantStages;
 
   # Check whether a pipe effect has a pipe.to routing stage.
