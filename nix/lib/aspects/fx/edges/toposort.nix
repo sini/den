@@ -146,6 +146,13 @@ let
       # Kahn toposort over the index DAG. On a remaining cycle, throw with the
       # participating edge chain (mirrors route.nix:496 — a detected cycle is a
       # loud config error).
+      #
+      # STABLE: `ready` is emitted in ascending index order (it filters
+      # `remaining`, which starts as `idxs` ascending and is only ever shrunk by a
+      # membership filter that preserves order), so independent edges preserve
+      # input/construction order — load-bearing for Task 17 strict-byte
+      # (materializeUnified relies on the unified provides-then-routes edge list
+      # keeping provides BEFORE routes among independents, matching phase2∘phase3).
       go =
         emitted: remaining:
         if remaining == [ ] then

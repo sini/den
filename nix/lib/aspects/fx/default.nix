@@ -21,6 +21,7 @@
     pi = import ./edges/pi.nix { inherit lib; };
     toposort = import ./edges/toposort.nix { inherit lib; };
     materialize = import ./edges/materialize.nix { inherit lib den; };
+    materializeUnified = import ./edges/materialize-unified.nix { inherit lib den; };
     instantiateSubtree = import ./edges/instantiate-edges.nix { inherit lib den; };
   };
 }

@@ -51,45 +51,51 @@ let
   #   ctx           — the pipeline base ctx (the wrap context for every provide).
   #   scopedProvides — sid → [ provide specs ] (the registered provides).
   #   acc           — { classImports; perScope; } (phase-1 output).
+  # Materialize ONE provides spec onto the accumulator. Factored out of the
+  # applyProvidesEdges fold (additive) so a single provides spec can be
+  # materialized in interleaved order by materializeUnified (Task 17) — the per-
+  # spec body is IDENTICAL, so applyProvidesEdges (= foldl' applyOneProvide) and
+  # the interleaved fold land byte-identical content.
+  applyOneProvide =
+    ctx: prev: spec:
+    let
+      targetClass = spec.class;
+      path = spec.path or [ ];
+      sid = spec.sourceScopeId;
+      # Nest-at-P construction (P=[] degenerates to a plain merge contribution).
+      rawModule = if path == [ ] then spec.module else lib.setAttrByPath path spec.module;
+      wrapped = den.lib.aspects.fx.aspect.wrapClassModule {
+        inherit ctx;
+        module = rawModule;
+        aspectPolicy = null;
+        globalPolicy = null;
+      };
+      wrappedMod =
+        if wrapped.unsatisfied or false then
+          [ ]
+        else
+          let
+            loc = "${targetClass}@<provide>/${lib.concatStringsSep "/" path}";
+          in
+          [ (lib.setDefaultModuleLocation loc wrapped.module) ];
+    in
+    {
+      classImports = prev.classImports // {
+        ${targetClass} = (prev.classImports.${targetClass} or [ ]) ++ wrappedMod;
+      };
+      perScope = prev.perScope // {
+        ${sid} = (prev.perScope.${sid} or { }) // {
+          ${targetClass} = ((prev.perScope.${sid} or { }).${targetClass} or [ ]) ++ wrappedMod;
+        };
+      };
+    };
+
   applyProvidesEdges =
     ctx: scopedProvides: acc:
     let
       allProvides = dedupProvides (lib.concatLists (lib.attrValues scopedProvides));
     in
-    builtins.foldl' (
-      prev: spec:
-      let
-        targetClass = spec.class;
-        path = spec.path or [ ];
-        sid = spec.sourceScopeId;
-        # Nest-at-P construction (P=[] degenerates to a plain merge contribution).
-        rawModule = if path == [ ] then spec.module else lib.setAttrByPath path spec.module;
-        wrapped = den.lib.aspects.fx.aspect.wrapClassModule {
-          inherit ctx;
-          module = rawModule;
-          aspectPolicy = null;
-          globalPolicy = null;
-        };
-        wrappedMod =
-          if wrapped.unsatisfied or false then
-            [ ]
-          else
-            let
-              loc = "${targetClass}@<provide>/${lib.concatStringsSep "/" path}";
-            in
-            [ (lib.setDefaultModuleLocation loc wrapped.module) ];
-      in
-      {
-        classImports = prev.classImports // {
-          ${targetClass} = (prev.classImports.${targetClass} or [ ]) ++ wrappedMod;
-        };
-        perScope = prev.perScope // {
-          ${sid} = (prev.perScope.${sid} or { }) // {
-            ${targetClass} = ((prev.perScope.${sid} or { }).${targetClass} or [ ]) ++ wrappedMod;
-          };
-        };
-      }
-    ) acc allProvides;
+    builtins.foldl' (applyOneProvide ctx) acc allProvides;
 
   # ===== trace-facing provides edge constructor (§8 identity, no content) =
   # Renders the deduped provides specs as edge RECORDS for the oracle. Each is the
@@ -127,6 +133,7 @@ in
 {
   inherit
     dedupProvides
+    applyOneProvide
     applyProvidesEdges
     providesEdges
     ;

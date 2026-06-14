@@ -744,11 +744,20 @@ let
       allRoutes;
 in
 {
-  # Only the resolver (applyRoutes) and the read-only oracle (materializeRouteEdge,
-  # routeEdges below) consume route.nix; the rest stays internal.
+  # The resolver (applyRoutes) and the read-only oracle (materializeRouteEdge,
+  # routeEdges below) consume route.nix; the per-spec materializers + ordering
+  # helpers are ALSO surfaced (additive) so materializeUnified (Task 17) can
+  # interleave provides + routes in one ordered-dispatch fold while reusing the
+  # EXACT per-spec materialization applyRoutes uses.
   inherit
     materializeRouteEdge
     applyRoutes
+    applyComplexRouteEdge
+    applySimpleRouteEdge
+    classifyRoute
+    keptRoutes
+    suppressionVerdicts
+    orderedKeptRoutes
     ;
 
   # ===== trace-facing route edge constructor (§8 identity, no content) ===

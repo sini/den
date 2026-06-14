@@ -1,0 +1,172 @@
+# materialize-unified.nix — the ordered-dispatch delivery engine (Task 17).
+#
+# Today the fx delivery pipeline materializes via PHASE FOLDS: phase2 applies ALL
+# provides (edges/provides.nix applyProvidesEdges), THEN phase3 applies ALL routes
+# (edges/route.nix applyRoutes, which itself toposorts its route specs). The
+# accumulator `{ classImports; perScope }` threads through both.
+#
+# materializeUnified collapses that into ONE ordered-dispatch fold that INTERLEAVES
+# provides + routes in `topoSortEdges` order, reusing the EXISTING per-spec
+# materializers (provides.applyOneProvide | route.applySimpleRouteEdge |
+# route.applyComplexRouteEdge). It is order-only (Design B): because
+#
+#   - provides currently always precede routes, and
+#   - the unified edge list is built `provides-edges ++ route-edges` and run
+#     through a STABLE topoSortEdges (toposort.nix lock-in: independents keep
+#     input order),
+#
+# independent edges keep the provides-before-routes order → byte-identical to
+# phase2∘phase3; the only dependent edges (synthesize / complex forwards) land
+# AFTER their producers exactly as applyRoutes' own internal toposort already
+# orders them. The final-extraction merge stays the existing assembleSubtree step
+# (only when doFinalMerge), unchanged.
+#
+# This engine does NOT switch any production site. It is proven byte-equivalent to
+# phase2∘phase3 (+ optional assembleSubtree) by the fx-materialize-unified suite.
+{ lib, den }:
+let
+  routeEdgesMod = import ./route.nix { inherit lib den; };
+  providesMod = import ./provides.nix { inherit lib den; };
+  inherit (import ./materialize.nix { inherit lib den; }) assembleSubtree;
+  inherit (import ./toposort.nix { inherit lib; }) topoSortEdges;
+
+  inherit (routeEdgesMod)
+    applyComplexRouteEdge
+    applySimpleRouteEdge
+    orderedKeptRoutes
+    routeEdges
+    ;
+  inherit (providesMod)
+    applyOneProvide
+    dedupProvides
+    providesEdges
+    ;
+
+  # materializeUnified: ONE ordered-dispatch fold over the unified provides+routes
+  # edge set, byte-equivalent to phase2∘phase3 (+ optional assembleSubtree).
+  #
+  #   pi             — the Π(root) record (rootScopeId + the static slice). Read for
+  #                    the optional final merge (assembleSubtree) and rootScopeId.
+  #   seed           — phase-1 output { classImports; perScope } (the fold start).
+  #   ctx            — the pipeline base ctx (provides wrap context).
+  #   scopedProvides — sid → [ provide specs ] (phase-2 input).
+  #   scopedRoutes   — sid → [ route specs ] (phase-3 input).
+  #   spawnNode      — the threaded node-spawn primitive (complex-forward source).
+  #   buildForwardAspect — the synthesize constructor (handlers/forward.nix).
+  #   doFinalMerge   — true ⇒ return assembleSubtree { root; pi // acc }; false ⇒
+  #                    return the raw accumulator (caller reads classImports).
+  materializeUnified =
+    {
+      pi,
+      seed,
+      ctx,
+      scopedProvides,
+      scopedRoutes,
+      spawnNode,
+      buildForwardAspect,
+    }:
+    {
+      doFinalMerge ? false,
+      # When set, return the ORDERED dispatch sequence [ { kind; spec } ] instead of
+      # the materialized accumulator — the Task-17 equivalence proof compares this to
+      # the production phase2∘phase3 dispatch order (the load-bearing Design-B claim).
+      exposeDispatch ? false,
+    }:
+    let
+      inherit (pi)
+        rootScopeId
+        scopeContexts
+        scopeParent
+        scopeIsolated
+        ;
+      # Stable scope name for the trace-edge construction (ordering only).
+      name = den.lib.aspects.fx.edges.edge.scopeName {
+        scopeEntityKind = pi.scopeEntityKind or { };
+        inherit scopeContexts;
+      };
+
+      # ===== 1. The unified producer-edge SPEC list, phase order ============
+      # Provides FIRST (deduped, in dedupProvides order — phase2), routes SECOND
+      # (kept + toposorted, in orderedKeptRoutes order — phase3). Each spec is
+      # paired with its TRACE edge for the unified toposort (the trace edges carry
+      # the cell-model identity topoSortEdges reads; the SPEC drives materialization).
+
+      dedupedProvides = dedupProvides (lib.concatLists (lib.attrValues scopedProvides));
+      providesTraceEdges = providesEdges {
+        inherit name;
+        inherit scopedProvides;
+      };
+      # providesEdges dedups internally with the SAME dedupProvides, so the trace
+      # edge list aligns 1:1 with dedupedProvides (same order, same count).
+      providesPairs = lib.zipListsWith (spec: edge: {
+        kind = "provide";
+        inherit spec edge;
+      }) dedupedProvides providesTraceEdges;
+
+      orderedRoutes = orderedKeptRoutes rootScopeId (lib.concatLists (lib.attrValues scopedRoutes));
+      # Build the matching trace edges over the SAME kept+ordered route list, so
+      # the spec↔edge pairing is 1:1 and in the same order applyRoutes folds.
+      routeTraceEdges = routeEdges {
+        inherit name scopeParent rootScopeId;
+        rawRoutes = orderedRoutes;
+      };
+      routePairs = lib.zipListsWith (spec: edge: {
+        kind = "route";
+        inherit spec edge;
+      }) orderedRoutes routeTraceEdges;
+
+      pairs = providesPairs ++ routePairs;
+
+      # ===== 2. STABLE toposort over the paired trace edges =================
+      # Independents keep input order (provides-before-routes); synthesize edges
+      # land after the producers of their fromClass (the cell model). topoSortEdges
+      # returns reordered edge RECORDS, so we tag each edge with its source pair
+      # index (inert — the cell model reads target/source/mode/annotations only) and
+      # index the pairs back out after the sort.
+      taggedEdges = lib.imap0 (i: p: p.edge // { __pairIdx = i; }) pairs;
+      sortedTagged = topoSortEdges taggedEdges;
+      orderedPairs = map (e: builtins.elemAt pairs e.__pairIdx) sortedTagged;
+
+      # ===== 3. The interleaved ordered-dispatch fold ======================
+      # acc = { classImports; perScope }. Simple routes read the FROZEN phase-1
+      # perScope (seed.perScope), NOT the evolving acc — matching applyRoutes,
+      # whose route fold's `wrappedPerScope` is captured ONCE at fold start. Complex
+      # forwards read the EVOLVING acc (getCollectedSource reads acc.perScope).
+      wrappedPerScope = seed.perScope;
+      acc = builtins.foldl' (
+        prev: pair:
+        if pair.kind == "provide" then
+          applyOneProvide ctx prev pair.spec
+        else if pair.spec.__complexForward or false then
+          applyComplexRouteEdge prev {
+            route = pair.spec;
+            inherit
+              rootScopeId
+              scopeContexts
+              scopeParent
+              spawnNode
+              buildForwardAspect
+              ;
+          }
+        else
+          applySimpleRouteEdge prev {
+            route = pair.spec;
+            inherit wrappedPerScope scopeParent scopeIsolated;
+          }
+      ) seed orderedPairs;
+    in
+    if exposeDispatch then
+      map (p: {
+        inherit (p) kind spec;
+      }) orderedPairs
+    else if doFinalMerge then
+      assembleSubtree {
+        root = rootScopeId;
+        pi = pi // acc;
+      }
+    else
+      acc;
+in
+{
+  inherit materializeUnified;
+}

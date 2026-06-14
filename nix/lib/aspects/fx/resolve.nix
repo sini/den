@@ -20,7 +20,8 @@ let
   inherit (import ./edges/pi.nix { inherit lib; }) mkStaticPi;
   inherit (import ./edges/instantiate-edges.nix { inherit lib den; }) mkInstantiateEdges;
   inherit (import ./edges/edge.nix { inherit lib; }) scopeName;
-  inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges;
+  inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges dedupProvides;
+  inherit (import ./edges/materialize-unified.nix { inherit lib den; }) materializeUnified;
   instantiateEdges = import ./edges/instantiate.nix { inherit lib; };
   handlers = den.lib.aspects.fx.handlers;
 
@@ -869,6 +870,80 @@ let
         ++ perHostEdges
         ++ bprimeEdges
       );
+
+      # The Task-17 equivalence surface: BOTH the current phase2∘phase3 result AND
+      # the materializeUnified result over the SAME live seed (phase1) + the SAME
+      # provides/routes/spawn inputs the production phase folds consume. A lazy
+      # thunk (like edgeTrace / unifiedEdges) — forced only by the
+      # fx-materialize-unified suite, never by normal resolve consumers. This is the
+      # byte-equivalence proof for the ordered-dispatch engine: the suite deep-
+      # compares `.phaseFold` to `.unified` per topology. Not consumed by production.
+      materializeEquiv =
+        let
+          piTop = mkStaticPi {
+            rootScopeId = result.state.rootScopeId;
+            scopeContexts = augmentedScopeContexts;
+            inherit scopeParent scopeIsolated;
+            isolationMode = "aware";
+          };
+          unifiedInputs = {
+            pi = piTop // {
+              inherit scopeEntityKind;
+            };
+            seed = phase1;
+            inherit
+              ctx
+              scopedProvides
+              scopedRoutes
+              spawnNode
+              ;
+            inherit (handlers) buildForwardAspect;
+          };
+        in
+        let
+          # The production dispatch order: ALL provides (dedup order) THEN ALL kept
+          # routes (orderedKeptRoutes order) — the phase2∘phase3 sequence.
+          provideId =
+            spec:
+            "provide:${spec.__providePolicyName or "<anon>"}/${spec.class}/${
+              lib.concatStringsSep "/" (spec.path or [ ])
+            }";
+          routeId =
+            spec:
+            "route:${spec.fromClass or "?"}>${spec.intoClass or "?"}@${spec.sourceScopeId or "?"}/${
+              lib.concatStringsSep "/" (spec.path or [ ])
+            }${lib.optionalString (spec.__complexForward or false) "#complex"}";
+          dispatchId = d: if d.kind == "provide" then provideId d.spec else routeId d.spec;
+          orderedProvideSpecs = dedupProvides (lib.concatLists (lib.attrValues scopedProvides));
+          orderedRouteSpecs = routeEdges.orderedKeptRoutes result.state.rootScopeId (
+            lib.concatLists (lib.attrValues scopedRoutes)
+          );
+          # Production dispatch: all provides (dedup order) then all kept routes.
+          phaseFoldDispatch = (map provideId orderedProvideSpecs) ++ (map routeId orderedRouteSpecs);
+          # The unified engine's dispatch order via the SAME identity functions.
+          unifiedDispatch = map dispatchId (materializeUnified unifiedInputs { exposeDispatch = true; });
+        in
+        {
+          inherit phaseFoldDispatch unifiedDispatch;
+          # phase2 ∘ phase3 over the live seed (the production order: all provides
+          # then all routes).
+          phaseFold = phase3;
+          # materializeUnified over the SAME seed, doFinalMerge = false (returns the
+          # raw accumulator, byte-comparable to phaseFold).
+          unified = materializeUnified unifiedInputs { doFinalMerge = false; };
+          # The doFinalMerge = true variant, comparable to assembleSubtree over the
+          # phaseFold result (the final-extraction merge step, unchanged).
+          unifiedMerged = materializeUnified unifiedInputs { doFinalMerge = true; };
+          phaseFoldMerged = assembleSubtree {
+            root = result.state.rootScopeId;
+            pi = piTop // {
+              perScope = phase3.perScope;
+              classImports = phase3.classImports;
+              provides = scopedProvides;
+              routes = scopedRoutes;
+            };
+          };
+        };
     };
 
   # Back-compatible projection: imports only. Protects deferredModule consumers

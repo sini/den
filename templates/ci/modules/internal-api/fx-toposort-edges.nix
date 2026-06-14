@@ -79,6 +79,42 @@
       }
     );
 
+    # STABLE order: two INDEPENDENT edges (neither reads the other's cell) keep
+    # their INPUT order through topoSortEdges. Load-bearing for Task 17 strict-byte
+    # (materializeUnified relies on independents preserving the provides-then-routes
+    # construction order so the unified fold matches phase2∘phase3 byte-exact).
+    test-independent-edges-stable = denTest (
+      { den, ... }:
+      let
+        inherit (den.lib.aspects.fx.edges) toposort edge;
+        # Two pure producers writing DISTINCT cells, reading nothing — independent.
+        a = edge.mkEdge {
+          source = edge.collected "s" "nixos";
+          target = edge.rootTarget "s" "nixos";
+          path = [ "a" ];
+          mode = "nest";
+        };
+        b = edge.mkEdge {
+          source = edge.collected "s" "homeManager";
+          target = edge.rootTarget "s" "homeManager";
+          path = [ "b" ];
+          mode = "nest";
+        };
+        ordered = toposort.topoSortEdges [
+          a
+          b
+        ];
+      in
+      {
+        # Input order [a b] is preserved (a's path stays first).
+        expr = map (e: e.path) ordered;
+        expected = [
+          [ "a" ]
+          [ "b" ]
+        ];
+      }
+    );
+
     # An appendToParent producer (target.root = parent) writes (parent,nixos); the
     # parent's final-extraction merge (collectedScopes=[parent]) reads it → producer
     # precedes parent merge.
