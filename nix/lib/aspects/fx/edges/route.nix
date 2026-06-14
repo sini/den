@@ -572,6 +572,12 @@ let
   # of sourceScopeId (the HOST scope) so the spawn's policyBoundAncestor sees
   # fleet peers — using sourceScopeId directly gives a self-parent edge → zero
   # peers (§B Decision 2 fleet-visibility deciding evidence).
+  #
+  # unifiedEdges (Task 16) does NOT collect this spawn's surfaced `.edges`: the
+  # complex forward this fallback resolves is ALREADY represented in the unified
+  # set by its `synthesize` edge (from routeEdges). Collecting the fallback spawn's
+  # edges here would double-count the same delivery. Only the drain-fold spawn
+  # (resolve.nix mkDrained) surfaces edges into unifiedEdges.
   resolveSourceFallback =
     spec: spawnNode: scopeParent:
     if !(spec ? sourceAspect) || spawnNode == null || !(spec ? sourceScopeId) then

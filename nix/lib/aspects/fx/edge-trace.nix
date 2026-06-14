@@ -72,9 +72,16 @@ let
   # production's, not a parallel render.
   instantiateEdges = import ./edges/instantiate.nix { inherit lib; };
 in
-{
-  # extractEdgeTrace: pipeline end-state → stably-sorted normalized edge list.
-  extractEdgeTrace =
+rec {
+  # extractTopLevelEdges: pipeline end-state → the per-COMPONENT edge lists,
+  # UNSORTED. The shared seam between the read-only oracle (extractEdgeTrace,
+  # which sorts the union) and the production unifiedEdges collector (resolve.nix),
+  # which wants the SAME top-level mechanism lists but drops the `spawnEdges`
+  # rewalk arm (it surfaces the real spawn edges from the drain-fold instead) and
+  # adds the per-host / B′ instantiate edges. Both consume the EXACT SAME
+  # constructor calls over the SAME end-state, so oracle and production can never
+  # diverge on the top-level set (spec §3a).
+  extractTopLevelEdges =
     {
       scopeContexts,
       scopeParent,
@@ -224,7 +231,35 @@ in
         }
       ) disambiguated;
 
-      allEdges = defaultFold ++ providesEdgeList ++ routeEdgeList ++ spawnEdges ++ instantiateEdgeList;
     in
-    sortEdges allEdges;
+    {
+      inherit
+        defaultFold
+        providesEdgeList
+        routeEdgeList
+        spawnEdges
+        instantiateEdgeList
+        ;
+    };
+
+  # extractEdgeTrace: pipeline end-state → stably-sorted normalized edge list.
+  # The oracle's union INCLUDES the spawn `rewalk` arm (one rewalk edge per spawn
+  # marker — the undercount the unifiedEdges collector corrects by surfacing the
+  # spawn's real edge set instead).
+  extractEdgeTrace =
+    args:
+    let
+      parts = extractTopLevelEdges args;
+    in
+    sortEdges (
+      parts.defaultFold
+      ++ parts.providesEdgeList
+      ++ parts.routeEdgeList
+      ++ parts.spawnEdges
+      ++ parts.instantiateEdgeList
+    );
+
+  # Re-exported so resolve.nix's unifiedEdges can sort its union without a
+  # second import of edges/edge.nix.
+  inherit sortEdges;
 }

@@ -10,10 +10,16 @@ let
   inherit (import ./assemble-pipes.nix { inherit lib den; }) assemblePipes;
   inherit (import ./spawn-node.nix { inherit lib den; }) mkSpawnNode;
   routeEdges = import ./edges/route.nix { inherit lib den; };
-  inherit (import ./edge-trace.nix { inherit lib den; }) extractEdgeTrace;
+  inherit (import ./edge-trace.nix { inherit lib den; })
+    extractEdgeTrace
+    extractTopLevelEdges
+    sortEdges
+    ;
   inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./edges/materialize.nix { inherit lib den; }) assembleSubtree;
   inherit (import ./edges/pi.nix { inherit lib; }) mkStaticPi;
+  inherit (import ./edges/instantiate-edges.nix { inherit lib den; }) mkInstantiateEdges;
+  inherit (import ./edges/edge.nix { inherit lib; }) scopeName;
   inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges;
   instantiateEdges = import ./edges/instantiate.nix { inherit lib; };
   handlers = den.lib.aspects.fx.handlers;
@@ -108,9 +114,15 @@ let
   # routes through the edge materializer's merge mode (edges/materialize.nix
   # assembleSubtree) — the default-fold port. See mkInstantiateArgs.
 
-  # Build instantiateArgs for a spec without calling spec.instantiate.
-  # Factored out so both applyInstantiates and hostConfigs can reuse it.
-  mkInstantiateArgs =
+  # The per-host PROJECTION: from the instantiate-arg bundle + a spec, derive the
+  # host subtree's scope universe, isolation-aware contexts, the per-host phase
+  # fold (phase3 carries perScope + classImports), and the subtree provides/routes.
+  # Factored out so BOTH mkInstantiateArgs (module assembly, unchanged behavior)
+  # AND the unifiedEdges edge collector (mkInstantiateEdges projection inputs)
+  # consume the SAME projection — they can never diverge on the host subtree.
+  # Returns null when the spec has no resolvable host scope (T-rule single-child
+  # fallback / non-entity spec).
+  perHostProjection =
     {
       augmentedScopeContexts,
       scopedClassImportsRaw,
@@ -129,51 +141,95 @@ let
       hostClass = spec.class or "nixos";
       rawHostScopeId = entityScopeFor scopeByEntity spec;
       hostScopeId = if rawHostScopeId != null then rawHostScopeId else spec.sourceScopeId;
-      preWalkedModules =
-        if hostScopeId != null then
+    in
+    if hostScopeId == null then
+      null
+    else
+      let
+        # Isolation-BLIND collect: the per-host re-walk collects
+        # sub-phases over the blind set, then extractSubtreeModules extracts
+        # over the isolation-AWARE set below. Pass `isolated = {}` explicitly
+        # — defaulting it would collapse this deliberate blind/aware split.
+        subtreeScopeIds = subtreeScopes {
+          inherit scopeParent allScopeIds;
+          isolated = { };
+          root = hostScopeId;
+        };
+        subtreeSet = lib.genAttrs subtreeScopeIds (_: true);
+        isInSubtree = sid: subtreeSet ? ${sid};
+        isAncestor =
+          sid:
           let
-            # Isolation-BLIND collect: the per-host re-walk collects
-            # sub-phases over the blind set, then extractSubtreeModules extracts
-            # over the isolation-AWARE set below. Pass `isolated = {}` explicitly
-            # — defaulting it would collapse this deliberate blind/aware split.
-            subtreeScopeIds = subtreeScopes {
-              inherit scopeParent allScopeIds;
-              isolated = { };
-              root = hostScopeId;
-            };
-            subtreeSet = lib.genAttrs subtreeScopeIds (_: true);
-            isInSubtree = sid: subtreeSet ? ${sid};
-            isAncestor =
-              sid:
-              let
-                parent = scopeParent.${hostScopeId} or null;
-              in
-              sid == parent || (parent != null && parent != hostScopeId && isAncestorOf scopeParent sid parent);
-            isRelevant = sid: isInSubtree sid || isAncestor sid;
-            relevantScopeIds = builtins.filter isRelevant allScopeIds;
-            scopeEntityClassMap = scopeEntityClass null;
-            subtreeContexts = lib.genAttrs subtreeScopeIds (
-              sid:
-              let
-                base = augmentedScopeContexts.${sid};
-                entityCls = scopeEntityClassMap.${sid} or null;
-              in
-              if !(base ? class) && entityCls != null then
-                base // { class = entityCls; }
-              else if !(base ? class) then
-                base // { class = hostClass; }
-              else
-                base
-            );
-            subtreeClassImports = lib.genAttrs subtreeScopeIds (sid: scopedClassImportsRaw.${sid} or { });
-            subtreeProvides = lib.filterAttrs (sid: _: isRelevant sid) scopedProvides;
-            subtreeRoutes = lib.filterAttrs (sid: _: isRelevant sid) scopedRoutes;
-            relevantContexts = lib.genAttrs relevantScopeIds (sid: augmentedScopeContexts.${sid});
-            subtreePhase1 = wrapPerScope ctx subtreeContexts subtreeClassImports;
-            subtreePhase2 = applyProvidesEdges ctx subtreeProvides subtreePhase1;
-            subtreePhase3 =
-              applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
-                subtreePhase2;
+            parent = scopeParent.${hostScopeId} or null;
+          in
+          sid == parent || (parent != null && parent != hostScopeId && isAncestorOf scopeParent sid parent);
+        isRelevant = sid: isInSubtree sid || isAncestor sid;
+        relevantScopeIds = builtins.filter isRelevant allScopeIds;
+        scopeEntityClassMap = scopeEntityClass null;
+        subtreeContexts = lib.genAttrs subtreeScopeIds (
+          sid:
+          let
+            base = augmentedScopeContexts.${sid};
+            entityCls = scopeEntityClassMap.${sid} or null;
+          in
+          if !(base ? class) && entityCls != null then
+            base // { class = entityCls; }
+          else if !(base ? class) then
+            base // { class = hostClass; }
+          else
+            base
+        );
+        subtreeClassImports = lib.genAttrs subtreeScopeIds (sid: scopedClassImportsRaw.${sid} or { });
+        subtreeProvides = lib.filterAttrs (sid: _: isRelevant sid) scopedProvides;
+        subtreeRoutes = lib.filterAttrs (sid: _: isRelevant sid) scopedRoutes;
+        relevantContexts = lib.genAttrs relevantScopeIds (sid: augmentedScopeContexts.${sid});
+        subtreePhase1 = wrapPerScope ctx subtreeContexts subtreeClassImports;
+        subtreePhase2 = applyProvidesEdges ctx subtreeProvides subtreePhase1;
+        subtreePhase3 =
+          applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
+            subtreePhase2;
+      in
+      {
+        inherit
+          hostScopeId
+          hostClass
+          subtreeScopeIds
+          subtreeContexts
+          subtreeProvides
+          subtreeRoutes
+          ;
+        phase3 = subtreePhase3;
+      };
+
+  # Build instantiateArgs for a spec without calling spec.instantiate.
+  # Factored out so both applyInstantiates and hostConfigs can reuse it.
+  mkInstantiateArgs =
+    argBundle@{
+      augmentedScopeContexts,
+      scopedClassImportsRaw,
+      scopedProvides,
+      scopedRoutes,
+      scopeParent,
+      scopeByEntity ? { },
+      scopeEntityClass ? (_: { }),
+      scopeIsolated ? { },
+      spawnNodeFn,
+      ctx,
+    }:
+    spec:
+    let
+      proj = perHostProjection argBundle spec;
+      preWalkedModules =
+        if proj != null then
+          let
+            inherit (proj)
+              hostScopeId
+              hostClass
+              subtreeContexts
+              subtreeProvides
+              subtreeRoutes
+              ;
+            subtreePhase3 = proj.phase3;
             # Default-fold port: the per-host final extraction routes
             # through the edge materializer. This re-entry (variant B)
             # constructs an EXPLICIT Π(root) record — the variant becomes visible
@@ -442,7 +498,10 @@ let
         scopedPipeEffects = result.state.scopedPipeEffects null;
         inherit scopeParent;
       };
-      drainedForHostConfigs = mkDrained augmentedScopeContextsNoCfg;
+      # B′ peer-config drain: only its class-imports map is consumed (the cross-
+      # host config build); its spawn edges are NOT collected — B′'s delivery is
+      # covered by the per-host mkInstantiateEdges in the unifiedEdges union.
+      drainedForHostConfigs = (mkDrained augmentedScopeContextsNoCfg).classImports;
 
       # Parent-state bundle for node spawns. Uses the RAW scopeContexts and
       # scopedClassImports (not the augmented/drained maps): the spawned node
@@ -590,46 +649,69 @@ let
           # practice batteries pass `spec.classes` explicitly so this is unused.
           allHomeNodes = (result.state.scopedSpawns or (_: { })) null;
         in
-        lib.foldl' (
-          acc: scopeId:
-          let
-            sctx = scopeContexts.${scopeId} or { };
-            ownKind = scopeEntityKind.${scopeId} or null;
-            ownRecord = if ownKind == null then null else sctx.${ownKind} or null;
-            from = scopeParent.${scopeId} or null;
-            parentKind = if from == null then null else scopeEntityKind.${from} or null;
-            parentRecord =
-              if parentKind == null then null else (scopeContexts.${from} or { }).${parentKind} or null;
-            specs = allHomeNodes.${scopeId};
-            defaultClasses = if ownRecord == null then [ ] else ownRecord.classes or [ ];
-            classes = lib.unique (
-              lib.concatMap (s: if s.classes != null then s.classes else defaultClasses) specs
-            );
-          in
-          if parentRecord == null || ownRecord == null then
-            acc
-          else
-            acc
-            // {
-              ${scopeId} =
-                (acc.${scopeId} or { })
-                // lib.genAttrs classes (
+        # Accumulate BOTH the class-imports map AND the spawn nodes' SURFACED edge
+        # sets. Each spawnNode {…} returns { imports; edges; }: `.imports` folds
+        # into the class buckets as before; `.edges` is the spawn's real delivered
+        # edge set (its default fold + provides + re-applied routes), collected so
+        # the host-own invocation can feed unifiedEdges (the oracle's rewalk arm
+        # undercounts these). The B′ invocation discards spawnEdges (its delivery
+        # is covered by the per-host mkInstantiateEdges, see call sites below).
+        lib.foldl'
+          (
+            acc: scopeId:
+            let
+              sctx = scopeContexts.${scopeId} or { };
+              ownKind = scopeEntityKind.${scopeId} or null;
+              ownRecord = if ownKind == null then null else sctx.${ownKind} or null;
+              from = scopeParent.${scopeId} or null;
+              parentKind = if from == null then null else scopeEntityKind.${from} or null;
+              parentRecord =
+                if parentKind == null then null else (scopeContexts.${from} or { }).${parentKind} or null;
+              specs = allHomeNodes.${scopeId};
+              defaultClasses = if ownRecord == null then [ ] else ownRecord.classes or [ ];
+              classes = lib.unique (
+                lib.concatMap (s: if s.classes != null then s.classes else defaultClasses) specs
+              );
+            in
+            if parentRecord == null || ownRecord == null then
+              acc
+            else
+              let
+                # Materialize each class once; capture the FULL spawn return so both
+                # `.imports` (class fold) and `.edges` (surfaced set) are available.
+                spawned = lib.genAttrs classes (
                   cls:
-                  ((acc.${scopeId} or { }).${cls} or [ ])
-                  ++ (spawnNode {
+                  spawnNode {
                     inherit from;
                     class = cls;
                     aspect = parentRecord.aspect;
                     bindings = {
                       ${ownKind} = ownRecord;
                     };
-                  }).imports
+                  }
                 );
-            }
-        ) baseDrain (builtins.attrNames allHomeNodes);
+              in
+              {
+                classImports = acc.classImports // {
+                  ${scopeId} =
+                    (acc.classImports.${scopeId} or { })
+                    // lib.genAttrs classes (
+                      cls: ((acc.classImports.${scopeId} or { }).${cls} or [ ]) ++ spawned.${cls}.imports
+                    );
+                };
+                spawnEdges = acc.spawnEdges ++ lib.concatMap (cls: spawned.${cls}.edges) classes;
+              }
+          )
+          {
+            classImports = baseDrain;
+            spawnEdges = [ ];
+          }
+          (builtins.attrNames allHomeNodes);
 
       # The host's OWN phase1–4 drain, over the hostConfigs-augmented contexts.
-      drainedClassImportsRaw = mkDrained augmentedScopeContexts;
+      # Surfaces drained.classImports for phases + drained.spawnEdges for unifiedEdges.
+      drained = mkDrained augmentedScopeContexts;
+      drainedClassImportsRaw = drained.classImports;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts drainedClassImportsRaw;
       phase2 = applyProvidesEdges ctx scopedProvides phase1;
@@ -654,6 +736,96 @@ let
         scopedClassImportsRaw = drainedClassImportsRaw;
         spawnNodeFn = spawnNode;
       } phase3.classImports;
+
+      # ===== unifiedEdges component construction =========================
+      # The TOP-LEVEL mechanism edge components (default fold + provides + routes +
+      # instantiate), built by the SAME constructors the read-only oracle uses, over
+      # the SAME end-state — but WITHOUT the oracle's `spawnEdges` rewalk arm (which
+      # undercounts each spawn as one edge). The real spawn edges come from
+      # drained.spawnEdges (surfaced by the drain-fold), and the per-host / B′
+      # instantiate edges come from mkInstantiateEdges below.
+      topLevelEdgeParts = extractTopLevelEdges {
+        inherit
+          scopeContexts
+          scopeParent
+          scopeIsolated
+          scopeEntityKind
+          scopedProvides
+          scopedRoutes
+          ;
+        scopedClassImports = scopedClassImportsRaw;
+        scopedSpawns = (result.state.scopedSpawns or (_: { })) null;
+        scopedInstantiates = (result.state.scopedInstantiates or (_: { })) null;
+        rootScopeId = result.state.rootScopeId;
+      };
+
+      # The per-host / B′ instantiate edge projections, built from mkInstantiateEdges
+      # over the SAME perHostProjection the module assembly uses. `name` normalizes
+      # entity scopes to "<kind>:<id_hash>" (matching the oracle/unified set).
+      edgeName = scopeName { inherit scopeEntityKind scopeContexts; };
+      allInstantiateSpecs = lib.concatLists (lib.attrValues (result.state.scopedInstantiates null));
+
+      # Build the per-host edge set for a spec under the given projection-arg
+      # bundle. Returns [] when the spec has no resolvable host scope.
+      perHostEdgesFor =
+        argBundle: spec:
+        let
+          proj = perHostProjection argBundle spec;
+        in
+        if proj == null then
+          [ ]
+        else
+          mkInstantiateEdges {
+            name = edgeName;
+            inherit scopeParent scopeIsolated;
+            inherit (proj)
+              hostScopeId
+              subtreeProvides
+              subtreeRoutes
+              subtreeScopeIds
+              ;
+            perScope = proj.phase3.perScope;
+          };
+
+      # Host-own per-host edges: the projection-arg bundle that phase4 uses (the
+      # hostConfigs-augmented contexts + drained class imports).
+      perHostArgBundle = {
+        inherit
+          augmentedScopeContexts
+          scopeParent
+          scopeByEntity
+          scopeIsolated
+          ctx
+          ;
+        scopedClassImportsRaw = drainedClassImportsRaw;
+        inherit scopedProvides scopedRoutes;
+        scopeEntityClass = result.state.scopeEntityClass or (_: { });
+        spawnNodeFn = spawnNode;
+      };
+      perHostEdges = lib.concatMap (perHostEdgesFor perHostArgBundle) allInstantiateSpecs;
+
+      # B′ per-host edges: the cross-host peer-config projection bundle (the
+      # hostConfigs-NULL augmented contexts + the matching drained map), mirroring
+      # the B′ mkInstantiateArgs bundle. Only meaningful when config-dependent pipe
+      # thunks forced the B′ pass; otherwise the projection is over the same scopes
+      # the host-own pass covers (the union dedups by sort key, so overlap is inert).
+      bprimeArgBundle = {
+        augmentedScopeContexts = augmentedScopeContextsNoCfg;
+        scopedClassImportsRaw = drainedForHostConfigs;
+        inherit
+          scopedProvides
+          scopedRoutes
+          scopeParent
+          scopeByEntity
+          scopeIsolated
+          ctx
+          ;
+        scopeEntityClass = result.state.scopeEntityClass or (_: { });
+        spawnNodeFn = spawnNode;
+      };
+      bprimeEdges = lib.optionals (hostConfigs != null) (
+        lib.concatMap (perHostEdgesFor bprimeArgBundle) allInstantiateSpecs
+      );
     in
     {
       imports = phase4.${class} or [ ];
@@ -681,6 +853,22 @@ let
         scopedInstantiates = (result.state.scopedInstantiates or (_: { })) null;
         rootScopeId = result.state.rootScopeId;
       };
+      # The unified delivery-edge set (Task 16): the oracle's top-level mechanism
+      # set MINUS its `spawnEdges` rewalk arm, PLUS the SURFACED spawn edges (the
+      # spawn nodes' real delivered edges, drained.spawnEdges) and the per-host /
+      # B′ instantiate projection edges. Corrects the oracle's spawn UNDERCOUNT.
+      # A lazy thunk (like edgeTrace) — forced only by inspection / the
+      # fx-unified-edges suite, never by normal resolve consumers. Not yet consumed
+      # by production materialization (additive surface for a later task).
+      unifiedEdges = sortEdges (
+        topLevelEdgeParts.defaultFold
+        ++ topLevelEdgeParts.providesEdgeList
+        ++ topLevelEdgeParts.routeEdgeList
+        ++ topLevelEdgeParts.instantiateEdgeList
+        ++ drained.spawnEdges
+        ++ perHostEdges
+        ++ bprimeEdges
+      );
     };
 
   # Back-compatible projection: imports only. Protects deferredModule consumers
