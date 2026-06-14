@@ -79,11 +79,7 @@
         comp = fx.send "compile-static" param;
         result = fx.handle {
           handlers =
-            handlers.compileStaticHandler
-            // handlers.gateHandler
-            // identity.pathSetHandler
-            // identity.collectPathsHandler
-            // stubs;
+            handlers.compileStaticHandler // handlers.gateHandler // identity.collectPathsHandler // stubs;
           inherit state;
         } comp;
         resolved = builtins.head result.value;
@@ -277,11 +273,7 @@
         comp = fx.send "compile-static" param;
         result = fx.handle {
           handlers =
-            handlers.compileStaticHandler
-            // handlers.gateHandler
-            // identity.pathSetHandler
-            // identity.collectPathsHandler
-            // stubs;
+            handlers.compileStaticHandler // handlers.gateHandler // identity.collectPathsHandler // stubs;
           inherit state;
         } comp;
         resolved = builtins.head result.value;
@@ -374,11 +366,7 @@
         comp = fx.send "compile-static" param;
         result = fx.handle {
           handlers =
-            handlers.compileStaticHandler
-            // handlers.gateHandler
-            // identity.pathSetHandler
-            // identity.collectPathsHandler
-            // stubs;
+            handlers.compileStaticHandler // handlers.gateHandler // identity.collectPathsHandler // stubs;
           inherit state;
         } comp;
         resolved = builtins.head result.value;
@@ -468,11 +456,7 @@
         comp = fx.send "compile-static" param;
         result = fx.handle {
           handlers =
-            handlers.compileStaticHandler
-            // handlers.gateHandler
-            // identity.pathSetHandler
-            // identity.collectPathsHandler
-            // stubs;
+            handlers.compileStaticHandler // handlers.gateHandler // identity.collectPathsHandler // stubs;
           inherit state;
         } comp;
         resolved = builtins.head result.value;

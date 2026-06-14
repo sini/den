@@ -46,7 +46,6 @@ let
     // handlers.includeHandler
     // handlers.checkDedupHandler
     // handlers.ctxSeenHandler
-    // identity.pathSetHandler
     // identity.collectPathsHandler
     // handlers.registerAspectPolicyHandler
     // handlers.registerRouteHandler

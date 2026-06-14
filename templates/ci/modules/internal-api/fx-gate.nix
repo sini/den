@@ -191,7 +191,6 @@
             // handlers.classifyHandler
             // handlers.emitClassesHandler
             // handlers.resolveChildrenHandler
-            // den.lib.aspects.fx.identity.pathSetHandler
             // den.lib.aspects.fx.identity.collectPathsHandler;
           state = pipeline.defaultState;
         } comp;

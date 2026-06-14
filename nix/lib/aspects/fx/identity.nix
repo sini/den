@@ -25,15 +25,6 @@ let
   # Strip the {ctxId} suffix from an identity, yielding the base identity.
   stripCtxSuffix = id: lib.head (lib.splitString "/{" id);
 
-  toPathSet =
-    paths:
-    builtins.listToAttrs (
-      builtins.map (p: {
-        name = pathKey p;
-        value = true;
-      }) paths
-    );
-
   tombstone = resolved: extra: {
     name = "~${resolved.name or "<anon>"}";
     meta =
@@ -116,19 +107,6 @@ let
       };
   };
 
-  # UNUSED since #613 (conditional guards now read the scope-restricted
-  # pathSetByScope from state directly, not this flat-pathSet effect). Zero
-  # senders remain; kept only because it is installed in ~17 handler sets
-  # (pipeline + internal-api tests) — remove in a dead-code sweep, not here.
-  pathSetHandler = {
-    "get-path-set" =
-      { param, state }:
-      {
-        resume = (state.pathSet or (_: { })) null;
-        inherit state;
-      };
-  };
-
 in
 {
   inherit
@@ -138,9 +116,7 @@ in
     baseKey
     isAnonIdentity
     stripCtxSuffix
-    toPathSet
     tombstone
     collectPathsHandler
-    pathSetHandler
     ;
 }

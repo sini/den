@@ -51,34 +51,6 @@
       }
     );
 
-    test-toPathSet = denTest (
-      { den, lib, ... }:
-      let
-        inherit (den.lib.aspects.fx.identity) pathKey;
-        toPathSet =
-          paths:
-          builtins.listToAttrs (
-            map (p: {
-              name = pathKey p;
-              value = true;
-            }) paths
-          );
-      in
-      {
-        expr = toPathSet [
-          [ "a" ]
-          [
-            "b"
-            "c"
-          ]
-        ];
-        expected = {
-          "a" = true;
-          "b/c" = true;
-        };
-      }
-    );
-
     test-tombstone-shape = denTest (
       { den, ... }:
       let

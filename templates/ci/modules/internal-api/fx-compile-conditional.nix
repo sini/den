@@ -98,7 +98,6 @@
             // handlers.resolveChildrenHandler
             // handlers.checkDedupHandler
             // handlers.chainHandler
-            // identity.pathSetHandler
             // identity.collectPathsHandler
             // stubs
             // fx.effects.state.handler;
@@ -155,7 +154,6 @@
             handlers.compileConditionalHandler
             // handlers.deferConditionalHandler
             // handlers.drainConditionalsHandler
-            // identity.pathSetHandler
             // stubs
             // fx.effects.state.handler;
           inherit state;
@@ -212,7 +210,6 @@
             handlers.compileConditionalHandler
             // handlers.deferConditionalHandler
             // handlers.drainConditionalsHandler
-            // identity.pathSetHandler
             // stubs
             // fx.effects.state.handler;
           inherit state;
@@ -317,7 +314,6 @@
             // handlers.resolveChildrenHandler
             // handlers.checkDedupHandler
             // handlers.chainHandler
-            // identity.pathSetHandler
             // identity.collectPathsHandler
             // stubs
             // fx.effects.state.handler;

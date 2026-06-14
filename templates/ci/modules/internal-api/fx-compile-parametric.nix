@@ -72,7 +72,6 @@
             handlers.compileParametricHandler
             // handlers.gateHandler
             // handlers.bindHandler
-            // identity.pathSetHandler
             // identity.collectPathsHandler
             // stubs;
           inherit state;
@@ -149,7 +148,6 @@
             handlers.compileParametricHandler
             // handlers.gateHandler
             // handlers.bindHandler
-            // identity.pathSetHandler
             // identity.collectPathsHandler
             // stubs;
           inherit state;
@@ -219,7 +217,6 @@
             // handlers.gateHandler
             // handlers.bindHandler
             // handlers.deferHandler
-            // identity.pathSetHandler
             // identity.collectPathsHandler
             // stubs;
           inherit state;

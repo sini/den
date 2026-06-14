@@ -46,7 +46,6 @@ let
         };
     }
     // den.lib.aspects.fx.handlers.chainHandler
-    // den.lib.aspects.fx.identity.pathSetHandler
     // den.lib.aspects.fx.identity.collectPathsHandler
     // {
       "emit-class" =
