@@ -74,7 +74,7 @@ let
 
   # Reuse constraint lookup from constraint.nix to avoid duplicating
   # the prefix-matching logic (identity path splitting + prefix search).
-  inherit (import ./constraint.nix { inherit lib den; }) lookupEntries;
+  inherit (import ./constraint.nix { inherit lib den; }) lookupEntries isAncestorChain;
 
   # Check if an aspect identity is excluded in a constraint registry.
   isExcludedInScope =
@@ -82,11 +82,12 @@ let
     nodeIdentity:
     let
       allEntries = lookupEntries constraintRegistry nodeIdentity;
-      isAncestor = ownerChain: lib.take (builtins.length ownerChain) includesChain == ownerChain;
       inScope =
         entry:
         entry.type == "exclude"
-        && ((entry.scope or "global") == "global" || isAncestor (entry.ownerChain or [ ]));
+        && (
+          (entry.scope or "global") == "global" || isAncestorChain includesChain (entry.ownerChain or [ ])
+        );
     in
     builtins.any inScope allEntries;
 

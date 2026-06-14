@@ -23,11 +23,16 @@ let
     else
       exact;
 
+  # Chain-prefix ancestry: is `ownerChain` a prefix of the includes `chain`. The
+  # shared scope-relevance atom (also consumed by compile-conditional.nix).
+  isAncestorChain = chain: ownerChain: lib.take (builtins.length ownerChain) chain == ownerChain;
+
   filterByScope =
     currentChain: entries:
     let
-      isAncestor = ownerChain: lib.take (builtins.length ownerChain) currentChain == ownerChain;
-      inScope = entry: (entry.scope or "global") == "global" || isAncestor (entry.ownerChain or [ ]);
+      inScope =
+        entry:
+        (entry.scope or "global") == "global" || isAncestorChain currentChain (entry.ownerChain or [ ]);
     in
     builtins.filter inScope entries;
 
@@ -140,5 +145,5 @@ let
   };
 in
 {
-  inherit constraintRegistryHandler lookupEntries;
+  inherit constraintRegistryHandler lookupEntries isAncestorChain;
 }

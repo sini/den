@@ -23,6 +23,16 @@ let
     else
       lib.warn "den.aspects.${config.name} not defined — entity gets empty aspect" { };
 
+  # Recursive merge without forcing leaf values. Unlike lib.types.anything this
+  # does not inspect values deeply (no mapAttrsRecursiveCond), avoiding infinite
+  # recursion when values reference other options (e.g. den.aspects).
+  deepMergeAttrs = lib.mkOptionType {
+    name = "deepMergeAttrs";
+    description = "recursively merged attribute set";
+    check = builtins.isAttrs;
+    merge = _loc: defs: builtins.foldl' (acc: def: lib.recursiveUpdate acc def.value) { } defs;
+  };
+
   # Single shared production run: imports + per-scope path set from ONE fx.handle.
   # Declared as an option so the module fixpoint memoizes it — every consumer
   # (mainModule, __pathSetByScope) reads the same value, guaranteeing one resolve.
@@ -165,6 +175,7 @@ in
   inherit
     strOpt
     lookupAspect
+    deepMergeAttrs
     mainModuleOption
     resolveResultOption
     pathSetByScopeOption

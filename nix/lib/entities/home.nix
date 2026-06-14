@@ -9,6 +9,7 @@ let
   inherit (import ./_types.nix { inherit lib den; })
     strOpt
     lookupAspect
+    deepMergeAttrs
     mainModuleOption
     resolveResultOption
     pathSetByScopeOption
@@ -19,17 +20,6 @@ let
   # Entity instances are gen-schema instances: mkInstanceType injects name,
   # strict/freeform, _module.args.<kind>, and schema-owned id_hash (identity).
   schemaLib = den.lib.schema;
-
-  # Recursive merge without forcing leaf values.
-  # Unlike lib.types.anything, this does not inspect values deeply (no
-  # mapAttrsRecursiveCond), avoiding infinite recursion when values
-  # reference other options (e.g. den.aspects).
-  deepMergeAttrs = lib.mkOptionType {
-    name = "deepMergeAttrs";
-    description = "recursively merged attribute set";
-    check = builtins.isAttrs;
-    merge = _loc: defs: builtins.foldl' (acc: def: lib.recursiveUpdate acc def.value) { } defs;
-  };
 
   innerType = lib.types.attrsOf homeSystemType;
 

@@ -14,23 +14,26 @@
 # map shape, self-loop guard only) — keep the two in mind if either changes.
 { ... }:
 rec {
-  # True when argKind's parent chain reaches scopeKind (strict descendant).
-  isDescendantOf =
-    schema: scopeKind: argKind:
+  # Ancestor chain of `start` over the schema-kind parent DAG, inclusive of
+  # `start` at the head: [ start, parent, grandparent, … ]. Cycle-guarded. The
+  # one schema-DAG ancestry walk — `isDescendantOf` and policy/schema.nix's owner
+  # lookup both derive from it.
+  ancestorChain =
+    schema: start:
     let
       walk =
-        k: seen:
+        k: acc:
         let
           p = schema.${k}.parent or null;
         in
-        if p == null || builtins.elem p seen then
-          false
-        else if p == scopeKind then
-          true
-        else
-          walk p (seen ++ [ k ]);
+        if p == null || builtins.elem p acc then acc else walk p (acc ++ [ p ]);
     in
-    scopeKind != null && argKind != scopeKind && walk argKind [ argKind ];
+    walk start [ start ];
+
+  # True when argKind's parent chain reaches scopeKind (strict descendant).
+  isDescendantOf =
+    schema: scopeKind: argKind:
+    scopeKind != null && argKind != scopeKind && builtins.elem scopeKind (ancestorChain schema argKind);
 
   # True when `k` names a registered entity kind in `schema`.
   isEntityKind = schema: k: builtins.isAttrs (schema.${k} or null) && (schema.${k}.isEntity or false);
