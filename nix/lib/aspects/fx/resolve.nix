@@ -198,7 +198,12 @@ let
           subtreeContexts
           subtreeProvides
           subtreeRoutes
+          relevantContexts
           ;
+        # subtreePhase1 is the materializeUnified SEED; subtreePhase3 (full
+        # phase2∘phase3 fold) is kept ONLY for the mkInstantiateEdges edge
+        # collector, which reads proj.phase3.perScope (the per-scope module map).
+        seed = subtreePhase1;
         phase3 = subtreePhase3;
       };
 
@@ -213,53 +218,55 @@ let
       scopeParent,
       scopeByEntity ? { },
       scopeEntityClass ? (_: { }),
+      scopeEntityKind ? { },
       scopeIsolated ? { },
       spawnNodeFn,
       ctx,
     }:
     spec:
     let
-      proj = perHostProjection argBundle spec;
+      # perHostProjection takes only the projection inputs; scopeEntityKind is a
+      # mkInstantiateArgs-LOCAL concern (Π naming for materializeUnified), so it is
+      # stripped from the bundle passed through.
+      projBundle = builtins.removeAttrs argBundle [ "scopeEntityKind" ];
+      proj = perHostProjection projBundle spec;
       preWalkedModules =
         if proj != null then
           let
             inherit (proj)
               hostScopeId
               hostClass
-              subtreeContexts
               subtreeProvides
               subtreeRoutes
+              relevantContexts
+              seed
               ;
-            subtreePhase3 = proj.phase3;
-            # Default-fold port: the per-host final extraction routes
-            # through the edge materializer. This re-entry (variant B)
-            # constructs an EXPLICIT Π(root) record — the variant becomes visible
-            # data instead of implicit state-threading. assembleSubtree resolves
-            # the isolation-AWARE subtree boundary (isolationMode = "aware") and
-            # merge-materializes the host class bucket (the wrapPerScope/
-            # extractSubtreeModules merge semantics). The route/provides
-            # materialization runs in subtreePhase2/3 above (the phase folds are
-            # kept as orchestration); the contexts/provides/routes carried on `pi`
-            # conform to the canonical Π record shape (§A) for symmetry with the
-            # spawn re-entry, though the default-fold merge reads only perScope.
+            # Production delivery (Task 17): the per-host final extraction folds
+            # materializeUnified (doFinalMerge = true → it runs assembleSubtree at
+            # hostScopeId), replacing the phase2 (provides) ∘ phase3 (routes) ∘
+            # assembleSubtree sequence. The Π's scopeContexts MUST be the SAME
+            # relevantContexts subtreePhase3's applyRoutes used (NOT subtreeContexts):
+            # materializeUnified's complex-forward path reads pi.scopeContexts for
+            # source resolution, whereas the old assembleSubtree merge ignored it.
             pi =
               (mkStaticPi {
                 rootScopeId = hostScopeId;
-                scopeContexts = subtreeContexts;
+                scopeContexts = relevantContexts;
                 inherit scopeParent scopeIsolated;
                 isolationMode = "aware";
               })
               // {
-                perScope = subtreePhase3.perScope;
-                classImports = subtreePhase3.classImports;
-                provides = subtreeProvides;
-                routes = subtreeRoutes;
+                inherit scopeEntityKind;
               };
-            assembled = assembleSubtree {
-              root = hostScopeId;
-              inherit pi;
-            };
-            hostModules = assembled.${hostClass} or [ ];
+            materialized = materializeUnified {
+              inherit pi ctx;
+              seed = seed;
+              scopedProvides = subtreeProvides;
+              scopedRoutes = subtreeRoutes;
+              spawnNode = spawnNodeFn;
+              inherit (handlers) buildForwardAspect;
+            } { doFinalMerge = true; };
+            hostModules = materialized.${hostClass} or [ ];
           in
           if hostModules == [ ] then null else hostModules
         else
@@ -305,6 +312,7 @@ let
       scopeParent,
       scopeByEntity ? { },
       scopeEntityClass ? (_: { }),
+      scopeEntityKind ? { },
       scopeIsolated ? { },
       spawnNodeFn,
       ctx,
@@ -320,6 +328,7 @@ let
           scopeParent
           scopeByEntity
           scopeEntityClass
+          scopeEntityKind
           scopeIsolated
           spawnNodeFn
           ctx
@@ -450,7 +459,7 @@ let
                 scopeByEntity
                 ;
               scopeEntityClass = result.state.scopeEntityClass or (_: { });
-              inherit scopeIsolated;
+              inherit scopeIsolated scopeEntityKind;
               spawnNodeFn = spawnNode;
               inherit ctx;
             };
@@ -743,7 +752,7 @@ let
       phase4 = applyInstantiates {
         scopedInstantiates = result.state.scopedInstantiates null;
         scopeEntityClass = result.state.scopeEntityClass or (_: { });
-        inherit scopeIsolated;
+        inherit scopeIsolated scopeEntityKind;
         inherit
           augmentedScopeContexts
           scopedProvides
