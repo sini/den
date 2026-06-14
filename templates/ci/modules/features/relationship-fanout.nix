@@ -335,5 +335,92 @@
       }
     );
 
+    # 9. Independent descendant branches → CARTESIAN product. `{ user, pet }` at
+    # host: user and pet are BOTH direct descendants of host (siblings in the
+    # DAG), so every user pairs with every pet. Emergent from the rule (bind
+    # fans one descendant, recursion fans the other). Spec §3 "independent
+    # descendant branches → cartesian product".
+    test-cartesian-independent-descendants = denTest (
+      {
+        den,
+        igloo,
+        lib,
+        ...
+      }:
+      {
+        den.schema.pet.isEntity = true;
+        den.schema.pet.parent = "host";
+
+        den.hosts.x86_64-linux.igloo = {
+          users = {
+            tux = { };
+            pingu = { };
+          };
+          pets = {
+            rex = {
+              name = "rex";
+            };
+            fido = {
+              name = "fido";
+            };
+          };
+        };
+
+        den.aspects.igloo.nixos.options.funny = lib.mkOption {
+          default = [ ];
+          type = lib.types.listOf lib.types.str;
+        };
+
+        den.aspects.igloo.includes = [
+          (
+            { user, pet, ... }:
+            {
+              nixos.funny = [ "${user.name}-${pet.name}" ];
+            }
+          )
+        ];
+
+        expr = lib.sort lib.lessThan igloo.funny;
+        expected = [
+          "pingu-fido"
+          "pingu-rex"
+          "tux-fido"
+          "tux-rex"
+        ];
+      }
+    );
+
+    # 10. Cartesian with one EMPTY branch → whole product inert (no error). The
+    # host has users but zero pets, so `{ user, pet }` yields no pairs and emits
+    # nothing. Negative twin of #9.
+    test-cartesian-empty-branch-inert = denTest (
+      {
+        den,
+        igloo,
+        ...
+      }:
+      {
+        den.schema.pet.isEntity = true;
+        den.schema.pet.parent = "host";
+
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+
+        den.aspects.igloo = {
+          nixos.networking.hostName = "igloo";
+          includes = [
+            (
+              { user, pet, ... }:
+              {
+                nixos.networking.hostName = "should-not-appear";
+              }
+            )
+          ];
+        };
+
+        expr = igloo.networking.hostName;
+        expected = "igloo";
+      }
+    );
+
   };
 }
