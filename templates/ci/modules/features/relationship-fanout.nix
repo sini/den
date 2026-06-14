@@ -422,5 +422,61 @@
       }
     );
 
+    # 11. TRANSITIVE descendant fan-out (DAG nesting). host -> pet -> toy.
+    # `{ pet, toy }` at host: `pet` is a direct descendant (fan over host.pets);
+    # `toy` is a descendant of `pet`, so for each fanned pet it fans over THAT
+    # pet's toys (pet.toys), emitting at the host. Spec §3 "transitive descendants
+    # follow DAG nesting". Requires fanning the intermediate (pet) before its
+    # child (toy) and enumerating toy off the bound pet record, not the host.
+    test-transitive-descendant-chain = denTest (
+      {
+        den,
+        igloo,
+        lib,
+        ...
+      }:
+      {
+        den.schema.pet.isEntity = true;
+        den.schema.pet.parent = "host";
+        den.schema.toy.isEntity = true;
+        den.schema.toy.parent = "pet";
+
+        den.hosts.x86_64-linux.igloo = {
+          users.tux = { };
+          pets.rex = {
+            name = "rex";
+            toys = {
+              ball = {
+                name = "ball";
+              };
+              bone = {
+                name = "bone";
+              };
+            };
+          };
+        };
+
+        den.aspects.igloo.nixos.options.funny = lib.mkOption {
+          default = [ ];
+          type = lib.types.listOf lib.types.str;
+        };
+
+        den.aspects.igloo.includes = [
+          (
+            { pet, toy, ... }:
+            {
+              nixos.funny = [ "${pet.name}/${toy.name}" ];
+            }
+          )
+        ];
+
+        expr = lib.sort lib.lessThan igloo.funny;
+        expected = [
+          "rex/ball"
+          "rex/bone"
+        ];
+      }
+    );
+
   };
 }

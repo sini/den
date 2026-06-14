@@ -17,6 +17,10 @@ in
       { param, state }:
       let
         inherit (param) aspect compileFn;
+        # Entity intermediates already fanned earlier in this chain (e.g. `pet`
+        # when fanning `toy` under `{ pet, toy }`). Threaded through the recursive
+        # fan so a transitive descendant can enumerate off its immediate parent.
+        boundEntities = param.boundEntities or { };
         childArgs = aspect.__args or { };
         childScopeHandlers = aspect.__scopeHandlers or { };
         requiredKeys = builtins.filter (k: !childArgs.${k}) (builtins.attrNames childArgs);
@@ -38,6 +42,11 @@ in
           else
             { };
         keysAfterStateFallback = builtins.filter (k: !(scopeCtx ? ${k})) keysToProbe;
+        # Entity records reachable for descendant child-enumeration: the scope's
+        # own ctx (scope + ancestors) plus intermediates fanned earlier in this
+        # chain. A transitive descendant enumerates off its IMMEDIATE parent
+        # record, which may be a fanned intermediate rather than the scope root.
+        availRecords = scopeCtx // boundEntities;
         # Detect pipe arg references: if any required keys are pipe names,
         # unconditionally defer — pipe data is assembled post-pipeline.
         pipeRegistry = den.quirks or { };
@@ -126,7 +135,12 @@ in
         fanOut =
           argKind:
           let
-            parentRecord = if scopeKind != null then scopeCtx.${scopeKind} or null else null;
+            # Enumerate children off argKind's PARENT-kind record (host.users,
+            # pet.toys), not the scope root — so a transitive descendant chains
+            # through its immediate parent. The parent record is whichever of the
+            # scope ctx / a fanned intermediate carries that kind.
+            parentKind = schema.${argKind}.parent or scopeKind;
+            parentRecord = if parentKind == null then null else availRecords.${parentKind} or null;
             children = if parentRecord == null then [ ] else argClass.childrenOf parentRecord argKind;
             bindChild =
               idx: child:
@@ -148,6 +162,11 @@ in
                   };
                 };
                 inherit compileFn;
+                # Record this intermediate so a deeper descendant's fan reads its
+                # children off THIS record (transitive DAG nesting).
+                boundEntities = boundEntities // {
+                  ${argKind} = child;
+                };
               };
             # Fold child binds, collecting r.value singletons ++ r.fanOut lists.
             collect = builtins.foldl' (
@@ -194,10 +213,22 @@ in
             # double-cover; such an aspect is inert at this scope.
             else if descendants != [ ] then
               (
-                if sharedWithDescendant (builtins.head descendants) then
-                  fx.pure { inert = true; }
-                else
-                  fanOut (builtins.head descendants)
+                let
+                  # Fan a descendant whose parent kind is reachable NOW (the scope
+                  # itself or an already-fanned intermediate); the recursion fans
+                  # deeper descendants once their parent is bound. Shallowest-first,
+                  # NOT alphabetical — a transitive chain must bind the intermediate
+                  # before its child (`{ pet, toy }`: fan `pet`, then `toy` off it).
+                  fanable = builtins.filter (
+                    k:
+                    let
+                      p = schema.${k}.parent or scopeKind;
+                    in
+                    p != null && availRecords ? ${p}
+                  ) descendants;
+                  pick = if fanable != [ ] then builtins.head fanable else builtins.head descendants;
+                in
+                if sharedWithDescendant pick then fx.pure { inert = true; } else fanOut pick
               )
             # Only non-entity (pipe/conditional/enrichment) args remain → defer.
             else
