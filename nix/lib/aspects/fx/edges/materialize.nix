@@ -35,6 +35,7 @@
 let
   inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./default.nix { inherit lib; }) defaultFoldEdges;
+  inherit (import ./pi.nix { inherit lib; }) mkStaticPi;
 in
 rec {
   # The Π(root) record shape (§A). Per-field comments note the invariant that
@@ -51,12 +52,15 @@ rec {
   #   contextsAreAugmented;   # §8 DELIBERATE (cycle-forced) — B′ gets raw contexts.
   #                           #   Carried so a unified assembleSubtree knows which it
   #                           #   got.
-  #   classImports;           # §2 the collected class buckets, per-scope (perScope).
-  #                           #   The default-fold merge SOURCE. TARGET semantics =
-  #                           #   drained (the B′ baseDrain divergence is fixed via
-  #                           #   the augmented-context build, §A #8/#2/#7 option b).
-  #   provides;               # §9 subtree+ancestors; §3 spawn's own suffices.
-  #   routes;                 # §9 subtree+ancestors; §4 parent-subtree routes merge
+  #   classImports;           # (caller-merged: accumulator) §2 the collected class
+  #                           #   buckets, per-scope (perScope). The default-fold merge
+  #                           #   SOURCE. TARGET semantics = drained (the B′ baseDrain
+  #                           #   divergence is fixed via the augmented-context build,
+  #                           #   §A #8/#2/#7 option b).
+  #   provides;               # (caller-merged: route/provides fold input, not static-Π)
+  #                           #   §9 subtree+ancestors; §3 spawn's own suffices.
+  #   routes;                 # (caller-merged: route/provides fold input, not static-Π)
+  #                           #   §9 subtree+ancestors; §4 parent-subtree routes merge
   #                           #   into a spawn.
   #   rootScopeId;            # §5 DELIBERATE — the subtree root (pipeline root |
   #                           #   hostScopeId | spawnRoot). The merge target's root.
@@ -266,22 +270,23 @@ rec {
       phase3 =
         applyRoutes selfRef ctx augmented spawnRoot mergedScopeParent mergedScopeIsolated mergedSpawnRoutes
           phase2;
-      pi = {
-        perScope = phase3.perScope;
-        classImports = phase3.classImports;
-        scopeContexts = augmented;
-        contextsAreAugmented = true;
-        provides = ownProvides;
-        routes = mergedSpawnRoutes;
-        rootScopeId = spawnRoot;
-        scopeParent = mergedScopeParent;
-        scopeIsolated = mergedScopeIsolated;
-        # Isolation-blind extraction + parent-route merge + the dedup-free dial.
-        isolationMode = "blind";
-        dedupMode = "raw";
-        inherit allScopeIds;
-        classInject = null;
-      };
+      # Isolation-blind extraction + parent-route merge + the dedup-free dial.
+      pi =
+        (mkStaticPi {
+          rootScopeId = spawnRoot;
+          scopeContexts = augmented;
+          scopeParent = mergedScopeParent;
+          scopeIsolated = mergedScopeIsolated;
+          isolationMode = "blind";
+          dedupMode = "raw";
+          inherit allScopeIds;
+        })
+        // {
+          perScope = phase3.perScope;
+          classImports = phase3.classImports;
+          provides = ownProvides;
+          routes = mergedSpawnRoutes;
+        };
       assembled = assembleSubtree {
         root = spawnRoot;
         inherit pi;

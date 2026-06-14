@@ -13,6 +13,7 @@ let
   inherit (import ./edge-trace.nix { inherit lib den; }) extractEdgeTrace;
   inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./edges/materialize.nix { inherit lib; }) assembleSubtree;
+  inherit (import ./edges/pi.nix { inherit lib; }) mkStaticPi;
   inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges;
   instantiateEdges = import ./edges/instantiate.nix { inherit lib; };
   handlers = den.lib.aspects.fx.handlers;
@@ -184,23 +185,19 @@ let
             # kept as orchestration); the contexts/provides/routes carried on `pi`
             # conform to the canonical Π record shape (§A) for symmetry with the
             # spawn re-entry, though the default-fold merge reads only perScope.
-            pi = {
-              perScope = subtreePhase3.perScope;
-              classImports = subtreePhase3.classImports;
-              # §A #9: scopeContexts is the subtree-ONLY context slice (NOT
-              # subtree+ancestors). provides/routes are the wider subtree+ancestor
-              # fields. Inert for the default-fold merge (which reads perScope);
-              # the correct scope-set for the route/provides materializers that
-              # consume pi.scopeContexts.
-              scopeContexts = subtreeContexts;
-              contextsAreAugmented = true;
-              provides = subtreeProvides;
-              routes = subtreeRoutes;
-              rootScopeId = hostScopeId;
-              inherit scopeParent scopeIsolated;
-              isolationMode = "aware";
-              classInject = null;
-            };
+            pi =
+              (mkStaticPi {
+                rootScopeId = hostScopeId;
+                scopeContexts = subtreeContexts;
+                inherit scopeParent scopeIsolated;
+                isolationMode = "aware";
+              })
+              // {
+                perScope = subtreePhase3.perScope;
+                classImports = subtreePhase3.classImports;
+                provides = subtreeProvides;
+                routes = subtreeRoutes;
+              };
             assembled = assembleSubtree {
               root = hostScopeId;
               inherit pi;
