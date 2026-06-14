@@ -1,6 +1,6 @@
 # edge.nix — the shared delivery-edge record: constructor, the (T,P,S,M) sort
 # key, and the id_hash-based scope-naming helpers. EXTRACTED from edge-trace.nix
-# (Task 3) so that the read-only oracle (edge-trace.nix) and the production edge
+# so that the read-only oracle (edge-trace.nix) and the production edge
 # constructors (edges/default.nix) share ONE edge definition and can never
 # diverge on record shape or normalization (spec §3a: extractor and constructors
 # converge on one edge).

@@ -1,10 +1,10 @@
-# B′ cross-host peer-config divergence witness (§A #8/#2/#7, Task 11c).
+# B′ cross-host peer-config divergence witness (§A #8/#2/#7).
 #
 # `hostConfigs` (re-entry B′, resolve.nix) builds each peer host's full nixos
 # config for cross-host config-dependent pipe-thunk resolution (assemble-pipes
 # resolveEntry reads `config = hostConfigs.${sourceScopeId}`). Pre-fix B′ built
-# those configs over the RAW scopeContexts (census #8) and RAW (undrained) class
-# imports (census #2/#7) — so a peer whose config CONSUMES a pipe value (or
+# those configs over the RAW scopeContexts (§A #8) and RAW (undrained) class
+# imports (§A #2/#7) — so a peer whose config CONSUMES a pipe value (or
 # depends on a deferred include) diverged from its real instantiate output
 # (variant B): the pipe value was never injected / the include never drained, so
 # the peer config threw `attribute 'feat' missing` instead of resolving.

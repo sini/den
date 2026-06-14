@@ -5,9 +5,9 @@
 # extraction) and the edge-trace oracle, so production and oracle can never
 # diverge. The `isolated` argument is REQUIRED at every call site: there is no
 # default. Two live callers need the isolation-BLIND variant (`isolated = {}`)
-# and they are NOT the same call site (census #6/#10): the per-host re-walk's
+# and they are NOT the same call site: the per-host re-walk's
 # sub-phase collect, and spawn-node's final extraction. Defaulting `isolated`
-# would silently collapse the blind/aware split the census proved deliberate.
+# would silently collapse this deliberate blind/aware split.
 { lib, ... }:
 {
   # Scope IDs in `root`'s subtree. `root` is ALWAYS included: isolation gates

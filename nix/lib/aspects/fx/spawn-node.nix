@@ -116,7 +116,7 @@ in
         hostConfigs = null;
       });
 
-      # The subtree-membership universe (census #4 + Task-5 fix): the merged
+      # The subtree-membership universe: the merged
       # parent DAG keys ∪ the route-scope keys. WIDER than perScope: a route-only
       # scope can sit on the subtree parent-chain without a class bucket. Both the
       # parentSubtreeRoutes filter (below) and the final extraction (inside
@@ -126,8 +126,8 @@ in
       );
 
       # Isolation-BLIND subtree membership rooted at spawnRoot, over the merged
-      # parent DAG. `isolated = {}` is passed EXPLICITLY (census #6 documented
-      # invariant: isolated entities resolve via resolve.to in the host pipeline,
+      # parent DAG. `isolated = {}` is passed EXPLICITLY (documented invariant:
+      # isolated entities resolve via resolve.to in the host pipeline,
       # never through spawnNode, so no isolated descendant can appear under
       # spawnRoot). Used ONLY for the parentSubtreeRoutes filter; the final
       # extraction's identical blind walk happens inside assembleSpawnSubtree
@@ -139,7 +139,7 @@ in
         allScopeIds = spawnAllScopeIds;
       }) (_: true);
 
-      # Census #4 (DELIBERATE): parent-pipeline routes sourced inside the spawned
+      # DELIBERATE: parent-pipeline routes sourced inside the spawned
       # subtree MUST re-apply — the spawn re-emits class content at the same scope
       # ids but never re-fires schema policies, so without them a user-schema route
       # (homeLinux->homeManager) never fires and the content drops. This is the
@@ -164,7 +164,7 @@ in
         ) parentSubtreeRoutes;
 
       # The spawn's full phase fold + isolation-BLIND, dedup-FREE final extraction,
-      # expressed over the edge machinery (Task 10). The phase primitives are
+      # expressed over the edge machinery. The phase primitives are
       # forwarded (injection seam preserved — no resolve.nix import cycle); the
       # inline phase1/phase2/phase3 + subtree concat dissolved into one entry.
       # phase3.classImports aggregates across ALL merged scopes (host + sibling

@@ -58,7 +58,7 @@ let
   #     The `route` shim maps its legacy `reinstantiate = true` to `mode =
   #     "verbatim"` so existing users keep working without touching `deliver`.
   #   - `appendToParent` is NOT accepted here — `to` already names the target;
-  #     parent-targeting is constructor-internal (Task 8 fixed T = parent root at
+  #     parent-targeting is constructor-internal (T = parent root, fixed at
   #     construction) and reachable only through the `route` shim for compat.
   #
   # `deliver` produces the same effect descriptor the edge constructors already

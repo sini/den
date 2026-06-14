@@ -4,15 +4,15 @@
 # re-entries' final extraction; phase ordering becomes edge toposort (corollary
 # 5) as later mechanisms are ported.
 #
-# Tasks 7–10 are complete: `merge` (default-fold port) is live here; `nest`/
-# `nest-verbatim` (route delivery via materializeRouteEdge) and the synthesize
+# The mode arms are split across files: `merge` (default-fold port) is live here;
+# `nest`/`nest-verbatim` (route delivery via materializeRouteEdge) and the synthesize
 # (complex-forward) + provides edge materialization live in edges/route.nix +
 # edges/provides.nix. The else-throw in the `materialize` switch below is NOT a
 # stub — it is permanently correct: `assembleSubtree` carries merge edges only;
 # route nest/nest-verbatim + synthesize delivery folds through edges/route.nix
 # (applyRoutes → materializeRouteEdge), provides through edges/provides.nix.
 #
-# Task 10 (spawn port) is `assembleSpawnSubtree` (below): the spawn's full phase
+# The spawn port is `assembleSpawnSubtree` (below): the spawn's full phase
 # fold + its isolation-BLIND, dedup-FREE final extraction, expressed over this
 # machinery via the `isolationMode = "blind"` + `dedupMode = "raw"` Π dials and an
 # explicit `allScopeIds` subtree-universe override.
@@ -37,8 +37,8 @@ let
   inherit (import ./default.nix { inherit lib; }) defaultFoldEdges;
 in
 rec {
-  # The Π(root) record shape (§A, Task 1 census). Per-field provenance cites the
-  # census verdict that constrains it. The default-fold merge consumes only
+  # The Π(root) record shape (§A). Per-field comments note the invariant that
+  # constrains each. The default-fold merge consumes only
   # perScope/scopeParent/scopeIsolated/rootScopeId/dedupMode/allScopeIds; the
   # remaining fields are the route/provides/spawn projection inputs (the variants
   # are visible data instead of implicit state-threading).
@@ -70,14 +70,14 @@ rec {
   #                           #   first-occurrence-wins cross-scope key dedup
   #                           #   (extractSubtreeModules / wrapPerScope semantics).
   #                           #   "raw" = dedup-FREE concat (the spawn final-extraction
-  #                           #   invariant, Task 10): the spawn's phase1 wrapPerScope
+  #                           #   invariant): the spawn's phase1 wrapPerScope
   #                           #   already key-deduped INTO the perScope buckets, and the
   #                           #   final per-scope concat must NOT re-dedup across scopes
   #                           #   (a duplicate cross-scope module is a deliberate keyless
   #                           #   re-emission the target's own evalModules reconciles).
   #   allScopeIds ? null;     # optional subtree-universe override. null ⇒ derive from
   #                           #   perScope attrnames (the entity-root/per-host re-entries).
-  #                           #   The spawn re-entry (Task 10) passes mergedScopeParent ∪
+  #                           #   The spawn re-entry passes mergedScopeParent ∪
   #                           #   scopedRoutes keys EXPLICITLY: a route-only scope can sit
   #                           #   on the subtree parent-chain without a perScope bucket, so
   #                           #   the membership universe is WIDER than perScope alone.
@@ -212,12 +212,12 @@ rec {
     } edges;
 
   # assembleSpawnSubtree: the spawn node's full phase-fold + final extraction,
-  # expressed over the edge machinery (Task 10). The spawn's inline
+  # expressed over the edge machinery. The spawn's inline
   # phase1(wrapPerScope) → phase2(applyProvides) → phase3(applyRoutes) →
   # isolation-BLIND dedup-FREE subtree concat is reproduced here as ONE entry:
   # the phase fold builds the perScope buckets, then `assembleSubtree` performs
   # the final per-root extraction with the spawn's two distinguishing dials —
-  # `isolationMode = "blind"` (census #6 documented invariant: no isolated
+  # `isolationMode = "blind"` (documented invariant: no isolated
   # descendant can appear under a spawnRoot, since isolated kinds are created by
   # resolve.to in the HOST pipeline, never via spawnNode) and `dedupMode = "raw"`
   # (the phase1 wrapPerScope already key-deduped INTO the buckets; the final
@@ -235,10 +235,10 @@ rec {
   #   mergedClassImports    — phase1 source (parent + spawned, pipe-stripped).
   #   mergedScopeParent     — the merged parent DAG (spawnRoot linked up to host).
   #   mergedScopeIsolated   — merged isolation marks (inert under blind mode).
-  #   ownProvides           — the spawn's OWN provides (census #3: parent provides
-  #                           are deliberately NOT reapplied).
+  #   ownProvides           — the spawn's OWN provides (parent provides are
+  #                           deliberately NOT reapplied).
   #   mergedSpawnRoutes     — parent-subtree routes (routeKey-deduped) ⊕ spawn own
-  #                           (census #4: parent routes MUST merge into the spawn).
+  #                           (parent routes MUST merge into the spawn).
   #   allScopeIds           — the subtree-membership universe (mergedScopeParent ∪
   #                           scopedRoutes keys — WIDER than perScope alone).
   #   selfRef               — the spawn primitive (nested-forward resolver).
@@ -276,7 +276,7 @@ rec {
         rootScopeId = spawnRoot;
         scopeParent = mergedScopeParent;
         scopeIsolated = mergedScopeIsolated;
-        # Census #6 invariant + #4 spawn merge + the dedup-free extraction dial.
+        # Isolation-blind extraction + parent-route merge + the dedup-free dial.
         isolationMode = "blind";
         dedupMode = "raw";
         inherit allScopeIds;

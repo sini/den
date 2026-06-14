@@ -105,7 +105,7 @@ let
   # The per-host subtree extraction that produced the complete module set for a
   # host (host-scope + user-scope + route-delivered modules, key-deduped) now
   # routes through the edge materializer's merge mode (edges/materialize.nix
-  # assembleSubtree) — the default-fold port (Task 7). See mkInstantiateArgs.
+  # assembleSubtree) — the default-fold port. See mkInstantiateArgs.
 
   # Build instantiateArgs for a spec without calling spec.instantiate.
   # Factored out so both applyInstantiates and hostConfigs can reuse it.
@@ -131,7 +131,7 @@ let
       preWalkedModules =
         if hostScopeId != null then
           let
-            # Isolation-BLIND collect (census #10): the per-host re-walk collects
+            # Isolation-BLIND collect: the per-host re-walk collects
             # sub-phases over the blind set, then extractSubtreeModules extracts
             # over the isolation-AWARE set below. Pass `isolated = {}` explicitly
             # — defaulting it would collapse this deliberate blind/aware split.
@@ -173,8 +173,8 @@ let
             subtreePhase3 =
               applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
                 subtreePhase2;
-            # Default-fold port (Task 7): the per-host final extraction routes
-            # through the edge materializer. This re-entry (census variant B)
+            # Default-fold port: the per-host final extraction routes
+            # through the edge materializer. This re-entry (variant B)
             # constructs an EXPLICIT Π(root) record — the variant becomes visible
             # data instead of implicit state-threading. assembleSubtree resolves
             # the isolation-AWARE subtree boundary (isolationMode = "aware") and
@@ -375,8 +375,8 @@ let
             mkArgs = mkInstantiateArgs {
               # §A #8/#2/#7 fix (option b): B′ builds peer configs over the
               # hostConfigs-NULL ASSEMBLED contexts (pipe values resolved), not
-              # raw scopeContexts. The census flagged B′'s raw-context use as
-              # cycle-forced (assemblePipes-with-hostConfigs needs hostConfigs);
+              # raw scopeContexts. B′'s raw-context use was cycle-forced
+              # (assemblePipes-with-hostConfigs needs hostConfigs);
               # but the hostConfigs-NULL pass is cycle-free and resolves every
               # pipeline-parametric pipe value. A pipe-CONSUMING peer aspect (one
               # that reads a quirk value via context, e.g. `{ feat, ... }`) thus
@@ -660,7 +660,7 @@ let
     in
     {
       imports = phase4.${class} or [ ];
-      # Surfaced from the SAME result.state — Task 1 thunked this onto state.
+      # Surfaced from the SAME result.state — this is thunked onto state.
       pathSetByScope = result.state.pathSetByScope null;
       # Per-scope ctx + entity-kind, so the entity surface can re-key the path
       # set from scope-string to entity identity (id_hash) for projected
