@@ -1030,14 +1030,31 @@ let
       } mkPipeline parentState;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts scopedClassImportsRaw;
-      phase2 = applyProvidesEdges ctx (result.state.scopedProvides null) phase1;
-      phase3 =
-        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
-          (result.state.scopedRoutes null)
-          phase2;
+      # Production delivery (Task 17): one ordered-dispatch fold over the unified
+      # provides+routes edge set, replacing the phase2 (provides) ∘ phase3 (routes)
+      # sequence. doFinalMerge = false → returns the raw { classImports; perScope }
+      # accumulator; this non-instantiating path reads the flat classImports, as
+      # before (no drain / phase4 / assembleSubtree here).
+      pi =
+        (mkStaticPi {
+          rootScopeId = result.state.rootScopeId;
+          scopeContexts = augmentedScopeContexts;
+          inherit scopeParent scopeIsolated;
+          isolationMode = "aware";
+        })
+        // {
+          scopeEntityKind = (result.state.scopeEntityKind or (_: { })) null;
+        };
+      materialized = materializeUnified {
+        inherit pi ctx spawnNode;
+        seed = phase1;
+        scopedProvides = result.state.scopedProvides null;
+        scopedRoutes = result.state.scopedRoutes null;
+        inherit (handlers) buildForwardAspect;
+      } { doFinalMerge = false; };
     in
     {
-      imports = phase3.classImports.${class} or [ ];
+      imports = materialized.classImports.${class} or [ ];
     };
 in
 {
