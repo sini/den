@@ -715,11 +715,31 @@ let
       drainedClassImportsRaw = drained.classImports;
 
       phase1 = wrapPerScope ctx augmentedScopeContexts drainedClassImportsRaw;
-      phase2 = applyProvidesEdges ctx scopedProvides phase1;
-      phase3 =
-        applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
+      # Production delivery (Task 17): one ordered-dispatch fold over the unified
+      # provides+routes edge set, replacing the phase2 (provides) ∘ phase3 (routes)
+      # sequence. doFinalMerge = false → returns the raw { classImports; perScope }
+      # accumulator (the non-flake output reads the flat classImports, as before).
+      pi =
+        (mkStaticPi {
+          rootScopeId = result.state.rootScopeId;
+          scopeContexts = augmentedScopeContexts;
+          inherit scopeParent scopeIsolated;
+          isolationMode = "aware";
+        })
+        // {
+          inherit scopeEntityKind;
+        };
+      materialized = materializeUnified {
+        inherit
+          pi
+          ctx
+          scopedProvides
           scopedRoutes
-          phase2;
+          spawnNode
+          ;
+        seed = phase1;
+        inherit (handlers) buildForwardAspect;
+      } { doFinalMerge = false; };
       phase4 = applyInstantiates {
         scopedInstantiates = result.state.scopedInstantiates null;
         scopeEntityClass = result.state.scopeEntityClass or (_: { });
@@ -736,7 +756,7 @@ let
         # included in per-host subtree assembly.
         scopedClassImportsRaw = drainedClassImportsRaw;
         spawnNodeFn = spawnNode;
-      } phase3.classImports;
+      } materialized.classImports;
 
       # ===== unifiedEdges component construction =========================
       # The TOP-LEVEL mechanism edge components (default fold + provides + routes +
@@ -880,16 +900,9 @@ let
       # compares `.phaseFold` to `.unified` per topology. Not consumed by production.
       materializeEquiv =
         let
-          piTop = mkStaticPi {
-            rootScopeId = result.state.rootScopeId;
-            scopeContexts = augmentedScopeContexts;
-            inherit scopeParent scopeIsolated;
-            isolationMode = "aware";
-          };
+          piTop = pi;
           unifiedInputs = {
-            pi = piTop // {
-              inherit scopeEntityKind;
-            };
+            inherit pi;
             seed = phase1;
             inherit
               ctx
@@ -899,6 +912,15 @@ let
               ;
             inherit (handlers) buildForwardAspect;
           };
+          # The OLD production path (phase2 provides ∘ phase3 routes), recomputed
+          # locally over the SAME live seed. Production now folds materializeUnified
+          # directly (above), so this independent recomputation is the equivalence
+          # ORACLE the fx-materialize-unified suite deep-compares against `.unified`.
+          oraclePhase2 = applyProvidesEdges ctx scopedProvides phase1;
+          oraclePhase3 =
+            applyRoutes spawnNode ctx augmentedScopeContexts result.state.rootScopeId scopeParent scopeIsolated
+              scopedRoutes
+              oraclePhase2;
         in
         let
           # The production dispatch order: ALL provides (dedup order) THEN ALL kept
@@ -926,10 +948,12 @@ let
         {
           inherit phaseFoldDispatch unifiedDispatch;
           # phase2 ∘ phase3 over the live seed (the production order: all provides
-          # then all routes).
-          phaseFold = phase3;
+          # then all routes) — recomputed by the local oracle, since production now
+          # folds materializeUnified directly.
+          phaseFold = oraclePhase3;
           # materializeUnified over the SAME seed, doFinalMerge = false (returns the
-          # raw accumulator, byte-comparable to phaseFold).
+          # raw accumulator, byte-comparable to phaseFold). This is the SAME call
+          # production uses (`materialized`).
           unified = materializeUnified unifiedInputs { doFinalMerge = false; };
           # The doFinalMerge = true variant, comparable to assembleSubtree over the
           # phaseFold result (the final-extraction merge step, unchanged).
@@ -937,8 +961,8 @@ let
           phaseFoldMerged = assembleSubtree {
             root = result.state.rootScopeId;
             pi = piTop // {
-              perScope = phase3.perScope;
-              classImports = phase3.classImports;
+              perScope = oraclePhase3.perScope;
+              classImports = oraclePhase3.classImports;
               provides = scopedProvides;
               routes = scopedRoutes;
             };
