@@ -139,7 +139,7 @@ in
             # pet.toys), not the scope root — so a transitive descendant chains
             # through its immediate parent. The parent record is whichever of the
             # scope ctx / a fanned intermediate carries that kind.
-            parentKind = schema.${argKind}.parent or scopeKind;
+            parentKind = argClass.parentKindOf schema scopeKind argKind;
             parentRecord = if parentKind == null then null else availRecords.${parentKind} or null;
             children = if parentRecord == null then [ ] else argClass.childrenOf parentRecord argKind;
             bindChild =
@@ -219,13 +219,7 @@ in
                   # deeper descendants once their parent is bound. Shallowest-first,
                   # NOT alphabetical — a transitive chain must bind the intermediate
                   # before its child (`{ pet, toy }`: fan `pet`, then `toy` off it).
-                  fanable = builtins.filter (
-                    k:
-                    let
-                      p = schema.${k}.parent or scopeKind;
-                    in
-                    p != null && availRecords ? ${p}
-                  ) descendants;
+                  fanable = argClass.fanableDescendants schema scopeKind availRecords descendants;
                   pick = if fanable != [ ] then builtins.head fanable else builtins.head descendants;
                 in
                 if sharedWithDescendant pick then fx.pure { inert = true; } else fanOut pick

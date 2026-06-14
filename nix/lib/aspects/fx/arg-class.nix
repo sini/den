@@ -40,4 +40,26 @@ rec {
   # Child records of `parentRecord` for `argKind`; [ ] when absent.
   childrenOf =
     parentRecord: argKind: builtins.attrValues (parentRecord.${childrenAttrFor argKind} or { });
+
+  # Immediate parent KIND of `argKind` for a fan at scope kind `scopeKind`: the
+  # schema-declared parent, falling back to the scope itself (a direct child).
+  # Pure schema-DAG knowledge — kept here, not inlined in the bind handler.
+  parentKindOf =
+    schema: scopeKind: argKind:
+    schema.${argKind}.parent or scopeKind;
+
+  # Descendants whose immediate parent kind has a record available NOW
+  # (`availRecords` keyed by kind: the scope ctx + intermediates already fanned).
+  # Fanning one of these first lets the recursion reach deeper descendants once
+  # their parent is bound — the shallowest-reachable order a transitive DAG fan
+  # needs (a chain must bind the intermediate before its child).
+  fanableDescendants =
+    schema: scopeKind: availRecords: descendants:
+    builtins.filter (
+      k:
+      let
+        p = parentKindOf schema scopeKind k;
+      in
+      p != null && availRecords ? ${p}
+    ) descendants;
 }
