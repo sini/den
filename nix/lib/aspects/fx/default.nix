@@ -18,5 +18,6 @@
   edgeTrace = import ./edge-trace.nix { inherit lib den; };
   edges = {
     pi = import ./edges/pi.nix { inherit lib; };
+    materialize = import ./edges/materialize.nix { inherit lib den; };
   };
 }

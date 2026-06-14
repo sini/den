@@ -11,7 +11,7 @@ let
   inherit (import ./assemble-pipes.nix { inherit lib den; }) assemblePipes;
   inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes;
   inherit (import ./handlers/route.nix { inherit lib; }) routeKey;
-  inherit (import ./edges/materialize.nix { inherit lib; }) assembleSpawnSubtree;
+  inherit (import ./edges/materialize.nix { inherit lib den; }) assembleSpawnSubtree;
   pipeNamesSet = lib.genAttrs (builtins.attrNames (den.quirks or { })) (_: true);
 in
 {
@@ -191,6 +191,8 @@ in
       ctx = parentState.ctx;
       inherit augmented;
       inherit mergedClassImports;
+      # Merged parent + spawned entity kinds — the surfaced edges' scopeName map.
+      scopeEntityKind = parentState.scopeEntityKind // ((result.state.scopeEntityKind or (_: { })) null);
       ownProvides = result.state.scopedProvides null;
       allScopeIds = spawnAllScopeIds;
     };

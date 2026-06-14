@@ -12,7 +12,7 @@ let
   routeEdges = import ./edges/route.nix { inherit lib den; };
   inherit (import ./edge-trace.nix { inherit lib den; }) extractEdgeTrace;
   inherit (import ./scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
-  inherit (import ./edges/materialize.nix { inherit lib; }) assembleSubtree;
+  inherit (import ./edges/materialize.nix { inherit lib den; }) assembleSubtree;
   inherit (import ./edges/pi.nix { inherit lib; }) mkStaticPi;
   inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges;
   instantiateEdges = import ./edges/instantiate.nix { inherit lib; };

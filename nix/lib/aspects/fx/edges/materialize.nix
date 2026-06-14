@@ -31,11 +31,14 @@
 #     resolves the subtree boundary (via scope-walk.subtreeScopes, governed by
 #     Π's EXPLICIT isolationMode) BEFORE handing merge edges to the switch, so
 #     the switch only walks an already-bounded scope list.
-{ lib, ... }:
+{ lib, den, ... }:
 let
   inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./default.nix { inherit lib; }) defaultFoldEdges;
   inherit (import ./pi.nix { inherit lib; }) mkStaticPi;
+  inherit (import ./provides.nix { inherit lib den; }) providesEdges;
+  inherit (import ./route.nix { inherit lib den; }) routeEdges;
+  inherit (import ./edge.nix { inherit lib; }) scopeName;
 in
 rec {
   # The Π(root) record shape (§A). Per-field comments note the invariant that
@@ -253,6 +256,7 @@ rec {
       spawnRoot,
       ctx,
       augmented,
+      scopeEntityKind,
       mergedClassImports,
       mergedScopeParent,
       mergedScopeIsolated,
@@ -291,8 +295,44 @@ rec {
         root = spawnRoot;
         inherit pi;
       };
+      # The SURFACED edge set for THIS spawn node — the spawn's default-fold merge
+      # edge(s) ++ its OWN provides edges ++ the re-applied mergedSpawnRoutes route
+      # edges (simple + complex). Built via the SAME fold-independent constructors
+      # the read-only oracle consumes, so the surfaced set converges on the
+      # constructors, not merely the primitives (spec §3a). Consumers read only
+      # `.imports`; `.edges` is additive (a later mechanism consumes it).
+      #
+      # DELIBERATE name-space note: assembleSubtree's INTERNAL defaultFoldEdges
+      # uses `name = sid: sid` (identity) because the merge switch reads only
+      # `edge.target.class`. The SURFACED edges here use `scopeName`
+      # (`<kind>:<id_hash>`) to match the oracle/unified-set normalization. These
+      # two name spaces are intentionally DIFFERENT — do NOT unify them.
+      name = scopeName {
+        inherit scopeEntityKind;
+        scopeContexts = augmented;
+      };
+      edges =
+        (defaultFoldEdges {
+          inherit name;
+          scopeParent = mergedScopeParent;
+          scopeIsolated = isolatedSetOf pi; # blind ⇒ {} — matches the merge boundary
+          classContentAt = phase3.perScope;
+          inherit allScopeIds;
+          entityRootScopes = [ spawnRoot ];
+        })
+        ++ (providesEdges {
+          inherit name;
+          scopedProvides = ownProvides;
+        })
+        ++ (routeEdges {
+          inherit name;
+          scopeParent = mergedScopeParent;
+          rootScopeId = spawnRoot;
+          rawRoutes = lib.concatLists (lib.attrValues mergedSpawnRoutes);
+        });
     in
     {
       imports = assembled.${class} or [ ];
+      inherit edges;
     };
 }
