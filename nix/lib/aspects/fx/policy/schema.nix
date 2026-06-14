@@ -64,11 +64,14 @@ let
       # host's own in-flight `__resolveResult` and recurses. So: don't decide
       # includes from it.
       #
-      # Because buckets are keyed by `id_hash` (context-free: kind+name, not
-      # ancestry), each in-ctx entity looks up its OWN delivered set by its OWN
-      # id_hash — no scope-string reconstruction, no ancestor stripping. Swap
-      # `.hasAspect` on every entity-kind binding; ancestors (e.g. a fleet
-      # `environment`) simply aren't keys in the owner's bucket and read false.
+      # Per the projected-hasAspect spec, EVERY in-context entity-kind binding
+      # answers membership at the ACTIVE (consuming) scope — "is X delivered into
+      # THIS scope" — keyed by ONE shared scope id, not each entity's own. After
+      # the id_hash re-key the active scope's bucket is the consuming (target)
+      # entity's id_hash (the deepest scope in ctx). Keying per-entity made
+      # `host.hasAspect` read the host's OWN bucket, blinding it to aspects the
+      # host delivers DOWN to its users via `provides.to-users` — those resolve
+      # under the user scope, so only the active (consuming) bucket holds them.
       overrideKinds = builtins.filter (
         k: schemaEntityKindsSet ? ${k} && builtins.isAttrs (rawScopedCtx.${k} or null)
       ) (builtins.attrNames rawScopedCtx);
@@ -89,17 +92,15 @@ let
         k: builtins.isAttrs (rawScopedCtx.${k} or null) && rawScopedCtx.${k} ? __pathSetByScope
       ) targetKind (lib.reverseList ownerChain);
       ownerPathSet = rawScopedCtx.${ownerKind}.__pathSetByScope or { };
-      projectedFor =
-        entity:
-        den.lib.aspects.mkProjectedHasAspect {
-          pathSetByScope = ownerPathSet;
-          key = entity.id_hash or null;
-        };
+      # The active scope = the consuming (target) entity's bucket — the deepest
+      # scope in ctx. Shared by every binding so `host`/`user`/etc. all answer
+      # "delivered into THIS scope", per the spec.
+      projected = den.lib.aspects.mkProjectedHasAspect {
+        pathSetByScope = ownerPathSet;
+        key = rawScopedCtx.${targetKind}.id_hash or null;
+      };
       scopedCtx =
-        rawScopedCtx
-        // lib.genAttrs overrideKinds (
-          k: rawScopedCtx.${k} // { hasAspect = projectedFor rawScopedCtx.${k}; }
-        );
+        rawScopedCtx // lib.genAttrs overrideKinds (k: rawScopedCtx.${k} // { hasAspect = projected; });
     in
     {
       inherit
