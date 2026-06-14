@@ -351,7 +351,7 @@
       {
         expr = {
           hasEntries = result.state.entries != [ ];
-          hasPaths = (result.state.pathSet) null != { };
+          hasPaths = (result.state.pathSetByScope) null != { };
           hasImports =
             ((builtins.foldl' (
               acc: sd:

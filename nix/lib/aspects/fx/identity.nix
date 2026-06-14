@@ -37,14 +37,20 @@ let
     includes = [ ];
   };
 
+  # The flat, scope-agnostic membership set: union of every per-scope bucket.
+  # `pathSetByScope` is the single source of truth; consumers that don't care
+  # about scope (structural hasAspect, capture) derive the flat view from it
+  # instead of a separately-maintained flat field.
+  flattenPathSetByScope = pbs: lib.foldl' (a: b: a // b) { } (builtins.attrValues pbs);
+
   collectPathsHandler = {
     "resolve-complete" =
       { param, state }:
       let
         isExcluded = param.meta.excluded or false;
         # The entity root (host/user/home) carries __entityKind. It is indexed
-        # in pathSet (unchanged) but excluded from resolvedNodes — an entity is
-        # not one of its own aspects.
+        # in pathSetByScope but excluded from resolvedNodes — an entity is not
+        # one of its own aspects.
         isEntityRoot = param ? __entityKind;
         path = aspectPath param;
         nodeKey = pathKey path;
@@ -57,15 +63,14 @@ let
         state =
           state
           // lib.optionalAttrs (!isExcluded) {
-            pathSet =
-              _:
-              (state.pathSet or (_: { })) null
-              // {
-                ${nodeKey} = true;
-              }
-              // lib.optionalAttrs (nodeBaseKey != nodeKey) {
-                ${nodeBaseKey} = true;
-              };
+            # The per-scope path set is the SINGLE membership record. Each node is
+            # indexed under its currentScope by BOTH the ctx-qualified nodeKey and
+            # the base key (without {ctxId}). The flat, scope-agnostic set some
+            # consumers need is just the union of these buckets
+            # (flattenPathSetByScope) — no separate flat field. Conditional guards
+            # read a scope-restricted union (currentScope + ancestors, #613); the
+            # entity-surface projected hasAspect reads one bucket by id_hash and
+            # only the base key (the extra nodeKey entry is inert there).
             pathSetByScope =
               _:
               let
@@ -75,13 +80,6 @@ let
               in
               prev
               // {
-                # Mirror the flat pathSet's key space (both the ctx-qualified
-                # nodeKey and the base key) so a scope-restricted union of these
-                # buckets is key-equivalent to the flat set — letting conditional
-                # guards check membership scoped to an entity's own subtree
-                # rather than the fleet-wide flat set (#613). The entity-surface
-                # projected hasAspect only reads the base key, so the extra
-                # nodeKey entry is inert there.
                 ${scope} =
                   scopeSet
                   // {
@@ -117,6 +115,7 @@ in
     isAnonIdentity
     stripCtxSuffix
     tombstone
+    flattenPathSetByScope
     collectPathsHandler
     ;
 }

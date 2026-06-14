@@ -133,12 +133,12 @@ let
   defaultState = {
     # --- Flat state (global by design, not scoped) ---
     seen = _: { };
-    pathSet = _: { };
     # Per-scope path set: scopeId → { pathKey → true } (both the ctx-qualified
-    # nodeKey and the base key, mirroring the flat pathSet). Byproduct of the
-    # structural walk, bucketed by the scope that owns each node. Powers the
+    # nodeKey and the base key). Byproduct of the structural walk, bucketed by
+    # the scope that owns each node — the SINGLE membership record. Powers the
     # projected (in-context) hasAspect and the scope-restricted guard membership
-    # check (#613). Thunked to survive per-step deepSeq.
+    # check (#613); the flat scope-agnostic view is its union
+    # (identity.flattenPathSetByScope). Thunked to survive per-step deepSeq.
     pathSetByScope = _: { };
     # Full resolved nodes keyed by unique identity, for entity.aspects.
     resolvedNodes = _: { };

@@ -35,7 +35,10 @@ let
     result.state;
 
   collectPathSet =
-    { tree, class }: ((resolveClassState { inherit tree class; }).pathSet or (_: { })) null;
+    { tree, class }:
+    identity.flattenPathSetByScope (
+      ((resolveClassState { inherit tree class; }).pathSetByScope or (_: { })) null
+    );
 
   hasAspectIn =
     {
@@ -104,7 +107,8 @@ let
           };
         }) (lib.unique ([ primaryClass ] ++ classes))
       );
-      pathSetFor = c: ((stateFor.${c} or { }).pathSet or (_: { })) null;
+      pathSetFor =
+        c: identity.flattenPathSetByScope (((stateFor.${c} or { }).pathSetByScope or (_: { })) null);
       nodesFor =
         c: map augment (lib.attrValues (((stateFor.${c} or { }).resolvedNodes or (_: { })) null));
       check = class: ref: (pathSetFor class) ? ${refKey ref};

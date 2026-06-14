@@ -74,9 +74,12 @@ let
     in
     {
       entries = lib.concatMap (c: rawPerClass.${c}.state.entries) classes;
-      # Unwrap thunked pathSet — pipeline wraps growing state fields as
-      # (_: value) to survive deepSeq. Apply null to unwrap.
-      pathsByClass = lib.mapAttrs (_: r: (r.state.pathSet or (_: { })) null) rawPerClass;
+      # Flat membership per class = union of the per-scope buckets. Unwrap the
+      # thunked pathSetByScope (pipeline wraps growing state as (_: value) to
+      # survive deepSeq; apply null), then flatten.
+      pathsByClass = lib.mapAttrs (
+        _: r: den.lib.aspects.fx.identity.flattenPathSetByScope ((r.state.pathSetByScope or (_: { })) null)
+      ) rawPerClass;
       ctxTrace =
         let
           first = rawPerClass.${lib.head classes};
