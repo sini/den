@@ -239,7 +239,7 @@ be forwarded to their respective targets.
 
 ## Host-scope parametric aspects no longer deliver homeManager content to users
 
-Before the #609 fix, a `{ user, ... }` aspect at host scope leaked its
+Earlier releases let a `{ user, ... }` aspect at host scope leak its
 `homeManager` content to each of the host's users. A host-scope parametric
 aspect now fans out over the users but emits class-locally **on the host**,
 where `homeManager` is inert -- so that content never reaches the users'
