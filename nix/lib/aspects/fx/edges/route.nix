@@ -738,17 +738,10 @@ let
       allRoutes;
 in
 {
+  # Only the resolver (applyRoutes) and the read-only oracle (materializeRouteEdge,
+  # routeEdges below) consume route.nix; the rest stays internal.
   inherit
-    materializeNest
     materializeRouteEdge
-    mkAdapterFunctor
-    sourceModulesOf
-    classifyRoute
-    appendScopeIdOf
-    suppressionVerdicts
-    keptRoutes
-    orderedKeptRoutes
-    topoSort
     applyRoutes
     ;
 

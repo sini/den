@@ -126,10 +126,8 @@ in
 {
   inherit
     entityKindOf
-    idHashOf
     scopeName
     mkEdge
-    edgeSortKey
     sortEdges
     collected
     rewalk
