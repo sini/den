@@ -150,8 +150,8 @@ let
     scopedDeferredConditionals = _: { };
     scopedIncludesChain = _: { };
     scopedConstraintRegistry = _: { };
-    # Pre-merged flat views (avoid O(S) rebuild per check-constraint call).
-    flatConstraintRegistry = { };
+    # Flat filter list only (excludes/substitutes are entity-scoped via
+    # scopedConstraintRegistry; filters have no scoped registry).
     flatConstraintFilters = [ ];
     scopedRoutes = _: { };
     scopedInstantiates = _: { };

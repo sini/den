@@ -29,52 +29,39 @@ let
     ) (fx.pure [ ]) aspects;
 
   # Collect constraint registry entries from the current scope and all
-  # ancestor scopes via scopeParent. Normalizes ownerChain to [] so
-  # isExcludedInScope treats all collected entries as in-scope.
+  # ancestor scopes via scopeParent (the shared cycle-guarded walk from
+  # constraint.nix), then NORMALIZES ownerChain to [] so isExcludedInScope treats
+  # all collected entries as in-scope (scope ancestry already establishes
+  # relevance — the guard view does not need the within-scope includesChain filter
+  # that check-constraint keeps).
   collectScopeConstraints =
-    scopedRegistry: scopeParentMap:
-    let
-      go =
-        scope: acc:
-        let
-          scopeEntries = scopedRegistry.${scope} or { };
-          # Normalize entries: clear ownerChain since scope ancestry
-          # already establishes relevance.
-          normalized = lib.mapAttrs (_: entries: map (e: e // { ownerChain = [ ]; }) entries) scopeEntries;
-          merged = lib.zipAttrsWith (_: builtins.concatLists) [
-            acc
-            normalized
-          ];
-          parent = scopeParentMap.${scope} or null;
-        in
-        if parent == null then merged else go parent merged;
-    in
-    go;
+    scopedRegistry: scopeParentMap: scope:
+    lib.mapAttrs (_: entries: map (e: e // { ownerChain = [ ]; }) entries) (
+      collectScopedConstraints scopedRegistry scopeParentMap scope
+    );
+
+  # Reuse the shared scope+ancestor walk + the constraint lookup from
+  # constraint.nix (avoids duplicating the cycle-guarded walk and the prefix-
+  # matching identity logic).
+  inherit (import ./constraint.nix { inherit lib den; })
+    lookupEntries
+    isAncestorChain
+    collectScopedConstraints
+    foldScopeAncestors
+    ;
 
   # Union the per-scope path sets over `scope` + its ancestors — an entity's
-  # own + inherited membership, EXCLUDING sibling / other-entity subtrees.
-  # Mirrors collectScopeConstraints' scope+ancestor walk. Guards consult THIS
-  # instead of the fleet-wide flat pathSet, which accumulated every walked
-  # scope's aspects and leaked sibling membership in an eval-order-dependent
-  # way (#613: a host's `hasAspect` guard saw an aspect another host included).
-  # pathSetByScope mirrors the flat set's key space (identity.nix), so the
-  # guard's `pathSet ? identity.key ref` check works unchanged against this union.
+  # own + inherited membership, EXCLUDING sibling / other-entity subtrees (the
+  # same cycle-guarded walk as collectScopedConstraints, merging with `//` since
+  # the pathSet is membership booleans). Guards consult THIS instead of the
+  # fleet-wide flat pathSet, which accumulated every walked scope's aspects and
+  # leaked sibling membership in an eval-order-dependent way (#613: a host's
+  # `hasAspect` guard saw an aspect another host included). pathSetByScope mirrors
+  # the flat set's key space (identity.nix), so the guard's `pathSet ? identity.key
+  # ref` check works unchanged against this union.
   scopedPathSet =
     pathSetByScope: scopeParentMap: scope:
-    let
-      go =
-        s: acc:
-        let
-          merged = acc // (pathSetByScope.${s} or { });
-          parent = scopeParentMap.${s} or null;
-        in
-        if parent == null || parent == s then merged else go parent merged;
-    in
-    if scope == null then { } else go scope { };
-
-  # Reuse constraint lookup from constraint.nix to avoid duplicating
-  # the prefix-matching logic (identity path splitting + prefix search).
-  inherit (import ./constraint.nix { inherit lib den; }) lookupEntries isAncestorChain;
+    foldScopeAncestors (a: b: a // b) scopeParentMap (s: pathSetByScope.${s} or { }) scope;
 
   # Check if an aspect identity is excluded in a constraint registry.
   isExcludedInScope =
@@ -203,7 +190,7 @@ in
             pathSetByScope = (currentState.pathSetByScope or (_: { })) null;
             scopeParentMap = (currentState.scopeParent or (_: { })) null;
             scopedRegistry = (currentState.scopedConstraintRegistry or (_: { })) null;
-            constraintRegistry = collectScopeConstraints scopedRegistry scopeParentMap scope { };
+            constraintRegistry = collectScopeConstraints scopedRegistry scopeParentMap scope;
             guardCtx = mkGuardCtx {
               pathSet = scopedPathSet pathSetByScope scopeParentMap scope;
               inherit constraintRegistry;
@@ -261,7 +248,7 @@ in
                     scopedRegistry = (currentState.scopedConstraintRegistry or (_: { })) null;
                     scopeParentMap = (currentState.scopeParent or (_: { })) null;
                     pathSetByScope = (currentState.pathSetByScope or (_: { })) null;
-                    constraintRegistry = collectScopeConstraints scopedRegistry scopeParentMap scope { };
+                    constraintRegistry = collectScopeConstraints scopedRegistry scopeParentMap scope;
                     guardPathSet = scopedPathSet pathSetByScope scopeParentMap scope;
                     len = builtins.length pending;
                     go =

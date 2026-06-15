@@ -16,6 +16,8 @@
   mkSupplementalResolution,
 }:
 let
+  inherit (import ../handlers/constraint.nix { inherit lib den; }) scopedConstraintsForScope;
+
   # Determine target entity kind from a schema effect.
   resolveTargetKind =
     entityKind: schemaEffect:
@@ -200,7 +202,13 @@ let
     fx.bind fx.effects.state.get (
       state:
       let
-        constraintRegistry = state.flatConstraintRegistry or { };
+        # Entity-scoped (NOT fleet-wide) — a sibling entity's policy-exclude must
+        # not filter this sibling's late policies (#613 analog).
+        # Scope to the SIBLING being dispatched (`sib.scopeId`), not the current
+        # (parent) scope: the late dispatch runs at the parent but emits FOR the
+        # child sibling, and the relevant excludes (e.g. den.schema.flake-system.
+        # excludes) register at the sibling/descendant scope, not an ancestor.
+        constraintRegistry = scopedConstraintsForScope state sib.scopeId;
         isExcluded = name: builtins.any (e: e.type == "exclude") (constraintRegistry.${name} or [ ]);
         filteredPolicies = lib.filterAttrs (name: _: !isExcluded name) latePolicies;
         resolveCtx = sib.scopedCtx // {

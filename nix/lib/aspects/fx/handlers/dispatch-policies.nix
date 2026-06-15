@@ -10,6 +10,7 @@
 }:
 let
   inherit (den.lib) fx;
+  inherit (import ./constraint.nix { inherit lib den; }) scopedConstraintsFor;
 
   # Check if a policy name is excluded by any constraint in the registry.
   isExcluded =
@@ -24,7 +25,9 @@ in
     "dispatch-policies" =
       { param, state }:
       let
-        registry = state.flatConstraintRegistry or { };
+        # Entity-scoped (scope + ancestors, NOT fleet-wide) — a sibling entity's
+        # policy-exclude must not filter this scope's policies (#613 analog).
+        registry = scopedConstraintsFor state;
         filteredPolicies = lib.filterAttrs (name: _: !isExcluded registry name) param.aspectPolicies;
       in
       {
