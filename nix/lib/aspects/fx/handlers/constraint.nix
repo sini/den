@@ -36,6 +36,38 @@ let
     in
     builtins.filter inScope entries;
 
+  # Merge the scoped constraint registry over `scope` + its ancestors into one
+  # identity→entries map. Entity isolation (#613 analog for the exclude/substitute
+  # APPLICATION path): a SIBLING entity's excludes live under the sibling's scope
+  # key and are therefore ABSENT here — so one host excluding an aspect can no
+  # longer suppress a sibling host that includes it (the leak was eval-order
+  # dependent: a sibling walked earlier registered into the fleet-wide flat
+  # registry). ownerChain is PRESERVED (unlike the guard path's
+  # collectScopeConstraints, which normalizes it) so filterByScope still isolates
+  # nested includes WITHIN the scope. Own-scope entries precede ancestor entries
+  # (first-wins precedence).
+  collectEntityConstraints =
+    scopedRegistry: scopeParentMap: scope:
+    let
+      # Cycle-guarded (visited set): scopeParent can carry a cycle in spawn/forward
+      # merged sub-pipelines, and check-constraint runs for EVERY node — so the walk
+      # must stop on any revisit, not just a self-loop.
+      go =
+        seen: s: acc:
+        if s == null || seen ? ${s} then
+          acc
+        else
+          let
+            merged = lib.zipAttrsWith (_: builtins.concatLists) [
+              acc
+              (scopedRegistry.${s} or { })
+            ];
+            parent = scopeParentMap.${s} or null;
+          in
+          go (seen // { ${s} = true; }) parent merged;
+    in
+    if scope == null then { } else go { } scope { };
+
   entryToResume =
     entry:
     if entry.type == "exclude" then
@@ -112,7 +144,14 @@ let
         nodeIdentity = if builtins.isAttrs param then param.identity else param;
         aspect = if builtins.isAttrs param then param.aspect or null else null;
         currentChain = ((state.scopedIncludesChain or (_: { })) null).${state.currentScope} or [ ];
-        allEntries = lookupEntries (state.flatConstraintRegistry or { }) nodeIdentity;
+        # #613 analog: look excludes/substitutes up in the ENTITY-scoped registry
+        # (currentScope + ancestors), NOT the fleet-wide flat registry — a sibling
+        # host's exclude must not suppress this node (the leak was eval-order
+        # dependent). filterByScope still applies for within-scope include nesting.
+        scopedRegistry = (state.scopedConstraintRegistry or (_: { })) null;
+        scopeParentMap = (state.scopeParent or (_: { })) null;
+        entityRegistry = collectEntityConstraints scopedRegistry scopeParentMap state.currentScope;
+        allEntries = lookupEntries entityRegistry nodeIdentity;
         scopedEntries = filterByScope currentChain allEntries;
         firstEntry = if scopedEntries == [ ] then null else builtins.head scopedEntries;
       in
