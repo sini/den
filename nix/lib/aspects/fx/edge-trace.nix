@@ -1,21 +1,24 @@
-# edge-trace.nix — read-only renderer of the current pipeline's delivery
-# decisions as a normalized, stably-sorted edge list. This is the migration
-# oracle for the delivery-edge unification port (spec
-# 2026-06-12-delivery-edge-unification-design.md §3a): every Phase-2 mechanism
-# port is gated by diffing its constructor's edges against the edges this
-# extractor renders from the SAME end-state.
+# edge-trace.nix — the LEGACY end-state re-derivation of the pipeline's delivery
+# decisions as a normalized, stably-sorted edge list. As of Task 18 this is NO
+# LONGER the live trace: the live `edgeTrace` is the CAPTURED production edge
+# object (resolve.nix — its fold-ordered provides+routes come straight from the
+# production materializeUnified folds). This `extractEdgeTrace` is retained and
+# surfaced as `legacyEdgeTrace` ONLY as the legacy arm of the oracle≡production
+# DIFFERENTIAL (templates/ci/.../fx-oracle-production-differential.nix): it
+# re-derives the edge set from END-STATE, INCLUDING the spawn `rewalk` arm (the
+# undercount the production object eliminates) and the dedup-`suppressed` route
+# twins (which production never folds). It was the migration oracle for the
+# Phase-2 port (spec 2026-06-12 §3a); post-Task-18 its job is to prove, by diff,
+# that production dropped exactly the rewalk undercount + suppressed twins.
 #
 # All edge kinds (default folds, simple + complex routes, provides, spawns,
-# instantiates) now render through the SAME constructors production materializes
+# instantiates) render through the SAME constructors production materializes
 # through (edges/default.nix, edges/route.nix, edges/provides.nix,
-# edges/instantiate.nix), so the v0 approximate-then-converge annotations (spec
-# §3a) have converged to exact edge fields: route suppression is the route
-# constructor's own dedup verdict; the instantiation root is the scope-link
-# (resolvedRootVia = "scope-link"), not a name-infix reconstruction; the @system
-# requalification is the shared instantiate constructor's rule. The ONE residual
-# annotation is `sourceVia = "unresolved"` for complex-forward (synthesize) edges:
-# the collected-else-rewalk source choice is materialization-time path-dependent,
-# so the trace records identity, not the resolved branch (spec §8; see routeEdges).
+# edges/instantiate.nix). The ONE residual annotation is `sourceVia = "unresolved"`
+# for complex-forward (synthesize) edges: the collected-else-rewalk source choice
+# is materialization-time path-dependent, so the trace records identity, not the
+# resolved branch (spec §8; see routeEdges). This stays "unresolved" PERMANENTLY —
+# it is correct, not a convergence-pending approximation.
 #
 # Edge record:  { source; target; path; mode; annotations; }
 #   S (source)  — collected(scopeName, class) | rewalk(aspect, bindings, class)

@@ -6,9 +6,12 @@
 #
 # This file holds the DEFAULT-FOLD constructor. The other mechanisms' edge
 # constructors live in their own siblings: routes + complex forwards in route.nix,
-# provides in provides.nix, the flake-output T-arm in instantiate.nix. (Spawn
-# edges have no shared constructor — the spawn drain-fold stays imperative and the
-# oracle renders its rewalk edges directly; see edge-trace.nix.)
+# provides in provides.nix, the flake-output T-arm in instantiate.nix. The spawn
+# now SURFACES real delivery edges via these shared constructors (its default fold
+# + the captured provides/routes of its materializeUnified fold, see
+# edges/materialize.nix assembleSpawnSubtree.edges) — they enter the production
+# `edgeTrace`. The legacy `rewalk`-edge render (edge-trace.nix spawnEdges) is now
+# ONLY the legacy-differential arm, not the live trace.
 { lib, ... }:
 let
   inherit (import ./edge.nix { inherit lib; }) mkEdge collected rootTarget;

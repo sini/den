@@ -21,8 +21,13 @@
 # orders them. The final-extraction merge stays the existing assembleSubtree step
 # (only when doFinalMerge), unchanged.
 #
-# This engine does NOT switch any production site. It is proven byte-equivalent to
-# phase2∘phase3 (+ optional assembleSubtree) by the fx-materialize-unified suite.
+# This engine IS production delivery at every site as of Task 17 (fxResolveFull,
+# fxResolveImports, the per-host re-walk, and the spawn re-entry all fold it). It
+# was proven byte-equivalent to the old phase2∘phase3 (+ optional assembleSubtree)
+# by the fx-materialize-unified suite (the materializeEquiv oracle in resolve.nix
+# keeps that comparison standing). Its `exposeEdges` mode (Task 18) returns the
+# folded provides+routes edge records so the production `edgeTrace` is captured,
+# not re-derived.
 { lib, den }:
 let
   routeEdgesMod = import ./route.nix { inherit lib den; };

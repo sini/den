@@ -317,11 +317,11 @@ rec {
       # Π used by the `edges` collector's isolation-set resolution (blind ⇒ {}).
       pi = piUnified;
       # The SURFACED edge set for THIS spawn node — the spawn's default-fold merge
-      # edge(s) ++ its OWN provides edges ++ the re-applied mergedSpawnRoutes route
-      # edges (simple + complex). Built via the SAME fold-independent constructors
-      # the read-only oracle consumes, so the surfaced set converges on the
-      # constructors, not merely the primitives (spec §3a). Consumers read only
-      # `.imports`; `.edges` is additive (a later mechanism consumes it).
+      # edge(s) (built here via the shared defaultFoldEdges constructor) ++ the
+      # spawn's provides + re-applied mergedSpawnRoutes route edges (CAPTURED from
+      # the materializeUnified fold below, Task 18.2). `.imports` consumers read only
+      # imports; `.edges` is now consumed by the production `edgeTrace` (resolve.nix)
+      # — it is the spawn's contribution to the captured production edge object.
       #
       # DELIBERATE name-space note: assembleSubtree's INTERNAL defaultFoldEdges
       # uses `name = sid: sid` (identity) because the merge switch reads only
