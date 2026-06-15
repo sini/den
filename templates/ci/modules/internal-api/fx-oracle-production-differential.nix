@@ -15,10 +15,14 @@
 # This suite diffs the two on a SPAWN topology and an INSTANTIATE topology and
 # pins the load-bearing relationship:
 #
-#   (A) PRODUCTION ⊇ (LEGACY minus its rewalk-source edges) — every legacy edge
-#       that is NOT a spawn rewalk survives (by normalized key) in the production
-#       object. The rewalk edges are the ONLY legacy edges production drops; it
-#       replaces them with the spawn's real surfaced edges.
+#   (A) PRODUCTION ⊇ (LEGACY minus rewalk-source AND dedup-suppressed edges) —
+#       every legacy edge that is neither a spawn rewalk nor a suppressed route
+#       twin survives (by normalized key) in the production object. Production drops
+#       the rewalk arm (replaced by the spawn's real surfaced edges) AND the
+#       suppressed twins (it folds `orderedKeptRoutes` only). Today every CI
+#       suppressed twin key-aliases its kept sibling so it would survive the key
+#       check anyway, but the gate strips suppressed from the legacy arm
+#       (`legacyDelivered`) so it stays sound for a future distinct-key suppression.
 #
 #   (B) the production-only delta (edges in production NOT in legacy, by key) on
 #       the spawn topology is NON-EMPTY and CONTAINS the spawn's surfaced route /
@@ -57,6 +61,19 @@ let
 
   keySet = edges: lib.genAttrs (map edgeKey edges) (_: true);
   isSubset = sub: super: lib.all (e: (keySet super) ? ${edgeKey e}) sub;
+
+  # The legacy edges production is EXPECTED to still deliver: everything except
+  # (a) the spawn `rewalk` arm (the undercount production replaces with real
+  # surfaced edges) and (b) the dedup-`suppressed` route twins (production folds
+  # `orderedKeptRoutes` only, so a suppressed route is never materialized — its
+  # absence from production is faithful, not a drop). The correct subset relation
+  # is therefore `production ⊇ legacy \ rewalk \ suppressed`. Today every CI
+  # suppressed twin is a rule-1 same-identity forward duplicate that key-aliases
+  # its kept sibling (so it would survive the subset check anyway), but stripping
+  # it here makes the gate sound for a future DISTINCT-key suppression (rule-2
+  # redundant-root, or an adapterKey route with differing path/intoClass) without
+  # weakening it.
+  legacyDelivered = lib.filter (e: !(e.source ? rewalk) && !(e.annotations.suppressed or false));
 
   # The fleet → hosts include policy shared by the spawn + instantiate topologies
   # (a flake-level resolve that fans out to each host with an instantiate spec).
@@ -108,7 +125,9 @@ in
         r = den.lib.aspects.resolveWithPaths "flake" (den.lib.resolveEntity "flake" { });
         oracle = r.legacyEdgeTrace;
         production = r.edgeTrace;
-        oracleNoRewalk = lib.filter (e: !(e.source ? rewalk)) oracle;
+        # Legacy minus rewalk AND suppressed twins — the set production must retain
+        # (see legacyDelivered).
+        oracleNoRewalk = legacyDelivered oracle;
         # The legacy object DID carry a rewalk edge (the undercount we correct).
         oracleRewalk = lib.filter (e: e.source ? rewalk) oracle;
         # Production-only edges (the surfaced spawn's real delivered edges, which
@@ -192,8 +211,10 @@ in
         expr = {
           # No spawn → the legacy object has no rewalk edge.
           oracleHasNoRewalk = !oracleHasRewalk;
-          # (A) the full legacy set survives in the production object.
-          productionSupersetOfOracle = isSubset oracle production;
+          # (A) the legacy delivered set (minus rewalk/suppressed) survives in the
+          # production object. No spawn here, so this is the full legacy set sans
+          # any suppressed twins (see legacyDelivered).
+          productionSupersetOfOracle = isSubset (legacyDelivered oracle) production;
           # (B) production-only delta non-empty AND carries a host-rooted fold.
           productionDeltaNonEmpty = productionOnly != [ ];
           inherit hostRootedFoldInDelta;
