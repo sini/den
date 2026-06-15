@@ -20,7 +20,11 @@ let
   inherit (import ./edges/pi.nix { inherit lib; }) mkStaticPi;
   inherit (import ./edges/instantiate-edges.nix { inherit lib den; }) mkInstantiateEdges;
   inherit (import ./edges/edge.nix { inherit lib; }) scopeName;
-  inherit (import ./edges/provides.nix { inherit lib den; }) applyProvidesEdges dedupProvides;
+  inherit (import ./edges/provides.nix { inherit lib den; })
+    applyProvidesEdges
+    dedupProvides
+    providesEdges
+    ;
   inherit (import ./edges/materialize-unified.nix { inherit lib den; }) materializeUnified;
   instantiateEdges = import ./edges/instantiate.nix { inherit lib; };
   handlers = den.lib.aspects.fx.handlers;
@@ -979,6 +983,36 @@ let
           phaseFoldDispatch = (map provideId orderedProvideSpecs) ++ (map routeId orderedRouteSpecs);
           # The unified engine's dispatch order via the SAME identity functions.
           unifiedDispatch = map dispatchId (materializeUnified unifiedInputs { exposeDispatch = true; });
+
+          # Task-18 capture: the SAME no-merge call with exposeEdges = true. The
+          # accumulator is byte-identical to `unified` (the `// { edges; }` only
+          # adds the capture key), and `.edges` carries the folded trace edges the
+          # fold dispatched. The suite proves capture fidelity by comparing these
+          # to the constructor-built provides+route edges over the same inputs.
+          unifiedWithEdges = materializeUnified unifiedInputs {
+            doFinalMerge = false;
+            exposeEdges = true;
+          };
+          # The constructor-built oracle: provides trace edges (dedup order) ++
+          # route trace edges (kept+ordered), the SAME edges materializeUnified
+          # builds internally before its toposort. Same SET as `.edges`, so a
+          # sort-key comparison proves capture fidelity.
+          piRoot = result.state.rootScopeId;
+          edgeName = scopeName {
+            scopeEntityKind = pi.scopeEntityKind or { };
+            inherit (pi) scopeContexts;
+          };
+          oracleEdges =
+            providesEdges {
+              name = edgeName;
+              inherit scopedProvides;
+            }
+            ++ routeEdges.routeEdges {
+              name = edgeName;
+              inherit (pi) scopeParent;
+              rootScopeId = piRoot;
+              rawRoutes = routeEdges.orderedKeptRoutes piRoot (lib.concatLists (lib.attrValues scopedRoutes));
+            };
         in
         {
           inherit phaseFoldDispatch unifiedDispatch;
@@ -990,6 +1024,9 @@ let
           # raw accumulator, byte-comparable to phaseFold). This is the SAME call
           # production uses (`materialized`).
           unified = materializeUnified unifiedInputs { doFinalMerge = false; };
+          # Task-18 edge capture surface: the folded edges (with their accumulator)
+          # and the constructor-built oracle, for the fx-materialize-unified proof.
+          inherit unifiedWithEdges oracleEdges;
           # The doFinalMerge = true variant, comparable to assembleSubtree over the
           # phaseFold result (the final-extraction merge step, unchanged).
           unifiedMerged = materializeUnified unifiedInputs { doFinalMerge = true; };

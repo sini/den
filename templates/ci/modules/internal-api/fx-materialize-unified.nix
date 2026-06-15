@@ -312,5 +312,70 @@ in
         };
       }
     );
+
+    # ===== exposeEdges = true (Task 18 capture) ==========================
+    # materializeUnified { exposeEdges = true } ALSO carries the folded edge
+    # records (`map (p: p.edge) orderedPairs`). Capture fidelity: the captured
+    # `.edges` are the SAME SET as the constructor-built provides+route edges
+    # over the same inputs — proven by sorting both via the edge sort key and
+    # deep-comparing. Run on the provides+routes topology so both edge kinds
+    # are present.
+    #
+    # ALSO proves the existing-mode invariant: with exposeEdges the accumulator
+    # (everything but `.edges`) is byte-identical to the plain { doFinalMerge =
+    # false } return — exposeEdges only ADDS the capture key.
+    test-expose-edges-capture = denTest (
+      { den, lib, ... }:
+      let
+        r = den.lib.aspects.resolveWithPaths "nixos" (
+          den.lib.resolveEntity "host" { host = den.hosts.x86_64-linux.igloo; }
+        );
+        e = r.materializeEquiv;
+        edgeMod = den.lib.aspects.fx.edges.edge;
+        # Edges are pure data (target/source/path/mode/annotations) — compare the
+        # captured fold edges to the constructor-built oracle as a SET by sorting
+        # both via the edge sort key, then deep-comparing the sorted lists.
+        sorted = edges: edgeMod.sortEdges edges;
+        capturedSorted = sorted e.unifiedWithEdges.edges;
+        oracleSorted = sorted e.oracleEdges;
+      in
+      {
+        den.hosts.x86_64-linux.igloo.users.tux = { };
+        den.classes.custom.description = "custom source class";
+        den.policies.provide-and-route =
+          { host, ... }:
+          [
+            (den.lib.policy.provide {
+              class = host.class;
+              module.networking.hostName = "provided";
+            })
+            (den.lib.policy.route {
+              fromClass = "custom";
+              intoClass = host.class;
+              path = [ ];
+            })
+          ];
+        den.default.includes = [ den.policies.provide-and-route ];
+        den.aspects.igloo = {
+          custom.networking.domain = "routed";
+        };
+
+        expr = {
+          # Capture fidelity: folded edges == constructor edges (as a sorted set).
+          edgesMatchOracle = fingerprint capturedSorted == fingerprint oracleSorted;
+          # The capture is non-empty here (one provide edge + one route edge).
+          edgesNonEmpty = builtins.length e.unifiedWithEdges.edges > 0;
+          # Existing-mode invariant: the accumulator (sans the added `edges` key)
+          # is byte-identical to the plain no-exposeEdges return.
+          accUnchanged =
+            fingerprint (builtins.removeAttrs e.unifiedWithEdges [ "edges" ]) == fingerprint e.unified;
+        };
+        expected = {
+          edgesMatchOracle = true;
+          edgesNonEmpty = true;
+          accUnchanged = true;
+        };
+      }
+    );
   };
 }

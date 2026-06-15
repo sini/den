@@ -80,6 +80,24 @@ let
       # With doFinalMerge, also expose the post-fold accumulator (the edge
       # collectors' content source). See the option doc above.
       exposeAcc ? false,
+      # When set, ALSO carry the folded edge records — `map (p: p.edge)
+      # orderedPairs`, i.e. the SAME trace edges this fold dispatched, in fold
+      # (post-toposort) order. The literal-object trace capture primitive
+      # (Task 18). Composes with the doFinalMerge / exposeAcc return path (does
+      # NOT route through the early exposeDispatch return), so spawn / per-host
+      # sites can take `merged` + `acc` + `edges` together.
+      #
+      # Return-shape table (doFinalMerge, exposeAcc, exposeEdges) → shape:
+      #   exposeDispatch = true (any flags)  → [ { kind; spec } ]   (early; unaffected)
+      #   (false, _,     false)              → acc
+      #   (false, _,     true )              → acc // { edges; }
+      #   (true,  false, false)              → merged                (bare attrset)
+      #   (true,  false, true )              → { merged; edges; }
+      #   (true,  true,  false)              → { merged; acc; }
+      #   (true,  true,  true )              → { merged; acc; edges; }
+      # The exposeEdges = false rows are byte-identical to the pre-Task-18
+      # returns: every existing caller (none pass exposeEdges) is unchanged.
+      exposeEdges ? false,
     }:
     let
       inherit (pi)
@@ -163,6 +181,10 @@ let
             inherit wrappedPerScope scopeParent scopeIsolated;
           }
       ) seed orderedPairs;
+
+      # The folded edge records, in fold (post-toposort) order — the exact trace
+      # edges the dispatch above consumed. Captured for the literal-object trace.
+      foldedEdges = map (p: p.edge) orderedPairs;
     in
     if exposeDispatch then
       map (p: {
@@ -175,7 +197,17 @@ let
           pi = pi // acc;
         };
       in
-      if exposeAcc then { inherit merged acc; } else merged
+      if exposeAcc then
+        { inherit merged acc; } // lib.optionalAttrs exposeEdges { edges = foldedEdges; }
+      else if exposeEdges then
+        {
+          inherit merged;
+          edges = foldedEdges;
+        }
+      else
+        merged
+    else if exposeEdges then
+      acc // { edges = foldedEdges; }
     else
       acc;
 in
