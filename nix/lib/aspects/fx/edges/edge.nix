@@ -128,6 +128,7 @@ in
     entityKindOf
     scopeName
     mkEdge
+    edgeSortKey
     sortEdges
     collected
     rewalk
