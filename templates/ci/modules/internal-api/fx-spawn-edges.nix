@@ -18,11 +18,14 @@
 let
   mat = den: den.lib.aspects.fx.edges.materialize;
 
-  # Stub phase primitives: the surfaced route/provides edges are built from the
-  # spawn's INPUTS (mergedSpawnRoutes / ownProvides) directly, independent of the
-  # phase fold, so trivial stubs returning a well-formed accumulator suffice. The
+  # Stub phase-1 wrap: the surfaced route/provides edges are built from the spawn's
+  # INPUTS (mergedSpawnRoutes / ownProvides) directly, independent of the fold, so a
+  # trivial stub returning a well-formed phase-1 accumulator suffices. The
   # accumulator's perScope carries one nixos module at the spawn root, so the
   # default-fold merge edge has content to surface and `.imports` is non-empty.
+  # (provides + routes fold through materializeUnified inside assembleSpawnSubtree;
+  # ownProvides + mergedSpawnRoutes here deliver no extra nixos content, so the
+  # merge over this seed stays the single seeded nixos module.)
   spawnRoot = "spawn=root";
   stubAcc = {
     classImports = {
@@ -37,12 +40,6 @@ let
   wrapPerScope =
     _ctx: _aug: _imports:
     stubAcc;
-  applyProvides =
-    _ctx: _provides: acc:
-    acc;
-  applyRoutes =
-    _self: _ctx: _aug: _root: _parent: _iso: _routes: acc:
-    acc;
 
   # A simple user-schema-style route re-applied at the spawn root (the §B simple
   # route: fromClass→intoClass at a nested path). This is the edge a spawn's
@@ -80,7 +77,7 @@ let
       };
       allScopeIds = [ spawnRoot ];
       selfRef = null;
-      inherit wrapPerScope applyProvides applyRoutes;
+      inherit wrapPerScope;
     };
 in
 {

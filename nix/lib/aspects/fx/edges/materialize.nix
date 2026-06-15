@@ -9,13 +9,15 @@
 # (complex-forward) + provides edge materialization live in edges/route.nix +
 # edges/provides.nix. The else-throw in the `materialize` switch below is NOT a
 # stub — it is permanently correct: `assembleSubtree` carries merge edges only;
-# route nest/nest-verbatim + synthesize delivery folds through edges/route.nix
-# (applyRoutes → materializeRouteEdge), provides through edges/provides.nix.
+# route nest/nest-verbatim + synthesize delivery + provides are folded upstream by
+# the unified ordered-dispatch engine (edges/materialize-unified.nix), which reuses
+# those per-spec materializers and calls assembleSubtree for the final merge.
 #
-# The spawn port is `assembleSpawnSubtree` (below): the spawn's full phase
+# The spawn port is `assembleSpawnSubtree` (below): the spawn's provides + routes
 # fold + its isolation-BLIND, dedup-FREE final extraction, expressed over this
-# machinery via the `isolationMode = "blind"` + `dedupMode = "raw"` Π dials and an
-# explicit `allScopeIds` subtree-universe override.
+# machinery via materializeUnified with the `isolationMode = "blind"` +
+# `dedupMode = "raw"` Π dials and an explicit `allScopeIds` subtree-universe
+# override.
 #
 # DESIGN INVARIANTS (spec §2 corollaries; enforced by the entity-isolation suite
 # and the delivery-edges fixtures):
@@ -135,11 +137,11 @@ rec {
 
   # materialize: Π + an edge list → { class → [ modules ] }. The ONLY mode
   # switch for default-fold extraction. The merge arm here is the per-root final
-  # extraction; routes/provides/spawn fold through their own entry (edges/route.nix
-  # applyRoutes / edges/provides.nix applyProvidesEdges) — those phase folds are
-  # kept as orchestration (the fold call-sites stay; only their per-mechanism logic
-  # moved into the edge constructors), so `assembleSubtree` carries merge edges
-  # only. `perScope` and the resolved subtree are passed via the closure `ctx`.
+  # extraction; routes + provides are interleaved upstream by the unified ordered-
+  # dispatch fold (edges/materialize-unified.nix materializeUnified, the single
+  # delivery engine for every site), which calls assembleSubtree for the final
+  # merge — so `assembleSubtree` carries merge edges only. `perScope` and the
+  # resolved subtree are passed via the closure `ctx`.
   materialize =
     pi: ctx: edges:
     let
@@ -231,9 +233,10 @@ rec {
   # cross-scope concat must NOT re-dedup — a remaining duplicate is a deliberate
   # keyless re-emission the target's own evalModules reconciles).
   #
-  # The phase primitives are passed IN (wrapPerScope/applyProvides/applyRoutes),
-  # so this helper introduces no resolve.nix import — the spawn keeps its existing
-  # injection seam; only the inline phase CALL expressions move here.
+  # The phase primitives are passed IN (wrapPerScope), so this helper introduces no
+  # resolve.nix import — the spawn keeps its existing injection seam; only the
+  # inline phase-1 CALL expression moves here (provides + routes now fold through
+  # materializeUnified, not injected applyProvides/applyRoutes primitives).
   #
   #   class                 — the single class this spawn node materializes.
   #   spawnRoot             — the spawn subtree root.
@@ -249,7 +252,7 @@ rec {
   #   allScopeIds           — the subtree-membership universe (mergedScopeParent ∪
   #                           scopedRoutes keys — WIDER than perScope alone).
   #   selfRef               — the spawn primitive (nested-forward resolver).
-  #   wrapPerScope/applyProvides/applyRoutes — the injected phase primitives.
+  #   wrapPerScope          — the injected phase-1 wrap primitive.
   assembleSpawnSubtree =
     {
       class,
@@ -265,26 +268,18 @@ rec {
       allScopeIds,
       selfRef,
       wrapPerScope,
-      applyProvides,
-      applyRoutes,
     }:
     let
       phase1 = wrapPerScope ctx augmented mergedClassImports;
-      phase2 = applyProvides ctx ownProvides phase1;
-      # phase3 (full phase2∘phase3 fold) is kept ONLY for the `edges` collector
-      # below, which reads phase3.perScope as the per-scope class-content map.
-      # The `.imports` delivery folds materializeUnified instead (Task 17).
-      phase3 =
-        applyRoutes selfRef ctx augmented spawnRoot mergedScopeParent mergedScopeIsolated mergedSpawnRoutes
-          phase2;
-      # Production delivery (Task 17): the spawn final extraction folds
+      # Production delivery (Task 17/18): the spawn final extraction folds
       # materializeUnified (doFinalMerge = true → it runs assembleSubtree at
       # spawnRoot), replacing the phase2 (provides) ∘ phase3 (routes) ∘
-      # assembleSubtree sequence. The Π keeps the spawn's two distinguishing
-      # dials — isolationMode = "blind" + dedupMode = "raw" — and the EXPLICIT
-      # allScopeIds subtree-universe override. scopeContexts = augmented is the
-      # SAME contexts the phase3 fold's applyRoutes used, so the complex-forward
-      # path (which reads pi.scopeContexts for source resolution) sees them.
+      # assembleSubtree sequence. exposeAcc surfaces the post-fold accumulator so
+      # the `edges` collector reads its perScope from the SAME fold — there is no
+      # separate phase2∘phase3 fold to diverge from. The Π keeps the spawn's two
+      # distinguishing dials — isolationMode = "blind" + dedupMode = "raw" — and the
+      # EXPLICIT allScopeIds subtree-universe override. scopeContexts = augmented is
+      # the SAME contexts the complex-forward path reads for source resolution.
       piUnified =
         (mkStaticPi {
           rootScopeId = spawnRoot;
@@ -301,15 +296,21 @@ rec {
       # materializeUnified is reached via the lazy `den` namespace (NOT a direct
       # import) — materialize-unified.nix imports THIS file for assembleSubtree, so
       # a direct import would cycle. Nix laziness makes the namespace access fine.
-      materialized = den.lib.aspects.fx.edges.materializeUnified.materializeUnified {
-        pi = piUnified;
-        inherit ctx;
-        seed = phase1;
-        scopedProvides = ownProvides;
-        scopedRoutes = mergedSpawnRoutes;
-        spawnNode = selfRef;
-        buildForwardAspect = den.lib.aspects.fx.handlers.buildForwardAspect;
-      } { doFinalMerge = true; };
+      materialized =
+        den.lib.aspects.fx.edges.materializeUnified.materializeUnified
+          {
+            pi = piUnified;
+            inherit ctx;
+            seed = phase1;
+            scopedProvides = ownProvides;
+            scopedRoutes = mergedSpawnRoutes;
+            spawnNode = selfRef;
+            buildForwardAspect = den.lib.aspects.fx.handlers.buildForwardAspect;
+          }
+          {
+            doFinalMerge = true;
+            exposeAcc = true;
+          };
       # Π used by the `edges` collector's isolation-set resolution (blind ⇒ {}).
       pi = piUnified;
       # The SURFACED edge set for THIS spawn node — the spawn's default-fold merge
@@ -333,7 +334,7 @@ rec {
           inherit name;
           scopeParent = mergedScopeParent;
           scopeIsolated = isolatedSetOf pi; # blind ⇒ {} — matches the merge boundary
-          classContentAt = phase3.perScope;
+          classContentAt = materialized.acc.perScope;
           inherit allScopeIds;
           entityRootScopes = [ spawnRoot ];
         })
@@ -349,7 +350,7 @@ rec {
         });
     in
     {
-      imports = materialized.${class} or [ ];
+      imports = materialized.merged.${class} or [ ];
       inherit edges;
     };
 }

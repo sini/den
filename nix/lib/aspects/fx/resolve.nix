@@ -185,10 +185,6 @@ let
         subtreeRoutes = lib.filterAttrs (sid: _: isRelevant sid) scopedRoutes;
         relevantContexts = lib.genAttrs relevantScopeIds (sid: augmentedScopeContexts.${sid});
         subtreePhase1 = wrapPerScope ctx subtreeContexts subtreeClassImports;
-        subtreePhase2 = applyProvidesEdges ctx subtreeProvides subtreePhase1;
-        subtreePhase3 =
-          applyRoutes spawnNodeFn ctx relevantContexts hostScopeId scopeParent scopeIsolated subtreeRoutes
-            subtreePhase2;
       in
       {
         inherit
@@ -200,11 +196,12 @@ let
           subtreeRoutes
           relevantContexts
           ;
-        # subtreePhase1 is the materializeUnified SEED; subtreePhase3 (full
-        # phase2∘phase3 fold) is kept ONLY for the mkInstantiateEdges edge
-        # collector, which reads proj.phase3.perScope (the per-scope module map).
+        # The materializeUnified SEED (phase-1 wrap). Both consumers
+        # (mkInstantiateArgs module assembly + perHostEdgesFor edge collection)
+        # fold it through materializeUnified — module delivery AND the edge
+        # collector's content source now flow through the SAME engine, so there is
+        # no separate phase2∘phase3 fold to diverge from.
         seed = subtreePhase1;
-        phase3 = subtreePhase3;
       };
 
   # Build instantiateArgs for a spec without calling spec.instantiate.
@@ -241,13 +238,13 @@ let
               relevantContexts
               seed
               ;
-            # Production delivery (Task 17): the per-host final extraction folds
+            # Production delivery (Task 17/18): the per-host final extraction folds
             # materializeUnified (doFinalMerge = true → it runs assembleSubtree at
             # hostScopeId), replacing the phase2 (provides) ∘ phase3 (routes) ∘
-            # assembleSubtree sequence. The Π's scopeContexts MUST be the SAME
-            # relevantContexts subtreePhase3's applyRoutes used (NOT subtreeContexts):
-            # materializeUnified's complex-forward path reads pi.scopeContexts for
-            # source resolution, whereas the old assembleSubtree merge ignored it.
+            # assembleSubtree sequence. The Π's scopeContexts MUST be relevantContexts
+            # (NOT subtreeContexts): materializeUnified's complex-forward path reads
+            # pi.scopeContexts for source resolution, whereas the old assembleSubtree
+            # merge ignored it.
             pi =
               (mkStaticPi {
                 rootScopeId = hostScopeId;
@@ -540,8 +537,7 @@ let
       # runtime when a resolved aspect carries a complex non-collected forward,
       # and a finite forward nesting terminates.
       spawnNode = mkSpawnNode {
-        inherit wrapPerScope applyRoutes;
-        applyProvides = applyProvidesEdges;
+        inherit wrapPerScope;
         inherit (den.lib.aspects) normalizeRoot;
         inherit (den.lib.aspects.fx.aspect) ctxFromHandlers;
         selfRef = spawnNode;
@@ -805,6 +801,36 @@ let
         if proj == null then
           [ ]
         else
+          let
+            # The edge collector's content source (the post-provides+routes per-scope
+            # presence map) comes from the SAME materializeUnified the module assembly
+            # folds — exposeAcc surfaces its accumulator so there is no separate
+            # phase2∘phase3 fold (which the old proj.phase3.perScope read).
+            pi =
+              (mkStaticPi {
+                rootScopeId = proj.hostScopeId;
+                scopeContexts = proj.relevantContexts;
+                inherit scopeParent scopeIsolated;
+                isolationMode = "aware";
+              })
+              // {
+                inherit scopeEntityKind;
+              };
+            materialized =
+              materializeUnified
+                {
+                  inherit pi ctx;
+                  seed = proj.seed;
+                  scopedProvides = proj.subtreeProvides;
+                  scopedRoutes = proj.subtreeRoutes;
+                  spawnNode = argBundle.spawnNodeFn;
+                  inherit (handlers) buildForwardAspect;
+                }
+                {
+                  doFinalMerge = true;
+                  exposeAcc = true;
+                };
+          in
           mkInstantiateEdges {
             name = edgeName;
             inherit scopeParent scopeIsolated;
@@ -814,7 +840,7 @@ let
               subtreeRoutes
               subtreeScopeIds
               ;
-            perScope = proj.phase3.perScope;
+            perScope = materialized.acc.perScope;
           };
 
       # Host-own per-host edges: the projection-arg bundle that phase4 uses (the
@@ -1031,8 +1057,7 @@ let
       # so a nested complex forward inside a spawned node resolves its source via
       # the same fleet-visible spawn (matching resolveSourceFallback's contract).
       spawnNode = mkSpawnNode {
-        inherit wrapPerScope applyRoutes;
-        applyProvides = applyProvidesEdges;
+        inherit wrapPerScope;
         inherit (den.lib.aspects) normalizeRoot;
         inherit (den.lib.aspects.fx.aspect) ctxFromHandlers;
         selfRef = spawnNode;

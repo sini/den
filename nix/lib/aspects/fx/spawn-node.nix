@@ -15,15 +15,14 @@ let
   pipeNamesSet = lib.genAttrs (builtins.attrNames (den.quirks or { })) (_: true);
 in
 {
-  # Phase helpers (wrapPerScope/applyProvides/applyRoutes) and the recursive
-  # nested-route resolver (selfRef) are injected to avoid a resolve.nix import
-  # cycle. mkPipeline + parentState are captured once per run; the inner
-  # { from, class, aspect, bindings } call materializes a single class.
+  # The phase-1 wrap (wrapPerScope) and the recursive nested-route resolver
+  # (selfRef) are injected to avoid a resolve.nix import cycle. mkPipeline +
+  # parentState are captured once per run; the inner { from, class, aspect,
+  # bindings } call materializes a single class. (provides + routes fold through
+  # materializeUnified inside assembleSpawnSubtree, so they are no longer injected.)
   mkSpawnNode =
     {
       wrapPerScope,
-      applyProvides,
-      applyRoutes,
       normalizeRoot,
       ctxFromHandlers,
       selfRef,
@@ -163,19 +162,19 @@ in
           freshParent ++ spawnHere
         ) parentSubtreeRoutes;
 
-      # The spawn's full phase fold + isolation-BLIND, dedup-FREE final extraction,
-      # expressed over the edge machinery. The phase primitives are
-      # forwarded (injection seam preserved — no resolve.nix import cycle); the
-      # inline phase1/phase2/phase3 + subtree concat dissolved into one entry.
-      # phase3.classImports aggregates across ALL merged scopes (host + sibling
-      # users), so the extraction is subtree-restricted via Π.allScopeIds +
-      # isolationMode="blind" to avoid leaking a peer user's content; fleet pipe
-      # values still resolve correctly because assemblePipes ran over the full
-      # merged state before the fold.
+      # The spawn's provides + routes fold + isolation-BLIND, dedup-FREE final
+      # extraction, expressed over the edge machinery (materializeUnified inside
+      # assembleSpawnSubtree). wrapPerScope is forwarded (injection seam preserved —
+      # no resolve.nix import cycle); the inline phase1/phase2/phase3 + subtree
+      # concat dissolved into one entry. The fold aggregates across ALL merged
+      # scopes (host + sibling users), so the extraction is subtree-restricted via
+      # Π.allScopeIds + isolationMode="blind" to avoid leaking a peer user's
+      # content; fleet pipe values still resolve correctly because assemblePipes ran
+      # over the full merged state before the fold.
     in
-    # The self-parent assert is forced via `augmented` (which the phase fold
-    # reads), matching the prior inline form's laziness: the throw surfaces only
-    # when this node's content is actually collected, not at attrset construction.
+    # The self-parent assert is forced via `augmented` (which the fold reads),
+    # matching the prior inline form's laziness: the throw surfaces only when this
+    # node's content is actually collected, not at attrset construction.
     assembleSpawnSubtree {
       inherit
         class
@@ -185,8 +184,6 @@ in
         mergedSpawnRoutes
         selfRef
         wrapPerScope
-        applyProvides
-        applyRoutes
         ;
       ctx = parentState.ctx;
       inherit augmented;

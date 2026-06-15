@@ -55,6 +55,12 @@ let
   #   buildForwardAspect — the synthesize constructor (handlers/forward.nix).
   #   doFinalMerge   — true ⇒ return assembleSubtree { root; pi // acc }; false ⇒
   #                    return the raw accumulator (caller reads classImports).
+  #   exposeAcc      — with doFinalMerge = true, return BOTH the merged output AND
+  #                    the post-provides+routes accumulator from the SAME fold:
+  #                    `{ merged = <doFinalMerge result>; acc = <{classImports;perScope}>; }`.
+  #                    Lets the per-host / spawn edge collectors source the class-
+  #                    content presence map (acc.perScope) WITHOUT a second
+  #                    phase2∘phase3 fold (it replaced the old phase3.perScope).
   materializeUnified =
     {
       pi,
@@ -71,6 +77,9 @@ let
       # the materialized accumulator — the Task-17 equivalence proof compares this to
       # the production phase2∘phase3 dispatch order (the load-bearing Design-B claim).
       exposeDispatch ? false,
+      # With doFinalMerge, also expose the post-fold accumulator (the edge
+      # collectors' content source). See the option doc above.
+      exposeAcc ? false,
     }:
     let
       inherit (pi)
@@ -160,10 +169,13 @@ let
         inherit (p) kind spec;
       }) orderedPairs
     else if doFinalMerge then
-      assembleSubtree {
-        root = rootScopeId;
-        pi = pi // acc;
-      }
+      let
+        merged = assembleSubtree {
+          root = rootScopeId;
+          pi = pi // acc;
+        };
+      in
+      if exposeAcc then { inherit merged acc; } else merged
     else
       acc;
 in
