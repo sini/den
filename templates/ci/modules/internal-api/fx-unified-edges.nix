@@ -64,7 +64,7 @@ in
         # in scopeEntityKind, so the drain-fold spawn arm is a no-op there — the
         # surfaced spawn edges only exist at flake level.
         r = den.lib.aspects.resolveWithPaths "flake" (den.lib.resolveEntity "flake" { });
-        oracle = r.edgeTrace;
+        oracle = r.legacyEdgeTrace;
         unified = r.unifiedEdges;
         oracleNoRewalk = lib.filter (e: !(e.source ? rewalk)) oracle;
         # Edges the unified set has that the oracle did NOT (the surfaced spawn's
@@ -137,17 +137,22 @@ in
     );
 
     # ===== (2) plain host+user (no spawn): unifiedEdges ⊇ oracle =============
-    # With NO spawn marker the oracle has no rewalk arm, so unifiedEdges contains
-    # the SAME top-level mechanism edges (default folds + os routes + the user
-    # forward) AND augments them with the per-host instantiate edges. We assert the
-    # full oracle set is a subset of unifiedEdges (nothing top-level dropped).
+    # With NO spawn marker the legacy oracle has no rewalk arm, so the production
+    # edge object contains the SAME top-level mechanism edges (default folds +
+    # os routes + the user forward) AND augments them with the per-host instantiate
+    # edges. We assert the full legacy oracle set is a subset of the production set
+    # (nothing top-level dropped). NOTE: the production object CAPTURES the edges its
+    # fold dispatched (kept routes only), so it omits the legacy oracle's
+    # suppressed-twin DUPLICATES (same edge KEY) — hence we compare DISTINCT-key
+    # counts, not raw list lengths.
     test-plain-superset-of-oracle = denTest (
       { den, lib, ... }:
       let
         r = hostResult den "nixos" den.hosts.x86_64-linux.igloo;
-        oracle = r.edgeTrace;
+        oracle = r.legacyEdgeTrace;
         unified = r.unifiedEdges;
         oracleHasRewalk = lib.any (e: e.source ? rewalk) oracle;
+        distinctKeyCount = edges: builtins.length (builtins.attrNames (keySet edges));
       in
       {
         den.hosts.x86_64-linux.igloo.users.tux = { };
@@ -156,10 +161,10 @@ in
         expr = {
           # No spawn in this topology → oracle has no rewalk edge.
           oracleHasNoRewalk = !oracleHasRewalk;
-          # The whole oracle set survives in unifiedEdges.
+          # The whole legacy oracle set survives in the production set (by key).
           unifiedSupersetOfOracle = isSubset oracle unified;
-          # And unifiedEdges has at least the oracle's edge count.
-          unifiedAtLeastOracleCount = builtins.length unified >= builtins.length oracle;
+          # And the production set has at least the oracle's DISTINCT-key count.
+          unifiedAtLeastOracleCount = distinctKeyCount unified >= distinctKeyCount oracle;
         };
         expected = {
           oracleHasNoRewalk = true;

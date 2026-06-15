@@ -166,7 +166,7 @@ in
       { den, lib, ... }:
       let
         r = den.lib.aspects.resolveWithPaths "flake" (den.lib.resolveEntity "flake" { });
-        oracle = r.edgeTrace;
+        oracle = r.legacyEdgeTrace;
         unified = r.unifiedEdges;
         oracleNoRewalk = lib.filter (e: !(e.source ? rewalk)) oracle;
         order = validOrder den unified;
@@ -220,7 +220,7 @@ in
         r = den.lib.aspects.resolveWithPaths "nixos" (
           den.lib.resolveEntity "host" { host = den.hosts.x86_64-linux.igloo; }
         );
-        oracle = r.edgeTrace;
+        oracle = r.legacyEdgeTrace;
         unified = r.unifiedEdges;
         order = validOrder den unified;
       in
@@ -256,7 +256,7 @@ in
       { den, lib, ... }:
       let
         r = den.lib.aspects.resolveWithPaths "flake" (den.lib.resolveEntity "flake" { });
-        oracle = r.edgeTrace;
+        oracle = r.legacyEdgeTrace;
         unified = r.unifiedEdges;
         oracleNoRewalk = lib.filter (e: !(e.source ? rewalk)) oracle;
         order = validOrder den unified;
@@ -333,7 +333,7 @@ in
         r = den.lib.aspects.resolveWithPaths "nixos" (
           den.lib.resolveEntity "host" { host = den.hosts.x86_64-linux.igloo; }
         );
-        oracle = r.edgeTrace;
+        oracle = r.legacyEdgeTrace;
         unified = r.unifiedEdges;
         order = validOrder den unified;
       in

@@ -38,8 +38,6 @@ let
   inherit (import ../scope-walk.nix { inherit lib; }) subtreeScopes dedupByKey;
   inherit (import ./default.nix { inherit lib; }) defaultFoldEdges;
   inherit (import ./pi.nix { inherit lib; }) mkStaticPi;
-  inherit (import ./provides.nix { inherit lib den; }) providesEdges;
-  inherit (import ./route.nix { inherit lib den; }) routeEdges;
   inherit (import ./edge.nix { inherit lib; }) scopeName;
 in
 rec {
@@ -310,6 +308,11 @@ rec {
           {
             doFinalMerge = true;
             exposeAcc = true;
+            # Task 18.2: CAPTURE the provides+routes edges the fold dispatched
+            # (materialized.edges), instead of re-deriving them below via
+            # providesEdges/routeEdges. The default-fold edge stays constructor-
+            # built (deterministic structural edge, not a drift surface).
+            exposeEdges = true;
           };
       # Π used by the `edges` collector's isolation-set resolution (blind ⇒ {}).
       pi = piUnified;
@@ -338,16 +341,11 @@ rec {
           inherit allScopeIds;
           entityRootScopes = [ spawnRoot ];
         })
-        ++ (providesEdges {
-          inherit name;
-          scopedProvides = ownProvides;
-        })
-        ++ (routeEdges {
-          inherit name;
-          scopeParent = mergedScopeParent;
-          rootScopeId = spawnRoot;
-          rawRoutes = lib.concatLists (lib.attrValues mergedSpawnRoutes);
-        });
+        # Task 18.2: the provides+routes edges are the CAPTURE from the SAME
+        # materializeUnified fold above (materialized.edges), not a re-derivation
+        # via providesEdges/routeEdges — so the surfaced set can never drift from
+        # what the fold actually dispatched.
+        ++ materialized.edges;
     in
     {
       imports = materialized.merged.${class} or [ ];

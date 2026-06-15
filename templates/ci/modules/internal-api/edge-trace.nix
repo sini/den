@@ -1,7 +1,12 @@
 # delivery-edges suite — snapshot fixtures + rule-corollary tests for the
-# read-only edge-trace extractor (nix/lib/aspects/fx/edge-trace.nix), the
-# migration oracle for the delivery-edge unification port (spec
-# 2026-06-12-delivery-edge-unification-design.md §5.3).
+# PRODUCTION delivery-edge object (resolveWithPaths .edgeTrace, Task 18.2). As of
+# Task 18.2 `edgeTrace` is the production edge object: its fold-ordered
+# provides+routes portion is CAPTURED from the production materializeUnified folds
+# (not re-derived), with constructor-built default-fold + instantiate edges and the
+# SURFACED spawn / per-host edges. This means (vs the legacy re-derivation, now
+# `legacyEdgeTrace`): the dedup-suppressed route twins are ABSENT (production never
+# dispatches them), the spawn rewalk arm is replaced by the spawn's real surfaced
+# edges, and instantiate topologies carry the per-host fold edges.
 #
 # Each fixture resolves a minimal topology and asserts its normalized delivery
 # edge list. Scope id_hashes are normalized to "<kind>:<entityName>" so the
@@ -123,9 +128,11 @@ let
     };
 
   # The host-default-user homeManager→nixos forward (every host with a user gets
-  # one) plus its dedup-suppressed twin and the user-class ensureEntry route —
-  # shared tail of the host+user fixtures. Parameterized by the host/user names
-  # and the os class (nixos | darwin).
+  # one) plus the user-class ensureEntry route — shared tail of the host+user
+  # fixtures. Parameterized by the host/user names and the os class (nixos |
+  # darwin). The production edge object (Task 18.2) CAPTURES the edges its fold
+  # dispatched (kept routes only), so the legacy oracle's dedup-suppressed twin is
+  # NOT present here — production never dispatches it.
   userForwardTail =
     {
       user,
@@ -144,21 +151,6 @@ let
         annotations = {
           complexForward = true;
           sourceVia = "unresolved";
-        };
-      })
-      (edge {
-        source = synthesize "homeManager/${os}/home-manager/users/${user}" "homeManager" os;
-        target = rootT "user:${user}" os;
-        path = [
-          "home-manager"
-          "users"
-          user
-        ];
-        mode = "nest";
-        annotations = {
-          complexForward = true;
-          sourceVia = "unresolved";
-          suppressed = true;
         };
       })
       (edge {
@@ -235,7 +227,11 @@ in
     # ===== (2) fleet with environment ancestor ========================
     # Flake-level resolve through a fleet ancestor. The instantiate edge is
     # SOURCED from the fleet ancestor scope (resolve.to "host" registered the
-    # instantiate at the fleet scope). Full list.
+    # instantiate at the fleet scope). The production object (Task 18.2) also
+    # carries the per-host surfaced fold edges (host:igloo HM/nixos folds + the
+    # os→nixos delivery route) the instantiate projection adds. The os→nixos route
+    # appears twice (the per-host + B′ projections both surface it; the union does
+    # not dedup). Full list.
     test-topology-fleet-environment = denTest (
       { den, lib, ... }:
       {
@@ -311,6 +307,28 @@ in
                 "system=x86_64-linux"
               ];
             };
+          })
+          # Per-host surfaced default folds (the instantiate projection).
+          (edge {
+            source = collected "host:igloo" "homeManager";
+            target = rootT "host:igloo" "homeManager";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "host:igloo" ];
+            };
+          })
+          (edge {
+            source = collected "host:igloo" "nixos";
+            target = rootT "host:igloo" "nixos";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "host:igloo" ];
+            };
+          })
+          (edge {
+            source = collected "host:igloo" "os";
+            target = rootT "host:igloo" "nixos";
+            mode = "merge";
           })
           (edge {
             source = collected "host:igloo" "os";
@@ -426,8 +444,10 @@ in
 
     # ===== (4) standalone home (#605 synthetic host) ==================
     # Flake-level resolve of a standalone home → a homeConfigurations output
-    # edge sourced from the system scope, plus the empty flake-root default
-    # folds. Full list.
+    # edge sourced from the system scope, the empty flake-root default folds,
+    # AND the per-host (per-home) default folds the instantiate projection
+    # surfaces (Task 18.2: the standalone home IS instantiated as a
+    # homeConfigurations output, so its per-host fold edges are present). Full list.
     test-topology-standalone-home = denTest (
       { den, ... }:
       {
@@ -472,6 +492,23 @@ in
               ];
             };
           })
+          # Per-home default folds (the instantiate projection's surfaced edges).
+          (edge {
+            source = collected "home:solo" "homeManager";
+            target = rootT "home:solo" "homeManager";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "home:solo" ];
+            };
+          })
+          (edge {
+            source = collected "home:solo" "nixos";
+            target = rootT "home:solo" "nixos";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "home:solo" ];
+            };
+          })
         ];
       }
     );
@@ -495,8 +532,9 @@ in
         den.aspects.tux.includes = [ den.batteries.host-aspects ];
 
         expr = {
-          # The HM-into-user forward (the extraction edge) is present, twice
-          # (raw + dedup-suppressed twin), targeting the user root.
+          # The HM-into-user forward (the extraction edge), targeting the user
+          # root. Production (Task 18.2) captures the kept route only — the legacy
+          # oracle's dedup-suppressed twin is absent.
           synth = synthEdges;
           # Stable total edge count for this topology.
           count = builtins.length trace;
@@ -517,23 +555,8 @@ in
                 sourceVia = "unresolved";
               };
             })
-            (edge {
-              source = synthesize "homeManager/nixos/home-manager/users/tux" "homeManager" "nixos";
-              target = rootT "user:tux" "nixos";
-              path = [
-                "home-manager"
-                "users"
-                "tux"
-              ];
-              mode = "nest";
-              annotations = {
-                complexForward = true;
-                sourceVia = "unresolved";
-                suppressed = true;
-              };
-            })
           ];
-          count = 8;
+          count = 6;
         };
       }
     );
@@ -607,6 +630,40 @@ in
               ];
             };
           })
+          # Per-home default folds (one pair per `ben` instantiate; the two homes
+          # collapse to the same readable name but are distinct entity scopes).
+          (edge {
+            source = collected "home:ben" "homeManager";
+            target = rootT "home:ben" "homeManager";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "home:ben" ];
+            };
+          })
+          (edge {
+            source = collected "home:ben" "nixos";
+            target = rootT "home:ben" "nixos";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "home:ben" ];
+            };
+          })
+          (edge {
+            source = collected "home:ben" "homeManager";
+            target = rootT "home:ben" "homeManager";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "home:ben" ];
+            };
+          })
+          (edge {
+            source = collected "home:ben" "nixos";
+            target = rootT "home:ben" "nixos";
+            mode = "merge";
+            annotations = {
+              collectedScopes = [ "home:ben" ];
+            };
+          })
         ];
       }
     );
@@ -675,15 +732,16 @@ in
       }
     );
 
-    # ===== (7b) spawn (rewalk) edge — host-aspects projection ==========
-    # The host-aspects battery on a user emits a deferred policy.spawn marker at
-    # the user's OWN entity scope; the extractor renders it as a REWALK edge: the
-    # spawned class is re-walked from the PARENT (host) aspect identity with the
-    # own entity (user) bound under its kind, delivered to the user root. Identity
-    # triple only — content is NOT recorded (spec §8 rewalk determinism). We
-    # assert the full rewalk edge by value (subset + count: this topology's full
-    # list also carries the host folds + user-forward tail, large and asserted
-    # elsewhere; the mechanism under test is the single rewalk edge).
+    # ===== (7b) spawn — NO rewalk edge at host level (Task 18.2) =======
+    # The host-aspects battery on a user emits a deferred policy.spawn marker. The
+    # LEGACY oracle (legacyEdgeTrace) renders that as a REWALK edge (the spawn
+    # UNDERCOUNT). The PRODUCTION object (edgeTrace) drops the rewalk arm: at HOST
+    # level the host is the ctx-seeded root (not a resolve.to-created entity scope
+    # in scopeEntityKind), so the drain-fold spawn arm is a no-op — neither the
+    # rewalk edge NOR a surfaced-spawn edge exists here. The surfaced-spawn edges
+    # only appear at FLAKE level (asserted in fx-unified-edges /
+    # fx-oracle-production-differential). So the production host trace carries NO
+    # rewalk-source edge.
     test-topology-host-aspects-spawn = denTest (
       { den, lib, ... }:
       let
@@ -698,20 +756,9 @@ in
         den.aspects.tux.includes = [ den.batteries.host-aspects ];
         den.aspects.igloo.nixos.networking.hostName = "igloo";
 
-        # The rewalk spawn edge, by value: source carries the PARENT (host)
-        # aspect identity, the bound kind (user), and the spawned class; target is
-        # the user root; spawnFrom names the host scope.
+        # The production host trace has NO rewalk-source edge.
         expr = spawnEdges;
-        expected = [
-          (edge {
-            source = rewalk "host:igloo" [ "user" ] "homeManager";
-            target = rootT "user:tux" "homeManager";
-            mode = "merge";
-            annotations = {
-              spawnFrom = "host:igloo";
-            };
-          })
-        ];
+        expected = [ ];
       }
     );
 
@@ -795,7 +842,10 @@ in
               };
             })
           ];
-          count = 5;
+          # Production object (Task 18.2): the top-level folds + the per-host
+          # surfaced fold/route edges the instantiate projection adds (the pipe
+          # host-addrs class adds its own per-scope folds too).
+          count = 9;
         };
       }
     );
@@ -973,9 +1023,11 @@ in
       }
     );
 
-    # Route-ordering/suppression annotation present: the dedup-suppressed twin of
-    # the user-forward carries `suppressed = true` (route/apply.nix dedupRoutes
-    # decision, reused by the extractor).
+    # Suppression annotation ABSENT in the production object: the production edge
+    # object (Task 18.2) CAPTURES the edges its fold dispatched (kept routes only),
+    # so the legacy oracle's dedup-suppressed twin — which carried
+    # `suppressed = true` — is never present. The suppressed-twin edge lives in
+    # legacyEdgeTrace, asserted by the fx-oracle-production-differential suite.
     test-corollary-suppression-annotation = denTest (
       { den, lib, ... }:
       let
@@ -986,7 +1038,7 @@ in
         den.hosts.x86_64-linux.igloo.users.tux = { };
         den.aspects.igloo.nixos.networking.hostName = "igloo";
         expr = builtins.length suppressed;
-        expected = 1;
+        expected = 0;
       }
     );
 

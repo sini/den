@@ -738,17 +738,28 @@ let
         // {
           inherit scopeEntityKind;
         };
-      materialized = materializeUnified {
-        inherit
-          pi
-          ctx
-          scopedProvides
-          scopedRoutes
-          spawnNode
-          ;
-        seed = phase1;
-        inherit (handlers) buildForwardAspect;
-      } { doFinalMerge = false; };
+      materialized =
+        materializeUnified
+          {
+            inherit
+              pi
+              ctx
+              scopedProvides
+              scopedRoutes
+              spawnNode
+              ;
+            seed = phase1;
+            inherit (handlers) buildForwardAspect;
+          }
+          {
+            doFinalMerge = false;
+            # Task 18.2: CAPTURE the top-level provides+routes edges the production
+            # fold dispatched (materialized.edges), so edgeTrace renders the captured
+            # set rather than re-deriving it via extractTopLevelEdges' provides/route
+            # arms. The return is acc // { edges; } — classImports reads stay byte-
+            # unchanged.
+            exposeEdges = true;
+          };
       phase4 = applyInstantiates {
         scopedInstantiates = result.state.scopedInstantiates null;
         scopeEntityClass = result.state.scopeEntityClass or (_: { });
@@ -833,6 +844,10 @@ let
                 {
                   doFinalMerge = true;
                   exposeAcc = true;
+                  # Task 18.2: CAPTURE the provides+routes edges the per-host fold
+                  # dispatched, so mkInstantiateEdges renders the captured set
+                  # rather than re-deriving it.
+                  exposeEdges = true;
                 };
           in
           mkInstantiateEdges {
@@ -840,11 +855,10 @@ let
             inherit scopeParent scopeIsolated;
             inherit (proj)
               hostScopeId
-              subtreeProvides
-              subtreeRoutes
               subtreeScopeIds
               ;
             perScope = materialized.acc.perScope;
+            capturedEdges = materialized.edges;
           };
 
       # Host-own per-host edges: the projection-arg bundle that phase4 uses (the
@@ -886,6 +900,25 @@ let
       bprimeEdges = lib.optionals (hostConfigs != null) (
         lib.concatMap (perHostEdgesFor bprimeArgBundle) allInstantiateSpecs
       );
+
+      # The PRODUCTION delivery-edge object (Task 18.2). The fold-ordered
+      # provides+routes portion is the CAPTURE from the production materializeUnified
+      # folds (top-level `materialized.edges`, the surfaced spawn `.edges` in
+      # drained.spawnEdges, the per-host `.edges` in perHostEdges/bprimeEdges) — NOT
+      # a re-derivation, so it is drift-proof. The default-fold (merge) +
+      # instantiate (flake-output) edges stay constructor-built: they are the SAME
+      # deterministic structural edges production invokes via assembleSubtree /
+      # applyInstantiates (no drift surface). This corrects the legacy oracle's
+      # spawn rewalk UNDERCOUNT. A lazy thunk — forced only by inspection / the
+      # delivery-edges + fx-unified-edges suites, never by normal resolve consumers.
+      productionEdgeTrace = sortEdges (
+        materialized.edges
+        ++ topLevelEdgeParts.defaultFold
+        ++ topLevelEdgeParts.instantiateEdgeList
+        ++ drained.spawnEdges
+        ++ perHostEdges
+        ++ bprimeEdges
+      );
     in
     {
       imports = phase4.${class} or [ ];
@@ -895,11 +928,16 @@ let
       # set from scope-string to entity identity (id_hash) for projected
       # hasAspect (see entities/_types.nix:pathSetByScopeOption).
       inherit scopeContexts scopeEntityKind;
-      # Read-only delivery-edge trace over the pipeline end-state (the migration
-      # oracle for the delivery-edge unification port, edge-trace.nix). Nix
-      # attrs are lazy, so this is a thunk — never forced by normal resolve
-      # consumers, only by the delivery-edges suite / debug inspection.
-      edgeTrace = extractEdgeTrace {
+      # The production edge object (see productionEdgeTrace above).
+      edgeTrace = productionEdgeTrace;
+      # One representation: unifiedEdges is an alias for the production edgeTrace.
+      unifiedEdges = productionEdgeTrace;
+      # The LEGACY end-state re-derivation (edge-trace.nix), WITH its `spawnEdges`
+      # rewalk arm (the spawn undercount). Kept as a distinct field so the
+      # differential suites can diff the production object against it. Nix attrs
+      # are lazy, so this is a thunk — forced only by the differential suites /
+      # debug inspection, never by normal resolve consumers.
+      legacyEdgeTrace = extractEdgeTrace {
         inherit
           scopeContexts
           scopeParent
@@ -913,22 +951,6 @@ let
         scopedInstantiates = (result.state.scopedInstantiates or (_: { })) null;
         rootScopeId = result.state.rootScopeId;
       };
-      # The unified delivery-edge set (Task 16): the oracle's top-level mechanism
-      # set MINUS its `spawnEdges` rewalk arm, PLUS the SURFACED spawn edges (the
-      # spawn nodes' real delivered edges, drained.spawnEdges) and the per-host /
-      # B′ instantiate projection edges. Corrects the oracle's spawn UNDERCOUNT.
-      # A lazy thunk (like edgeTrace) — forced only by inspection / the
-      # fx-unified-edges suite, never by normal resolve consumers. Not yet consumed
-      # by production materialization (additive surface for a later task).
-      unifiedEdges = sortEdges (
-        topLevelEdgeParts.defaultFold
-        ++ topLevelEdgeParts.providesEdgeList
-        ++ topLevelEdgeParts.routeEdgeList
-        ++ topLevelEdgeParts.instantiateEdgeList
-        ++ drained.spawnEdges
-        ++ perHostEdges
-        ++ bprimeEdges
-      );
 
       # The Task-17 equivalence surface: BOTH the current phase2∘phase3 result AND
       # the materializeUnified result over the SAME live seed (phase1) + the SAME

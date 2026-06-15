@@ -1,9 +1,9 @@
 # fx-instantiate-edges suite — the per-host re-walk's surfaced edge set
-# (nix/lib/aspects/fx/edges/instantiate-edges.nix mkInstantiateEdges). A pure
-# projection of the inputs resolve.nix mkInstantiateArgs already derives:
-# default-fold merge @ hostScopeId + provides over subtreeProvides + routes over
-# subtreeRoutes. Task 16 builds + tests the function; a later task (16.3)
-# collects its output into a unified edge set.
+# (nix/lib/aspects/fx/edges/instantiate-edges.nix mkInstantiateEdges). The
+# default-fold merge edge @ hostScopeId is constructor-built; the provides+routes
+# edges are the CAPTURE from the per-host materializeUnified fold (Task 18.2),
+# passed in as `capturedEdges` (no longer re-derived from subtreeProvides /
+# subtreeRoutes). resolve.nix collects this output into the production edge object.
 #
 # `just ci fx-instantiate-edges` runs this suite.
 { denTest, lib, ... }:
@@ -14,10 +14,11 @@
     # The host carries a nixos bucket (perScope), and a user→host route nests the
     # user's homeManager content into the host's nixos at a path. The surfaced
     # edge set must contain BOTH the host nixos default-fold merge edge (target
-    # root = host, mode "merge", path []) AND the user→host route edge (target
-    # class "nixos", mode "nest").
+    # root = host, mode "merge", path [], CONSTRUCTOR-built) AND the user→host
+    # route edge (target class "nixos", mode "nest"), the latter coming from the
+    # CAPTURED edge list passed through unchanged.
     test-host-user-edge-set = denTest (
-      { den, ... }:
+      { den, lib, ... }:
       let
         edges = den.lib.aspects.fx.edges.instantiateSubtree;
 
@@ -48,9 +49,26 @@
           ${hostSid} = "host";
           ${userSid} = "user";
         };
-        scopeName = (import ../../../../nix/lib/aspects/fx/edges/edge.nix { inherit lib; }).scopeName {
-          inherit scopeEntityKind scopeContexts;
-        };
+        edgeMod = import ../../../../nix/lib/aspects/fx/edges/edge.nix { inherit lib; };
+        scopeName = edgeMod.scopeName { inherit scopeEntityKind scopeContexts; };
+
+        # The CAPTURED provides+routes edge list the per-host fold would dispatch:
+        # here a single user→host route edge (homeManager nested into nixos at a
+        # path). In production this list is materializeUnified{exposeEdges}.edges;
+        # the suite builds an equivalent record directly via the edge constructor.
+        capturedEdges = [
+          (edgeMod.mkEdge {
+            source = edgeMod.collected (scopeName userSid) "homeManager";
+            target = edgeMod.rootTarget (scopeName hostSid) "nixos";
+            path = [
+              "home-manager"
+              "users"
+              "tux"
+            ];
+            mode = "nest";
+            annotations = { };
+          })
+        ];
 
         result = edges.mkInstantiateEdges {
           name = scopeName;
@@ -69,22 +87,7 @@
               nixos = [ { config = { }; } ];
             };
           };
-          subtreeProvides = { };
-          # A user→host route: homeManager source nested into nixos at a path.
-          subtreeRoutes = {
-            ${userSid} = [
-              {
-                fromClass = "homeManager";
-                intoClass = "nixos";
-                sourceScopeId = userSid;
-                path = [
-                  "home-manager"
-                  "users"
-                  "tux"
-                ];
-              }
-            ];
-          };
+          inherit capturedEdges;
         };
 
         hostFold = lib.filter (
@@ -117,6 +120,8 @@
           userRouteCount = builtins.length userRoute;
         };
         expected = {
+          # The default fold is constructor-built; the route edge passed through
+          # from capturedEdges unchanged.
           hostFoldCount = 1;
           userRouteCount = 1;
         };
