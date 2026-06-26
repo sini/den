@@ -110,6 +110,7 @@ let
       ctx,
       aspectPolicy,
       globalPolicy,
+      class ? null,
     }:
     let
       allArgs = builtins.functionArgs module;
@@ -147,25 +148,91 @@ let
         denArgsWithThunks = builtins.filter (k: pipeThunks ? ${k}) denArgNames;
         hasConfigThunks = denArgsWithThunks != [ ];
 
-        # If any den args have config thunks, we need `config` from the module
-        # system to resolve them — force wrapper path even if no other remaining args.
-        effectiveRemainingArgs =
-          if hasConfigThunks then remainingArgs // { config = true; } else remainingArgs;
+        # The consuming scope's own user/home name — a producer marker for the
+        # same member resolves against `config` directly (standalone-safe).
+        consumerName = ctx.user.name or ctx.home.name or null;
 
-        # Resolve config thunk markers using both the scope context (for pipeline
-        # args like host/user) and the evalModules fixpoint config.
+        # A class's parentPath/parentArg (registered by its battery) describe how
+        # its members nest into the enclosing config-owner — null for root
+        # classes (nixos, darwin, …). parentPath is the single "does this nest"
+        # signal; parentArg is the module arg by which a member reaches the owner.
+        classParentPath = c: if c != null && den.classes ? ${c} then den.classes.${c}.parentPath else null;
+        classParentArg = c: if c != null && den.classes ? ${c} then den.classes.${c}.parentArg else null;
+        consumerNested = (classParentPath class) != null;
+        consumerParentArg = classParentArg class;
+
+        # Each deferred thunk is handed `config` (its PRODUCER class config) and,
+        # for a nested producer, the OWNER config under the producer class's
+        # parentArg. A nested consumer fetches the owner config from the module
+        # system via its own parentArg — requested only when a marker needs it (a
+        # root-class producer, a different member, or a thunk reading its
+        # parentArg) — never for a pure same-member thunk, so standalone members
+        # (no owner arg) keep working.
+        allMarkers = builtins.filter (v: v ? __configThunk) (
+          lib.concatMap (k: ctx.${k} or [ ]) denArgsWithThunks
+        );
+        markerNeedsOwner =
+          m:
+          let
+            pa = classParentArg (m.__producerClass or null);
+          in
+          (classParentPath (m.__producerClass or null)) == null
+          || (m.__producerName or null) != consumerName
+          || (pa != null && (builtins.functionArgs (m.__fn or (_: { }))) ? ${pa});
+        needsOwner = consumerNested && hasConfigThunks && builtins.any markerNeedsOwner allMarkers;
+
+        # If any den args have config thunks, we need `config` (and possibly the
+        # owner config, via the consumer's parentArg) from the module system to
+        # resolve them — force the wrapper path even if no other remaining args.
+        effectiveRemainingArgs =
+          if hasConfigThunks then
+            remainingArgs
+            // {
+              config = true;
+            }
+            // lib.optionalAttrs (needsOwner && consumerParentArg != null) { ${consumerParentArg} = true; }
+          else
+            remainingArgs;
+
+        # Resolve config thunk markers against the PRODUCING class+scope's config
+        # (not the consuming module's): a root-class producer → the owner config
+        # (the consumer's `config` for a root class, else the fetched owner); a
+        # nested producer → its config at the registered parentPath of the owner.
         resolveMarkers =
-          config: values:
+          config: owner: values:
+          let
+            ownerCfg = if consumerNested then owner else config;
+          in
           builtins.concatMap (
             v:
             if v ? __configThunk then
               let
-                # Provide scope context args (host, user, etc.) plus config from fixpoint.
                 thunkArgs = builtins.functionArgs v.__fn;
                 ctxArgs = lib.genAttrs (builtins.filter (k: ctx ? ${k}) (builtins.attrNames thunkArgs)) (
                   k: ctx.${k}
                 );
-                result = v.__fn (ctxArgs // { inherit config lib; });
+                pcls = v.__producerClass or null;
+                pPath = classParentPath pcls;
+                pArg = classParentArg pcls;
+                producerConfig =
+                  if pcls == null then
+                    config
+                  else if pPath == null then
+                    ownerCfg
+                  else if consumerNested && pcls == class && (v.__producerName or null) == consumerName then
+                    config
+                  else
+                    lib.attrByPath (pPath v.__producerName) { } ownerCfg;
+                result = v.__fn (
+                  ctxArgs
+                  // {
+                    config = producerConfig;
+                  }
+                  // lib.optionalAttrs (pArg != null) { ${pArg} = ownerCfg; }
+                  // {
+                    inherit lib;
+                  }
+                );
               in
               if builtins.isList result then result else [ result ]
             else
@@ -186,12 +253,19 @@ let
           wrapper =
             moduleArgs:
             let
+              # A nested consumer fetches the owner config from the module system
+              # via its registered parentArg (e.g. home-manager's osConfig).
+              ownerCfg =
+                if consumerNested && consumerParentArg != null then
+                  (moduleArgs.${consumerParentArg} or { })
+                else
+                  (moduleArgs.config or { });
               resolvedDen =
                 if hasConfigThunks then
                   lib.mapAttrs (
                     k: v:
                     if builtins.elem k denArgsWithThunks && builtins.isList v then
-                      resolveMarkers (moduleArgs.config or { }) v
+                      resolveMarkers (moduleArgs.config or { }) ownerCfg v
                     else
                       v
                   ) denWinsDen
@@ -218,9 +292,17 @@ let
       ctx,
       aspectPolicy,
       globalPolicy,
+      class ? null,
     }:
     let
-      result = wrapDeferredImports { inherit ctx aspectPolicy globalPolicy; } module.imports;
+      result = wrapDeferredImports {
+        inherit
+          ctx
+          aspectPolicy
+          globalPolicy
+          class
+          ;
+      } module.imports;
       policy = resolveCollisionPolicy { inherit ctx aspectPolicy globalPolicy; };
       denArgNames = builtins.attrNames ctx;
       validator = mkCollisionValidator policy denArgNames;

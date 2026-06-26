@@ -26,14 +26,38 @@ let
       if builtins.isList val then val else [ val ]
     ) entries;
 
-  # Detect config-dependent thunks: functions that take `config` as an argument.
-  # Config-dependent thunks require `config` in their args and are resolved
-  # lazily against instantiated host configs.
-  isConfigDependent = val: builtins.isFunction val && (builtins.functionArgs val) ? config;
+  # Parent-config arg names registered by nested classes (home-manager exposes
+  # the owner config as `osConfig`). A thunk reading `config` or any of these
+  # binds to the evalModules fixpoint.
+  parentArgNames = builtins.filter (a: a != null) (
+    map (c: c.parentArg or null) (builtins.attrValues (den.classes or { }))
+  );
+  readsParentArg = a: builtins.any (k: a ? ${k}) parentArgNames;
+
+  # Detect config-dependent thunks: functions taking `config` (the producer's
+  # class config) and/or a registered parent-config arg (the enclosing owner
+  # config). Both bind to the evalModules fixpoint, so they are deferred there.
+  isConfigDependent =
+    val:
+    builtins.isFunction val
+    && (
+      let
+        a = builtins.functionArgs val;
+      in
+      a ? config || readsParentArg a
+    );
 
   # Pipeline-parametric values require pipeline context args (host, user, etc.)
-  # but not config. These are resolved eagerly using scope context.
-  isPipelineParametric = val: builtins.isFunction val && !(builtins.functionArgs val) ? config;
+  # but neither config nor a parent-config arg. Resolved eagerly via scope context.
+  isPipelineParametric =
+    val:
+    builtins.isFunction val
+    && (
+      let
+        a = builtins.functionArgs val;
+      in
+      !(a ? config) && !(readsParentArg a)
+    );
 
   # Resolve a local pipeline-parametric value eagerly using scope context.
   # These are quirk values like `{ host, ... }: { addr = host.addr; }` that
@@ -66,27 +90,104 @@ let
       [ val ];
 
   # Mark a config-dependent value for deferred resolution inside evalModules.
-  # The marker is transparent to the module wrapper, which resolves it
-  # using the evalModules fixpoint config.
+  # `producer` tags the marker with the PRODUCING scope's class and name so the
+  # module wrapper resolves it against the producing class + scope's config —
+  # not the consuming module's. Already-marked values (re-mark on an exposed/
+  # inherited path) pass through unchanged, keeping their original producer tag.
   markConfigThunk =
-    v:
+    producer: v:
     if isConfigDependent v then
       {
         __configThunk = true;
         __fn = v;
+        __producerClass = producer.class or null;
+        __producerName = producer.name or null;
       }
     else
       v;
 
-  # Mark all config-dependent entries in a value list.
-  markConfigThunks = map markConfigThunk;
+  # Mark all config-dependent entries in a value list with their producer.
+  markConfigThunks = producer: map (markConfigThunk producer);
 
-  # Resolve a config-dependent thunk against instantiated host configs.
-  # Used for COLLECTED entries (cross-host) where the source host's config
-  # is needed. Provides scope context args (host, user, etc.) alongside config.
-  # Returns a list (auto-flattens list-valued results).
+  # Producer tag (class + name) for a scope, read from pipeline state. The class
+  # selects the producer's config-resolution route via den.classes.<class>.parentPath.
+  producerOf =
+    scopeEntityClass: scopeContexts: sid:
+    let
+      ctx = scopeContexts.${sid} or { };
+    in
+    {
+      class = scopeEntityClass.${sid} or null;
+      name = ctx.user.name or ctx.home.name or null;
+    };
+
+  # The PRODUCER's `config` (class config), the enclosing config-`owner` config,
+  # and the class's `parentArg` name, used to resolve cross-scope config-
+  # dependent emits at their SOURCE (not the consumer). A scope that owns a
+  # config directly (a hostConfigs key — e.g. a host) has config == owner and a
+  # null parentArg. A nested scope (e.g. a home) reads its config from the
+  # owner config at its class's registered `den.classes.<class>.parentPath` —
+  # the same route its content is delivered to — and reaches the owner via
+  # `parentArg`. This matches the "producing class + scope" rule. Cross-host
+  # can't reach a remote real fixpoint, so it leans on the precomputed hostConfigs.
+  producerConfigs =
+    {
+      hostConfigs,
+      scopeContexts,
+      scopeParent ? { },
+      scopeEntityClass ? { },
+    }:
+    scopeId:
+    let
+      cls = scopeEntityClass.${scopeId} or null;
+      classDef = if cls != null && den.classes ? ${cls} then den.classes.${cls} else { };
+      parentArg = classDef.parentArg or null;
+    in
+    if hostConfigs == null then
+      {
+        config = { };
+        owner = { };
+        inherit parentArg;
+      }
+    else if hostConfigs ? ${scopeId} then
+      {
+        config = hostConfigs.${scopeId};
+        owner = hostConfigs.${scopeId};
+        inherit parentArg;
+      }
+    else
+      let
+        # Nearest enclosing scope that owns a config.
+        findOwner =
+          sid:
+          if sid == null then
+            null
+          else if hostConfigs ? ${sid} then
+            sid
+          else
+            findOwner (scopeParent.${sid} or null);
+        ownerScope = findOwner (scopeParent.${scopeId} or null);
+        ownerCfg = if ownerScope == null then { } else hostConfigs.${ownerScope};
+        # The producer's class parentPath locates its config within the owner
+        # config — the same route its content is delivered to. No path → it owns
+        # its config (but isn't a hostConfigs key here, so resolves to empty).
+        pathFn = classDef.parentPath or null;
+        ctx = scopeContexts.${scopeId} or { };
+        name = ctx.user.name or ctx.home.name or null;
+      in
+      {
+        config = if pathFn != null && name != null then lib.attrByPath (pathFn name) { } ownerCfg else { };
+        owner = ownerCfg;
+        inherit parentArg;
+      };
+
+  # Resolve a config-dependent thunk against the producer's class config.
+  # Used for COLLECTED / BROADCAST entries (cross-scope) where the SOURCE
+  # scope's config is needed. Provides scope context args (host, user, etc.)
+  # alongside `config` (producer class) and, for a nested producer, the owner
+  # config under the class's parentArg. Returns a list (auto-flattens lists).
   resolveEntry =
-    hostConfigs: scopeContexts: sourceScopeId: entry:
+    hostConfigs: producerConfigFor: scopeContexts: sourceScopeId: entry:
     if isConfigDependent entry then
       if hostConfigs == null then
         # No host configs on this crossing path: defer the config-dependent emit.
@@ -100,10 +201,14 @@ let
           ctxArgs = lib.genAttrs (builtins.filter (k: scopeCtx ? ${k}) (builtins.attrNames thunkArgs)) (
             k: scopeCtx.${k}
           );
+          pc = producerConfigFor sourceScopeId;
           result = entry (
             ctxArgs
             // {
-              config = hostConfigs.${sourceScopeId} or { };
+              config = pc.config;
+            }
+            // lib.optionalAttrs (pc.parentArg != null) { ${pc.parentArg} = pc.owner; }
+            // {
               inherit lib;
             }
           );
@@ -126,8 +231,8 @@ let
   # value crosses as data, not a function. Config-dependent emits stay deferred
   # (resolved in the evalModules fixpoint via __configThunk) when no hostConfigs.
   resolveThunks =
-    hostConfigs: scopeContexts: scopeId: values:
-    builtins.concatMap (resolveEntry hostConfigs scopeContexts scopeId) values;
+    hostConfigs: producerConfigFor: scopeContexts: scopeId: values:
+    builtins.concatMap (resolveEntry hostConfigs producerConfigFor scopeContexts scopeId) values;
 
   # Value functor: lets ONE stage interpreter run over either bare values (the
   # plain path) or provenance-tagged values ({ __pv = value; __ps = scopeId; }).
@@ -292,6 +397,8 @@ let
       scopeParent,
       scopeEntityKind ? { },
       scopedClassImports,
+      allExposed ? { },
+      scopeEntityClass ? { },
       currentScopeId,
       pipeName,
       hostConfigs ? null,
@@ -315,6 +422,14 @@ let
       ) stages;
       # Tag initial values at the current scope (identity for the plain path).
       taggedInitial = map (functor.seed currentScopeId) initialValues;
+      producerConfigFor = producerConfigs {
+        inherit
+          hostConfigs
+          scopeContexts
+          scopeParent
+          scopeEntityClass
+          ;
+      };
       # Resolve a list of matching scopes into collected values, each tagged with
       # its SOURCE scope id (not currentScopeId).
       collectTagged =
@@ -324,9 +439,14 @@ let
           let
             entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
             rawValues = flattenAndExtract entries;
-            resolved = resolveThunks hostConfigs scopeContexts sid rawValues;
+            resolved = resolveThunks hostConfigs producerConfigFor scopeContexts sid rawValues;
+            # Also collect data that sid's children exposed UP into sid (pipe.expose).
+            # collectAllExposed already resolved these at the exposing node, so they
+            # cross as concrete data — a peer's collect sees a host's exposed-up
+            # user data, not just its raw host-scope emits.
+            exposed = (allExposed.${sid} or { }).${pipeName} or [ ];
           in
-          map (functor.seed sid) resolved
+          map (functor.seed sid) (resolved ++ exposed)
         ) matchingScopes;
     in
     builtins.foldl' (
@@ -411,6 +531,8 @@ let
       scopeParent,
       scopeEntityKind ? { },
       scopedClassImports,
+      allExposed ? { },
+      scopeEntityClass ? { },
       currentScopeId,
       pipeName,
       hostConfigs ? null,
@@ -432,6 +554,8 @@ let
           scopeParent
           scopeEntityKind
           scopedClassImports
+          allExposed
+          scopeEntityClass
           currentScopeId
           pipeName
           hostConfigs
@@ -448,6 +572,8 @@ let
       scopeParent,
       scopeEntityKind ? { },
       scopedClassImports,
+      allExposed ? { },
+      scopeEntityClass ? { },
       hostConfigs ? null,
     }:
     pipeName: scopeId: baseValues: effects:
@@ -470,6 +596,8 @@ let
           scopeParent
           scopeEntityKind
           scopedClassImports
+          allExposed
+          scopeEntityClass
           hostConfigs
           ;
         currentScopeId = scopeId;
@@ -492,6 +620,8 @@ let
       scopeParent,
       scopeEntityKind ? { },
       scopedClassImports,
+      allExposed ? { },
+      scopeEntityClass ? { },
       currentScopeId,
       hostConfigs ? null,
     }:
@@ -507,6 +637,8 @@ let
               scopeContexts
               scopeParent
               scopedClassImports
+              allExposed
+              scopeEntityClass
               currentScopeId
               hostConfigs
               ;
@@ -533,6 +665,37 @@ let
   # Check whether a pipe effect has a pipe.expose routing stage.
   hasExposeStage = e: builtins.any (s: (s.__pipeStage or "") == "expose") (e.stages or [ ]);
 
+  # Check whether a pipe effect has a pipe.broadcast routing stage.
+  hasBroadcastStage = e: builtins.any (s: (s.__pipeStage or "") == "broadcast") (e.stages or [ ]);
+
+  # Extract the receiver predicate from a pipe.broadcast stage.
+  getBroadcastPred =
+    e:
+    let
+      bStage = lib.findFirst (s: (s.__pipeStage or "") == "broadcast") null (e.stages or [ ]);
+    in
+    if bStage == null then null else bStage.fn;
+
+  # Dedup pipe effects by (pipeName, policyName). A policy may fire for several
+  # entity kinds in one scope, producing duplicate effects for a single routing
+  # — used by the expose (collectAllExposed) and broadcast (collectAllBroadcast)
+  # passes, which both fan a scope's routing effects out once.
+  dedupEffectsByPolicy =
+    let
+      go =
+        seen: effs:
+        if effs == [ ] then
+          [ ]
+        else
+          let
+            e = builtins.head effs;
+            rest = builtins.tail effs;
+            key = "${e.pipeName}/${e.__pipePolicyName or "<anon>"}";
+          in
+          if seen ? ${key} then go seen rest else [ e ] ++ go (seen // { ${key} = true; }) rest;
+    in
+    go { };
+
   # Collect exposed data bottom-up from child scopes.
   # Returns: { parentScopeId → { pipeName → [values] } }
   collectAllExposed =
@@ -541,6 +704,7 @@ let
       scopedClassImports,
       scopedPipeEffects,
       scopeParent,
+      scopeEntityClass ? { },
     }:
     let
       allScopeIds = builtins.attrNames scopeContexts;
@@ -562,23 +726,7 @@ let
           isRoot = parentId == null || parentId == scopeId;
           scopeEffects = scopedPipeEffects.${scopeId} or [ ];
           rawExposeEffects = builtins.filter hasExposeStage scopeEffects;
-          # Dedup expose effects by (pipeName, policyName) — policies may fire
-          # for multiple entity kinds in the same scope, producing duplicates.
-          exposeEffects =
-            let
-              go =
-                seen: effs:
-                if effs == [ ] then
-                  [ ]
-                else
-                  let
-                    e = builtins.head effs;
-                    rest = builtins.tail effs;
-                    key = "${e.pipeName}/${e.__pipePolicyName or "<anon>"}";
-                  in
-                  if seen ? ${key} then go seen rest else [ e ] ++ go (seen // { ${key} = true; }) rest;
-            in
-            go { } rawExposeEffects;
+          exposeEffects = dedupEffectsByPolicy rawExposeEffects;
         in
         if isRoot || exposeEffects == [ ] then
           afterChildren
@@ -600,7 +748,9 @@ let
                 # idempotently via mkCombinedBase, but marking at the source keeps
                 # multi-level expose chains correct without relying on every consumer
                 # to re-mark). Mirrors mkCombinedBase on the local path.
-                resolvedBase = markConfigThunks (builtins.concatMap (resolveLocalParametric scopeCtx) baseValues);
+                resolvedBase = markConfigThunks (producerOf scopeEntityClass scopeContexts scopeId) (
+                  builtins.concatMap (resolveLocalParametric scopeCtx) baseValues
+                );
                 # Child-exposed data is already concrete — each child resolved its
                 # own at its own node — so include it as-is for transform stages.
                 exposedValues = exposedForScope.${pipeName} or [ ];
@@ -631,6 +781,82 @@ let
     in
     builtins.foldl' processTree { } rootScopes;
 
+  # Distribute broadcast data laterally: each broadcaster S pushes its
+  # (source-transformed) pipe value to every OTHER scope whose context matches
+  # the broadcast predicate. The push dual of pipe.expose (which routes to the
+  # parent); mechanically a fan-out gather, so it reuses findMatchingAll's
+  # entity-kind filtering and resolveThunks' cross-host config resolution.
+  # Source values are the broadcaster's RAW emits — not the post-expose
+  # assembled value. The marquee source is a user scope (a leaf with no children
+  # to expose); a HOST broadcaster therefore does NOT fold in its users'
+  # exposed-up data, an intentional asymmetry with collect's raw+exposed read.
+  # Returns: { receiverScopeId → { pipeName → [values] } }
+  collectAllBroadcast =
+    {
+      scopeContexts,
+      scopedClassImports,
+      scopedPipeEffects,
+      scopeParent ? { },
+      scopeEntityKind ? { },
+      scopeEntityClass ? { },
+      hostConfigs ? null,
+    }:
+    let
+      allScopeIds = builtins.attrNames scopeContexts;
+      producerConfigFor = producerConfigs {
+        inherit
+          hostConfigs
+          scopeContexts
+          scopeParent
+          scopeEntityClass
+          ;
+      };
+      perBroadcaster =
+        sourceId:
+        let
+          scopeEffects = scopedPipeEffects.${sourceId} or [ ];
+          broadcastEffects = dedupEffectsByPolicy (builtins.filter hasBroadcastStage scopeEffects);
+          scopeImports = scopedClassImports.${sourceId} or { };
+        in
+        lib.concatMap (
+          effect:
+          let
+            inherit (effect) pipeName;
+            rawEntries = scopeImports.${pipeName} or [ ];
+            baseValues = flattenAndExtract rawEntries;
+            # Resolve the source value to data as it crosses to the receiver:
+            # pipeline-parametric eagerly, config-dependent against the SOURCE's
+            # PRODUCER class config (host→nixos, user/home→home-manager) — NOT
+            # deferred, since the receiver may be on another host. Then apply the
+            # source-side transform stages (the broadcast routing stage is
+            # ignored by applyTransformStages).
+            resolvedBase = resolveThunks hostConfigs producerConfigFor scopeContexts sourceId baseValues;
+            transformed = applyTransformStages resolvedBase (effect.stages or [ ]);
+            receivers = findMatchingAll {
+              inherit scopeContexts scopeEntityKind;
+              currentScopeId = sourceId;
+            } (getBroadcastPred effect);
+          in
+          map (receiverId: {
+            inherit receiverId pipeName;
+            values = transformed;
+          }) receivers
+        ) broadcastEffects;
+      allEntries = builtins.concatMap perBroadcaster allScopeIds;
+    in
+    builtins.foldl' (
+      acc: entry:
+      let
+        existing = acc.${entry.receiverId} or { };
+      in
+      acc
+      // {
+        ${entry.receiverId} = existing // {
+          ${entry.pipeName} = (existing.${entry.pipeName} or [ ]) ++ entry.values;
+        };
+      }
+    ) { } allEntries;
+
   assemblePipes =
     {
       scopeContexts,
@@ -638,6 +864,7 @@ let
       scopedPipeEffects ? { },
       scopeParent ? { },
       scopeEntityKind ? { },
+      scopeEntityClass ? { },
       hostConfigs ? null,
     }:
     if pipeNames == [ ] then
@@ -651,17 +878,34 @@ let
             scopedClassImports
             scopedPipeEffects
             scopeParent
+            scopeEntityClass
+            ;
+        };
+
+        # Pass 1b: Distribute broadcast data laterally (push, fleet-wide).
+        allBroadcast = collectAllBroadcast {
+          inherit
+            scopeContexts
+            scopedClassImports
+            scopedPipeEffects
+            scopeParent
+            scopeEntityKind
+            scopeEntityClass
+            hostConfigs
             ;
         };
 
         # A scope binds pipe `pn` locally when it emits it, receives it via
-        # pipe.expose, or runs a pipe policy effect for it. A pure-consumer
-        # scope binds nothing and inherits `pn` from the nearest ancestor whose
-        # policy bound it (the source) — see pipeData below.
+        # pipe.expose, receives a pipe.broadcast targeting it, or runs a pipe
+        # policy effect for it. A pure-consumer scope binds nothing and inherits
+        # `pn` from the nearest ancestor whose policy bound it — see pipeData
+        # below. The broadcast clause keeps a pure-receiver scope (no local emit
+        # or effect) from falling through to ancestor inheritance.
         bindsPipeLocally =
           sid: pn:
           ((scopedClassImports.${sid} or { }).${pn} or [ ]) != [ ]
           || ((allExposed.${sid} or { }).${pn} or [ ]) != [ ]
+          || ((allBroadcast.${sid} or { }).${pn} or [ ]) != [ ]
           || builtins.any (e: e.pipeName == pn) (scopedPipeEffects.${sid} or [ ]);
 
         # Nearest ancestor (walking scopeParent) whose pipe policy bound `pn`.
@@ -694,9 +938,12 @@ let
                 rawEntries = scopeImports.${pn} or [ ];
                 baseValues = flattenAndExtract rawEntries;
                 resolvedBase = builtins.concatMap (resolveLocalParametric scopeCtx) baseValues;
-                markedBase = markConfigThunks resolvedBase;
+                # Own emits are produced at THIS scope; exposed values keep the
+                # producer tag set at their exposing node (re-mark is a no-op).
+                producer = producerOf scopeEntityClass scopeContexts scopeId;
+                markedBase = markConfigThunks producer resolvedBase;
                 exposedValues = exposedForScope.${pn} or [ ];
-                markedExposed = markConfigThunks exposedValues;
+                markedExposed = markConfigThunks producer exposedValues;
               in
               markedBase ++ markedExposed;
 
@@ -741,6 +988,8 @@ let
                       scopeParent
                       scopeEntityKind
                       scopedClassImports
+                      allExposed
+                      scopeEntityClass
                       hostConfigs
                       ;
                     currentScopeId = scopeId;
@@ -761,11 +1010,18 @@ let
                         scopeParent
                         scopeEntityKind
                         scopedClassImports
+                        allExposed
+                        scopeEntityClass
                         hostConfigs
                         ;
                     } pipeName scopeId combinedBase untargetedEffects;
+
+                # Values pushed to this scope by peers' pipe.broadcast (S≠R).
+                # The source already applied its transform stages, so these are
+                # concrete data — appended alongside the scope's own base.
+                broadcastReceived = (allBroadcast.${scopeId} or { }).${pipeName} or [ ];
               in
-              normalResult ++ asResults
+              normalResult ++ asResults ++ broadcastReceived
             );
 
             # Pure-consumer scopes inherit a pipe's assembled value from the
@@ -816,6 +1072,8 @@ let
                             scopeParent
                             scopeEntityKind
                             scopedClassImports
+                            allExposed
+                            scopeEntityClass
                             hostConfigs
                             ;
                           currentScopeId = scopeId;
@@ -832,6 +1090,8 @@ let
                             scopeParent
                             scopeEntityKind
                             scopedClassImports
+                            allExposed
+                            scopeEntityClass
                             hostConfigs
                             ;
                           currentScopeId = scopeId;
