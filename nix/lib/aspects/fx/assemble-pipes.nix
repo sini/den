@@ -186,15 +186,56 @@ let
         inherit parentArg;
       };
 
+  # S2 (pipe.reads): the declared read cone for a collect/collectAll/broadcast
+  # chain — the dotted config-paths an open emit is allowed to read — or null
+  # when the chain declares none (then the resolveEntry lint rejects a
+  # config-dependent collected emit). Concatenates every `reads` stage's paths.
+  readsConeOf =
+    stages:
+    let
+      readsStages = builtins.filter (s: (s.__pipeStage or "") == "reads") stages;
+    in
+    if readsStages == [ ] then null else lib.concatMap (s: s.paths) readsStages;
+
+  # S2: a peer config restricted to a declared `pipe.reads` cone. The result is
+  # an attrset holding ONLY the declared dotted paths' real (still-lazy) values
+  # from `cfg`; any field outside the cone is simply absent and throws Nix's
+  # natural "attribute missing" on read. This is ENFORCEMENT — an undeclared
+  # read fails loud, so the declaration is trustworthy for the downstream
+  # affected-set / class-share — NOT a runtime copies cut: Nix laziness already
+  # scopes the read to the touched fields and the peer module fixpoint is
+  # base-dominated (memoized across same-system peers). A DECLARED path returns
+  # the real peer value byte-identically (the cone only bounds, never changes
+  # it). `lib.getAttrFromPath` throws a clear error if a DECLARED path is itself
+  # absent on the peer (a declared-but-missing author error — also fail-loud).
+  coneView =
+    cfg: paths:
+    lib.foldl' (
+      acc: p:
+      let
+        parts = lib.splitString "." p;
+      in
+      lib.recursiveUpdate acc (lib.setAttrByPath parts (lib.getAttrFromPath parts cfg))
+    ) { } paths;
+
   # Resolve a config-dependent thunk against the producer's class config.
   # Used for COLLECTED / BROADCAST entries (cross-scope) where the SOURCE
   # scope's config is needed. Provides scope context args (host, user, etc.)
   # alongside `config` (producer class) and, for a nested producer, the owner
   # config under the class's parentArg. Returns a list (auto-flattens lists).
+  # `coneInfo` carries the S2 read cone: { paths; stage; pipeName; } where
+  # `paths` is the declared `pipe.reads` cone (or null ⇒ the lint fires).
   resolveEntry =
-    hostConfigScopeIds: producerConfigFor: scopeContexts: sourceScopeId: entry:
+    hostConfigScopeIds: producerConfigFor: scopeContexts: coneInfo: sourceScopeId: entry:
     if isConfigDependent entry then
-      if hostConfigScopeIds == { } then
+      # S2 lint (the keeper): a config-dependent emit collected via
+      # collect/collectAll/broadcast MUST declare its read cone with pipe.reads.
+      # An always-true predicate is undetectable in Nix, so the guard is
+      # structural — config-dependent + no `reads` ⇒ the unscoped fleet-wide
+      # shape that forces every peer's full config. Fail-loud at resolution.
+      if coneInfo.paths == null then
+        throw "den: pipe.${coneInfo.stage}: open (config-dependent) cross-host emit \"${coneInfo.pipeName}\" must declare its read cone with `pipe.reads [ … ]` (the unscoped form forces every peer's full config). Add a pipe.reads stage."
+      else if hostConfigScopeIds == { } then
         # No host configs on this crossing path (the empty-set signal, old
         # `hostConfigs == null`): defer the config-dependent emit. The local
         # evalModules fixpoint resolves it (via __configThunk). Collected
@@ -202,6 +243,7 @@ let
         # The `== { }` collapse is sound given ≥1 host produces output (Reviewer
         # Fix 3): the degenerate "config-dep thunk exists but zero output entities"
         # now defers here (more correct than the old resolve-against-empty-config).
+        # (The cone is already enforced structurally by the lint above.)
         [ entry ]
       else
         let
@@ -214,7 +256,11 @@ let
           result = entry (
             ctxArgs
             // {
-              config = pc.config;
+              # S2: resolve against the declared cone, not the full peer config —
+              # undeclared fields are absent ⇒ throw on read (enforcement). Reads
+              # paths are into the producer `config`; the parentArg owner (a
+              # distinct enclosing namespace) is passed through unrestricted.
+              config = coneView pc.config coneInfo.paths;
             }
             // lib.optionalAttrs (pc.parentArg != null) { ${pc.parentArg} = pc.owner; }
             // {
@@ -240,8 +286,10 @@ let
   # value crosses as data, not a function. Config-dependent emits stay deferred
   # (resolved in the evalModules fixpoint via __configThunk) when no hostConfigs.
   resolveThunks =
-    hostConfigScopeIds: producerConfigFor: scopeContexts: scopeId: values:
-    builtins.concatMap (resolveEntry hostConfigScopeIds producerConfigFor scopeContexts scopeId) values;
+    hostConfigScopeIds: producerConfigFor: scopeContexts: coneInfo: scopeId: values:
+    builtins.concatMap (resolveEntry hostConfigScopeIds producerConfigFor scopeContexts coneInfo
+      scopeId
+    ) values;
 
   # Value functor: lets ONE stage interpreter run over either bare values (the
   # plain path) or provenance-tagged values ({ __pv = value; __ps = scopeId; }).
@@ -441,16 +489,25 @@ let
           scopeEntityClass
           ;
       };
+      # S2: the declared read cone for this pipe.from chain (null ⇒ undeclared,
+      # so resolveEntry's lint rejects a config-dependent collected emit).
+      conePaths = readsConeOf stages;
       # Resolve a list of matching scopes into collected values, each tagged with
-      # its SOURCE scope id (not currentScopeId).
+      # its SOURCE scope id (not currentScopeId). `stageName` (collect/collectAll)
+      # only feeds the S2 lint message.
       collectTagged =
-        matchingScopes:
+        stageName: matchingScopes:
         lib.concatMap (
           sid:
           let
             entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
             rawValues = flattenAndExtract entries;
-            resolved = resolveThunks hostConfigScopeIds producerConfigFor scopeContexts sid rawValues;
+            coneInfo = {
+              paths = conePaths;
+              stage = stageName;
+              inherit pipeName;
+            };
+            resolved = resolveThunks hostConfigScopeIds producerConfigFor scopeContexts coneInfo sid rawValues;
             # Also collect data that sid's children exposed UP into sid (pipe.expose).
             # collectAllExposed already resolved these at the exposing node, so they
             # cross as concrete data — a peer's collect sees a host's exposed-up
@@ -467,7 +524,7 @@ let
       in
       if t == "collect" then
         values
-        ++ collectTagged (
+        ++ collectTagged "collect" (
           findMatchingSiblings {
             inherit
               scopeContexts
@@ -479,7 +536,7 @@ let
         )
       else if t == "collectAll" then
         values
-        ++ collectTagged (
+        ++ collectTagged "collectAll" (
           findMatchingAll {
             inherit
               scopeContexts
@@ -849,7 +906,16 @@ let
             # deferred, since the receiver may be on another host. Then apply the
             # source-side transform stages (the broadcast routing stage is
             # ignored by applyTransformStages).
-            resolvedBase = resolveThunks hostConfigScopeIds producerConfigFor scopeContexts sourceId baseValues;
+            # S2: a config-dependent broadcast emit must also declare its read
+            # cone (same rule as collect/collectAll) — coneInfo carries it.
+            coneInfo = {
+              paths = readsConeOf (effect.stages or [ ]);
+              stage = "broadcast";
+              inherit pipeName;
+            };
+            resolvedBase =
+              resolveThunks hostConfigScopeIds producerConfigFor scopeContexts coneInfo sourceId
+                baseValues;
             transformed = applyTransformStages resolvedBase (effect.stages or [ ]);
             receivers = findMatchingAll {
               inherit scopeContexts scopeEntityKind;

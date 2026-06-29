@@ -382,7 +382,13 @@
           let
             inherit (den.lib.policy) pipe;
           in
-          [ (pipe.from "peer-dev" [ (pipe.broadcast ({ host, ... }: true)) ]) ];
+          # S2: the broadcast peer-dev emit reads config.networking.hostName.
+          [
+            (pipe.from "peer-dev" [
+              (pipe.reads [ "networking.hostName" ])
+              (pipe.broadcast ({ host, ... }: true))
+            ])
+          ];
         den.schema.host.includes = [
           den.aspects.set-hostname
           den.policies.broadcast-to-hosts
@@ -425,7 +431,13 @@
           let
             inherit (den.lib.policy) pipe;
           in
-          [ (pipe.from "peer-dev" [ (pipe.broadcast ({ host, ... }: true)) ]) ];
+          # S2: alice's broadcast peer-dev emit reads her home config.home.username.
+          [
+            (pipe.from "peer-dev" [
+              (pipe.reads [ "home.username" ])
+              (pipe.broadcast ({ host, ... }: true))
+            ])
+          ];
         den.schema.user.includes = [ den.policies.broadcast-to-hosts ];
 
         den.aspects.igloo.includes = [ den.aspects.peer-consumer ];

@@ -347,6 +347,22 @@ in
       __pipeStage = "collectAll";
       fn = pred;
     };
+    # Declare the config-field cone an open (config-dependent) cross-host emit
+    # reads. `paths` are dotted-string attr-paths into a peer's `config`
+    # (e.g. "users.users"). Placed in a pipe.from chain alongside a
+    # collect/collectAll/broadcast stage, it (a) restricts the peer-config view
+    # the collected emit resolves against to exactly these paths and (b) is
+    # REQUIRED for any config-dependent collected emit (the assemble-pipes lint
+    # rejects the unscoped form, which would force every peer's full config).
+    reads =
+      paths:
+      assert
+        lib.isList paths && lib.all lib.isString paths
+        || throw "den: pipe.reads expects a list of dotted-string config paths (e.g. [ \"users.users\" ]).";
+      {
+        __pipeStage = "reads";
+        inherit paths;
+      };
   };
 
   # Tag a value with collisionPolicy = "class-wins".

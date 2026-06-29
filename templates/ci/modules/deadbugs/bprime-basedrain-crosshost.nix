@@ -52,8 +52,12 @@
 
         # Every host emits its own `feat` pipe value; only igloo collects marks.
         den.policies.emit-feat = { host, ... }: [ (pipe.from "feat" [ (pipe.for (_: [ host.name ])) ]) ];
+        # S2: the collected host-marks emit reads config.networking.domain — declare it.
         den.policies.collect-marks = _: [
-          (pipe.from "host-marks" [ (pipe.collectAll ({ host, ... }: true)) ])
+          (pipe.from "host-marks" [
+            (pipe.reads [ "networking.domain" ])
+            (pipe.collectAll ({ host, ... }: true))
+          ])
         ];
         den.schema.host.includes = [ den.policies.emit-feat ];
 
@@ -120,8 +124,12 @@
       {
         den.quirks.host-marks.description = "Cross-host config-derived marks.";
 
+        # S2: the collected host-marks emit reads config.networking.hostName.
         den.policies.collect-marks = _: [
-          (pipe.from "host-marks" [ (pipe.collectAll ({ host, ... }: true)) ])
+          (pipe.from "host-marks" [
+            (pipe.reads [ "networking.hostName" ])
+            (pipe.collectAll ({ host, ... }: true))
+          ])
         ];
 
         den.hosts.x86_64-linux.igloo.users.tux = { };

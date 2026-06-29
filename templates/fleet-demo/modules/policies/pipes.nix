@@ -27,10 +27,13 @@ in
     ];
 
   # Every host collects host-addrs from peers for /etc/hosts.
+  # S2: the collected host-addrs emit (hostfile aspect) reads
+  # config.networking.hostName — declare its read cone.
   den.policies.collect-host-addrs =
     { host, ... }:
     [
       (pipe.from "host-addrs" [
+        (pipe.reads [ "networking.hostName" ])
         (pipe.collect ({ host, ... }: true))
       ])
     ];

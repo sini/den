@@ -93,8 +93,14 @@
 
         # igloo SCOPED-collects host-marks from siblings whose host.name ==
         # "iceberg" ONLY — volcano is a sibling but is deliberately excluded.
+        # S2: the matched peer (iceberg) emits host-marks reading
+        # config.networking.hostName — declare the read cone. volcano (unmatched)
+        # is never collected, so its config.networking.domain read never fires.
         den.policies.collect-iceberg-marks = _: [
-          (pipe.from "host-marks" [ (pipe.collect ({ host, ... }: host.name == "iceberg")) ])
+          (pipe.from "host-marks" [
+            (pipe.reads [ "networking.hostName" ])
+            (pipe.collect ({ host, ... }: host.name == "iceberg"))
+          ])
         ];
 
         den.aspects.set-host.nixos =

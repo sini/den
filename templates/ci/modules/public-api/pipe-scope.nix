@@ -683,6 +683,8 @@
           in
           [
             (pipe.from "ssh-keys" [
+              # S2: the collected ssh-keys emit reads config.networking.hostName.
+              (pipe.reads [ "networking.hostName" ])
               (pipe.collect ({ host, ... }: true))
             ])
           ];
@@ -802,6 +804,8 @@
           in
           [
             (pipe.from "peer-names" [
+              # S2: the collected peer-names emit reads config.networking.hostName.
+              (pipe.reads [ "networking.hostName" ])
               (pipe.collect ({ host, ... }: true))
             ])
           ];
@@ -878,6 +882,8 @@
           in
           [
             (pipe.from "host-info" [
+              # S2: the collected host-info emit reads config.networking.hostName.
+              (pipe.reads [ "networking.hostName" ])
               (pipe.collect ({ host, ... }: true))
             ])
           ];
