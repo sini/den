@@ -104,15 +104,16 @@ in
       mergedScopeIsolated =
         (parentState.scopeIsolated or { }) // ((result.state.scopeIsolated or (_: { })) null);
 
-      # 3. Re-derive pipes over merged state. hostConfigs = null: config-dependent
-      #    stay deferred (via __configThunk); pipeline-parametric resolve eagerly.
+      # 3. Re-derive pipes over merged state. Empty hostConfigScopeIds (no peer
+      #    configs on this path): config-dependent stay deferred (via
+      #    __configThunk); pipeline-parametric resolve eagerly.
       augmented = builtins.seq _assertRoot (assemblePipes {
         scopeContexts = mergedScopeContexts;
         scopedClassImports = mergedClassImports;
         scopedPipeEffects = mergedPipeEffects;
         scopeParent = mergedScopeParent;
         scopeEntityKind = parentState.scopeEntityKind;
-        hostConfigs = null;
+        hostConfigScopeIds = { };
       });
 
       # The subtree-membership universe: the merged

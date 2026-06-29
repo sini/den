@@ -386,11 +386,21 @@ let
       # (phase4 + the B′ hostConfigs build) use the link.
       scopeByEntity = (result.state.scopeByEntity or (_: { })) null;
 
-      # Scan raw pipe values for config-dependent thunks (functions taking
-      # { config, ... }).  If none exist, hostConfigs stays null and
-      # assemblePipes skips cross-host instantiation entirely.
+      # Boundary predicate: a config-dependent thunk is a function taking
+      # `{ config, ... }`.  Keep verbatim.
       isConfigDependent = val: builtins.isFunction val && (builtins.functionArgs val) ? config;
-      hasAnyConfigThunk =
+
+      # Config-dep-PRESENCE scan over all raw pipe values (lists / raw functions
+      # / pipe entry records { __isPipeEntry; module = <fn>; ... }).  It NO LONGER
+      # gates building any peer config — peer configs are built lazily per-sid via
+      # `hostConfigFor`, so a config-dep thunk's mere presence no longer ARMS
+      # fleet-wide peer-config eval (the footgun is removed).  Its ONLY remaining
+      # consumer is the `bprimeEdges` guard below: B′ delivery edges exist iff a
+      # config-dep thunk is present (the OLD `hostConfigs != null` condition, since
+      # `hostConfigs != null` ⟺ this scan was true).  This O(imports) scan thus
+      # only avoids constructing inert (perHostEdges-deduped) B′ edges on closed
+      # fleets — it does NOT gate `specsByHost`/`builtConfigs` construction.
+      anyConfigDepThunk =
         let
           # Values may be lists of entries, raw functions, or pipe entry
           # records ({ __isPipeEntry; module = <fn>; ... }).
@@ -407,73 +417,87 @@ let
           lib.attrValues scopedClassImportsRaw
         );
 
-      # Pipe-data-free host configs for cross-host config-dependent thunk
-      # resolution.  Only computed when config-dependent thunks actually exist
-      # in the pipe data.  When null, resolveThunks still resolves
-      # pipeline-parametric emits, but config-dependent collected emits are
-      # deferred (resolveEntry returns them unchanged).
-      hostConfigs =
-        if !hasAnyConfigThunk then
-          null
-        else
+      # Cross-host config-dependent thunk resolution, factored (Fleet Seam S1)
+      # into a structural host-scope key-SET (membership / owner-walk; forces
+      # nothing) plus a LAZY per-sid config builder (the B′ re-entry).  No global
+      # flag arms the build: a peer host's config is constructed only when a
+      # config-dependent collected/broadcast edge actually resolves against `sid`
+      # (via `hostConfigFor`).  This replaces the old all-or-nothing
+      # `hasAnyConfigThunk`-gated `hostConfigs` map — same key-set + same per-sid
+      # values, but the values are never armed eagerly.
+      #
+      # specsByHost: output-bearing instantiate specs keyed by host scope id.
+      # Keys are STRUCTURAL (no `.instantiate` forced); values built lazily per-sid.
+      specsByHost = builtins.listToAttrs (
+        lib.concatMap (
+          spec:
           let
-            allInstantiates = lib.concatLists (lib.attrValues (result.state.scopedInstantiates null));
-            specsByHost = builtins.listToAttrs (
-              lib.concatMap (
-                spec:
-                let
-                  hasOutput = (spec.intoAttr or [ ]) != [ ];
-                  hostScopeId = if hasOutput then entityScopeFor scopeByEntity spec else null;
-                in
-                if hostScopeId == null then
-                  [ ]
-                else
-                  [
-                    {
-                      name = hostScopeId;
-                      value = spec;
-                    }
-                  ]
-              ) allInstantiates
-            );
-            mkArgs = mkInstantiateArgs {
-              # §A #8/#2/#7 fix (option b): B′ builds peer configs over the
-              # hostConfigs-NULL ASSEMBLED contexts (pipe values resolved), not
-              # raw scopeContexts. B′'s raw-context use was cycle-forced
-              # (assemblePipes-with-hostConfigs needs hostConfigs);
-              # but the hostConfigs-NULL pass is cycle-free and resolves every
-              # pipeline-parametric pipe value. A pipe-CONSUMING peer aspect (one
-              # that reads a quirk value via context, e.g. `{ feat, ... }`) thus
-              # gets its pipe value injected — pre-fix the raw context left `feat`
-              # unbound and the peer config threw `feat missing` instead of
-              # matching its real instantiate output (variant B). Witnessed by
-              # deadbugs/bprime-basedrain-crosshost.
-              augmentedScopeContexts = augmentedScopeContextsNoCfg;
-              # …and over the matching DRAINED import map (deferred includes whose
-              # pipeline-parametric pipe-args are now resolved). Pre-fix this was
-              # raw scopedClassImportsRaw — the §A #2/#7 baseDrain carry-over.
-              scopedClassImportsRaw = drainedForHostConfigs;
-              inherit
-                scopedProvides
-                scopedRoutes
-                scopeParent
-                scopeByEntity
-                ;
-              scopeEntityClass = result.state.scopeEntityClass or (_: { });
-              inherit scopeIsolated scopeEntityKind;
-              spawnNodeFn = spawnNode;
-              inherit ctx;
-            };
+            hasOutput = (spec.intoAttr or [ ]) != [ ];
+            hostScopeId = if hasOutput then entityScopeFor scopeByEntity spec else null;
           in
-          lib.mapAttrs (_: spec: (spec.instantiate (mkArgs spec)).config) specsByHost;
+          if hostScopeId == null then
+            [ ]
+          else
+            [
+              {
+                name = hostScopeId;
+                value = spec;
+              }
+            ]
+        ) (lib.concatLists (lib.attrValues (result.state.scopedInstantiates null)))
+      );
+      mkArgs = mkInstantiateArgs {
+        # §A #8/#2/#7 fix (option b): B′ builds peer configs over the
+        # hostConfigs-NULL ASSEMBLED contexts (pipe values resolved), not
+        # raw scopeContexts. B′'s raw-context use was cycle-forced
+        # (assemblePipes-with-hostConfigs needs hostConfigs);
+        # but the hostConfigs-NULL pass is cycle-free and resolves every
+        # pipeline-parametric pipe value. A pipe-CONSUMING peer aspect (one
+        # that reads a quirk value via context, e.g. `{ feat, ... }`) thus
+        # gets its pipe value injected — pre-fix the raw context left `feat`
+        # unbound and the peer config threw `feat missing` instead of
+        # matching its real instantiate output (variant B). Witnessed by
+        # deadbugs/bprime-basedrain-crosshost.
+        augmentedScopeContexts = augmentedScopeContextsNoCfg;
+        # …and over the matching DRAINED import map (deferred includes whose
+        # pipeline-parametric pipe-args are now resolved). Pre-fix this was
+        # raw scopedClassImportsRaw — the §A #2/#7 baseDrain carry-over.
+        scopedClassImportsRaw = drainedForHostConfigs;
+        inherit
+          scopedProvides
+          scopedRoutes
+          scopeParent
+          scopeByEntity
+          ;
+        scopeEntityClass = result.state.scopeEntityClass or (_: { });
+        inherit scopeIsolated scopeEntityKind;
+        spawnNodeFn = spawnNode;
+        inherit ctx;
+      };
+      # Structural ATTRSET for `?`-membership / owner-walk (forces nothing).
+      # `?`-membership is O(1); a list + `builtins.elem` would be O(N) ⇒ O(N²·D)
+      # in producerConfigs.findOwner — the open-emit hot path (Reviewer Fix 1).
+      hostConfigScopeIds = lib.genAttrs (builtins.attrNames specsByHost) (_: true);
+      # Lazy, per-sid memoized peer config (the B′ re-entry).  `lib.mapAttrs`
+      # memoizes per key, so a config-dependent edge resolving against `sid` builds
+      # ONLY that peer's config; closed / local-only emits force nothing.  No global
+      # flag arms it ⇒ the eager-consumer footgun is killed.
+      builtConfigs = lib.mapAttrs (_: spec: (spec.instantiate (mkArgs spec)).config) specsByHost;
+      hostConfigFor = sid: builtConfigs.${sid};
 
       # Assemble pipe data into scope contexts before wrapping.
       # Local config thunks are marked for deferred resolution inside evalModules.
-      # Cross-host config thunks (from pipe.collect) are resolved using hostConfigs.
+      # Cross-host config thunks (from pipe.collect) are resolved using the
+      # structural hostConfigScopeIds (membership) + the lazy per-sid hostConfigFor.
       scopeEntityKind = (result.state.scopeEntityKind or (_: { })) null;
       scopeEntityClassMap = (result.state.scopeEntityClass or (_: { })) null;
       augmentedScopeContexts = assemblePipes {
-        inherit scopeContexts hostConfigs scopeEntityKind;
+        inherit
+          scopeContexts
+          hostConfigScopeIds
+          hostConfigFor
+          scopeEntityKind
+          ;
         scopeEntityClass = scopeEntityClassMap;
         scopedClassImports = importsForPipes;
         scopedPipeEffects = result.state.scopedPipeEffects null;
@@ -507,7 +531,11 @@ let
       augmentedScopeContextsNoCfg = assemblePipes {
         inherit scopeContexts scopeEntityKind;
         scopeEntityClass = scopeEntityClassMap;
-        hostConfigs = null;
+        # The cycle-breaking NULL pass: an EMPTY id-set signals "no peer configs
+        # on this path" (config-dependent collected entries defer here), and
+        # hostConfigFor defaults to the never-consulted throw. Keeps B′'s peer
+        # build config-free + cycle-free (see the §A comment block below).
+        hostConfigScopeIds = { };
         scopedClassImports = importsForPipes;
         scopedPipeEffects = result.state.scopedPipeEffects null;
         inherit scopeParent;
@@ -960,7 +988,13 @@ let
         scopeEntityClass = result.state.scopeEntityClass or (_: { });
         spawnNodeFn = spawnNode;
       };
-      bprimeEdges = lib.optionals (hostConfigs != null) (
+      # B′ delivery edges exist iff a config-dep thunk is present — the OLD
+      # `hostConfigs != null` condition (`hostConfigs != null` ⟺ anyConfigDepThunk).
+      # NOT `hostConfigScopeIds != { }` (host-presence): a closed fleet has hosts
+      # but no config-dep thunk, so gating on host-presence would force specsByHost
+      # + build inert (perHostEdges-deduped) B′ edges on every closed eval that
+      # previously cost zero (Reviewer Fix 2).
+      bprimeEdges = lib.optionals anyConfigDepThunk (
         lib.concatMap (perHostEdgesFor bprimeArgBundle) allInstantiateSpecs
       );
 

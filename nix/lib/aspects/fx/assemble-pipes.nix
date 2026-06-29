@@ -124,15 +124,17 @@ let
   # The PRODUCER's `config` (class config), the enclosing config-`owner` config,
   # and the class's `parentArg` name, used to resolve cross-scope config-
   # dependent emits at their SOURCE (not the consumer). A scope that owns a
-  # config directly (a hostConfigs key — e.g. a host) has config == owner and a
-  # null parentArg. A nested scope (e.g. a home) reads its config from the
-  # owner config at its class's registered `den.classes.<class>.parentPath` —
-  # the same route its content is delivered to — and reaches the owner via
+  # config directly (a hostConfigScopeIds member — e.g. a host) has config ==
+  # owner and a null parentArg. A nested scope (e.g. a home) reads its config
+  # from the owner config at its class's registered `den.classes.<class>.parentPath`
+  # — the same route its content is delivered to — and reaches the owner via
   # `parentArg`. This matches the "producing class + scope" rule. Cross-host
-  # can't reach a remote real fixpoint, so it leans on the precomputed hostConfigs.
+  # can't reach a remote real fixpoint, so it leans on the lazily-built per-sid
+  # hostConfigFor (membership via the structural hostConfigScopeIds set).
   producerConfigs =
     {
-      hostConfigs,
+      hostConfigScopeIds,
+      hostConfigFor,
       scopeContexts,
       scopeParent ? { },
       scopeEntityClass ? { },
@@ -143,16 +145,19 @@ let
       classDef = if cls != null && den.classes ? ${cls} then den.classes.${cls} else { };
       parentArg = classDef.parentArg or null;
     in
-    if hostConfigs == null then
+    if hostConfigScopeIds == { } then
       {
         config = { };
         owner = { };
         inherit parentArg;
       }
-    else if hostConfigs ? ${scopeId} then
+    else if hostConfigScopeIds ? ${scopeId} then
+      let
+        cfg = hostConfigFor scopeId;
+      in
       {
-        config = hostConfigs.${scopeId};
-        owner = hostConfigs.${scopeId};
+        config = cfg;
+        owner = cfg;
         inherit parentArg;
       }
     else
@@ -162,15 +167,15 @@ let
           sid:
           if sid == null then
             null
-          else if hostConfigs ? ${sid} then
+          else if hostConfigScopeIds ? ${sid} then
             sid
           else
             findOwner (scopeParent.${sid} or null);
         ownerScope = findOwner (scopeParent.${scopeId} or null);
-        ownerCfg = if ownerScope == null then { } else hostConfigs.${ownerScope};
+        ownerCfg = if ownerScope == null then { } else hostConfigFor ownerScope;
         # The producer's class parentPath locates its config within the owner
         # config — the same route its content is delivered to. No path → it owns
-        # its config (but isn't a hostConfigs key here, so resolves to empty).
+        # its config (but isn't a host-config scope here, so resolves to empty).
         pathFn = classDef.parentPath or null;
         ctx = scopeContexts.${scopeId} or { };
         name = ctx.user.name or ctx.home.name or null;
@@ -187,12 +192,16 @@ let
   # alongside `config` (producer class) and, for a nested producer, the owner
   # config under the class's parentArg. Returns a list (auto-flattens lists).
   resolveEntry =
-    hostConfigs: producerConfigFor: scopeContexts: sourceScopeId: entry:
+    hostConfigScopeIds: producerConfigFor: scopeContexts: sourceScopeId: entry:
     if isConfigDependent entry then
-      if hostConfigs == null then
-        # No host configs on this crossing path: defer the config-dependent emit.
-        # The local evalModules fixpoint resolves it (via __configThunk). Collected
+      if hostConfigScopeIds == { } then
+        # No host configs on this crossing path (the empty-set signal, old
+        # `hostConfigs == null`): defer the config-dependent emit. The local
+        # evalModules fixpoint resolves it (via __configThunk). Collected
         # config-dependent entries are never marked, so this is a clean pass-through.
+        # The `== { }` collapse is sound given ≥1 host produces output (Reviewer
+        # Fix 3): the degenerate "config-dep thunk exists but zero output entities"
+        # now defers here (more correct than the old resolve-against-empty-config).
         [ entry ]
       else
         let
@@ -231,8 +240,8 @@ let
   # value crosses as data, not a function. Config-dependent emits stay deferred
   # (resolved in the evalModules fixpoint via __configThunk) when no hostConfigs.
   resolveThunks =
-    hostConfigs: producerConfigFor: scopeContexts: scopeId: values:
-    builtins.concatMap (resolveEntry hostConfigs producerConfigFor scopeContexts scopeId) values;
+    hostConfigScopeIds: producerConfigFor: scopeContexts: scopeId: values:
+    builtins.concatMap (resolveEntry hostConfigScopeIds producerConfigFor scopeContexts scopeId) values;
 
   # Value functor: lets ONE stage interpreter run over either bare values (the
   # plain path) or provenance-tagged values ({ __pv = value; __ps = scopeId; }).
@@ -401,7 +410,8 @@ let
       scopeEntityClass ? { },
       currentScopeId,
       pipeName,
-      hostConfigs ? null,
+      hostConfigScopeIds ? { },
+      hostConfigFor ? (_: throw "den: no peer config available on this path"),
     }:
     initialValues: stages:
     let
@@ -424,7 +434,8 @@ let
       taggedInitial = map (functor.seed currentScopeId) initialValues;
       producerConfigFor = producerConfigs {
         inherit
-          hostConfigs
+          hostConfigScopeIds
+          hostConfigFor
           scopeContexts
           scopeParent
           scopeEntityClass
@@ -439,7 +450,7 @@ let
           let
             entries = (scopedClassImports.${sid} or { }).${pipeName} or [ ];
             rawValues = flattenAndExtract entries;
-            resolved = resolveThunks hostConfigs producerConfigFor scopeContexts sid rawValues;
+            resolved = resolveThunks hostConfigScopeIds producerConfigFor scopeContexts sid rawValues;
             # Also collect data that sid's children exposed UP into sid (pipe.expose).
             # collectAllExposed already resolved these at the exposing node, so they
             # cross as concrete data — a peer's collect sees a host's exposed-up
@@ -535,7 +546,8 @@ let
       scopeEntityClass ? { },
       currentScopeId,
       pipeName,
-      hostConfigs ? null,
+      hostConfigScopeIds ? { },
+      hostConfigFor ? (_: throw "den: no peer config available on this path"),
     }:
     baseValues: stages:
     if
@@ -558,7 +570,8 @@ let
           scopeEntityClass
           currentScopeId
           pipeName
-          hostConfigs
+          hostConfigScopeIds
+          hostConfigFor
           ;
       } baseValues stages
     else
@@ -574,7 +587,8 @@ let
       scopedClassImports,
       allExposed ? { },
       scopeEntityClass ? { },
-      hostConfigs ? null,
+      hostConfigScopeIds ? { },
+      hostConfigFor ? (_: throw "den: no peer config available on this path"),
     }:
     pipeName: scopeId: baseValues: effects:
     let
@@ -598,7 +612,8 @@ let
           scopedClassImports
           allExposed
           scopeEntityClass
-          hostConfigs
+          hostConfigScopeIds
+          hostConfigFor
           ;
         currentScopeId = scopeId;
         inherit pipeName;
@@ -623,7 +638,8 @@ let
       allExposed ? { },
       scopeEntityClass ? { },
       currentScopeId,
-      hostConfigs ? null,
+      hostConfigScopeIds ? { },
+      hostConfigFor ? (_: throw "den: no peer config available on this path"),
     }:
     baseValues: effects:
     let
@@ -640,7 +656,8 @@ let
               allExposed
               scopeEntityClass
               currentScopeId
-              hostConfigs
+              hostConfigScopeIds
+              hostConfigFor
               ;
             pipeName = effect.pipeName;
           } baseValues (effect.stages or [ ]);
@@ -799,13 +816,15 @@ let
       scopeParent ? { },
       scopeEntityKind ? { },
       scopeEntityClass ? { },
-      hostConfigs ? null,
+      hostConfigScopeIds ? { },
+      hostConfigFor ? (_: throw "den: no peer config available on this path"),
     }:
     let
       allScopeIds = builtins.attrNames scopeContexts;
       producerConfigFor = producerConfigs {
         inherit
-          hostConfigs
+          hostConfigScopeIds
+          hostConfigFor
           scopeContexts
           scopeParent
           scopeEntityClass
@@ -830,7 +849,7 @@ let
             # deferred, since the receiver may be on another host. Then apply the
             # source-side transform stages (the broadcast routing stage is
             # ignored by applyTransformStages).
-            resolvedBase = resolveThunks hostConfigs producerConfigFor scopeContexts sourceId baseValues;
+            resolvedBase = resolveThunks hostConfigScopeIds producerConfigFor scopeContexts sourceId baseValues;
             transformed = applyTransformStages resolvedBase (effect.stages or [ ]);
             receivers = findMatchingAll {
               inherit scopeContexts scopeEntityKind;
@@ -865,7 +884,8 @@ let
       scopeParent ? { },
       scopeEntityKind ? { },
       scopeEntityClass ? { },
-      hostConfigs ? null,
+      hostConfigScopeIds ? { },
+      hostConfigFor ? (_: throw "den: no peer config available on this path"),
     }:
     if pipeNames == [ ] then
       scopeContexts
@@ -891,7 +911,8 @@ let
             scopeParent
             scopeEntityKind
             scopeEntityClass
-            hostConfigs
+            hostConfigScopeIds
+            hostConfigFor
             ;
         };
 
@@ -990,7 +1011,8 @@ let
                       scopedClassImports
                       allExposed
                       scopeEntityClass
-                      hostConfigs
+                      hostConfigScopeIds
+                      hostConfigFor
                       ;
                     currentScopeId = scopeId;
                     pipeName = e.pipeName;
@@ -1012,7 +1034,8 @@ let
                         scopedClassImports
                         allExposed
                         scopeEntityClass
-                        hostConfigs
+                        hostConfigScopeIds
+                        hostConfigFor
                         ;
                     } pipeName scopeId combinedBase untargetedEffects;
 
@@ -1074,7 +1097,8 @@ let
                             scopedClassImports
                             allExposed
                             scopeEntityClass
-                            hostConfigs
+                            hostConfigScopeIds
+                            hostConfigFor
                             ;
                           currentScopeId = scopeId;
                         } combinedBase targetedEffects;
@@ -1092,7 +1116,8 @@ let
                             scopedClassImports
                             allExposed
                             scopeEntityClass
-                            hostConfigs
+                            hostConfigScopeIds
+                            hostConfigFor
                             ;
                           currentScopeId = scopeId;
                         } combinedSrc [ (e // { stages = stripAsStage (e.stages or [ ]); }) ];
