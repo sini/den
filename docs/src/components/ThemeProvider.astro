@@ -1,0 +1,15 @@
+---
+/*
+ * Overrides Starlight's ThemeProvider, which is rendered inside <head>.
+ *
+ * The default implementation sets `data-theme` from
+ * `localStorage['starlight-theme']`, which would clobber the palette applied in
+ * Head.astro. This replaces it with just the `updatePickers` shim that
+ * ThemeSelect's inlined script calls.
+ *
+ * Head-safe content only — see the note in PaletteOverlay.astro for why a
+ * stray element here breaks stylesheet ordering.
+ */
+---
+
+<script is:inline>window.StarlightThemeProvider = { updatePickers: function () {} };</script>

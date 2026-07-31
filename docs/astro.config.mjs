@@ -3,31 +3,64 @@ import { defineConfig, fontProviders } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 import mermaid from 'astro-mermaid';
-import catppuccin from "@catppuccin/starlight";
+import { wholeTokenTextMarkers } from './src/ec-whole-token-markers.mjs';
 
 // https://astro.build/config
 export default defineConfig({
 	experimental: {
+		// Weights must cover every weight the stylesheets actually request.
+		// Without them only 400 is fetched and the browser synthesises the rest by
+		// thickening the 400 glyphs, which reads as blur — most visibly on the
+		// sidebar, which renders Victor Mono at 600.
 		fonts: [
 			{
 				provider: fontProviders.google(),
 				name: "Victor Mono",
 				cssVariable: "--font-victor-mono",
+				weights: [400, 600, 700],
+				styles: ["normal", "italic"],
 			},
 			{
 				provider: fontProviders.google(),
 				name: "JetBrains Mono",
 				cssVariable: "--font-jetbrains-mono",
+				weights: [400, 600],
+				styles: ["normal", "italic"],
 			},
 		],
 	},
 	integrations: [
+		// Diagrams read the palette directly instead of carrying their own colour
+		// scheme. astro-mermaid's autoTheme only ever picks from {light:'default',
+		// dark:'dark'} and falls back to the configured base, so a themed base
+		// clashes with whatever palette is active ('forest' rendered green on
+		// gruvbox brown). Disabling it and styling the 'base' theme through
+		// themeCSS means the SVG resolves --sl-color-* at paint time, so diagrams
+		// also recolour on a palette switch with no re-render.
 		mermaid({
-			theme: 'forest',
-			autoTheme: true
+			theme: 'base',
+			autoTheme: false,
+			mermaidConfig: {
+				themeCSS: [
+					'.node rect, .node circle, .node ellipse, .node polygon, .node path {',
+					'  fill: color-mix(in srgb, var(--sl-color-accent) 12%, var(--sl-color-bg)) !important;',
+					'  stroke: color-mix(in srgb, var(--sl-color-accent) 55%, transparent) !important;',
+					'}',
+					'.node .label, .nodeLabel, .node text { color: var(--sl-color-white) !important; fill: var(--sl-color-white) !important; }',
+					'.edgePath .path, .flowchart-link, .messageLine0, .messageLine1 { stroke: var(--sl-color-gray-3) !important; }',
+					'.arrowheadPath, marker path, defs marker path { fill: var(--sl-color-gray-3) !important; stroke: none !important; }',
+					'.edgeLabel, .edgeLabel p { background: var(--sl-color-bg) !important; color: var(--sl-color-gray-2) !important; fill: var(--sl-color-bg) !important; }',
+					'.edgeLabel .label text, .edgeLabel text { fill: var(--sl-color-gray-2) !important; }',
+					'.cluster rect { fill: color-mix(in srgb, var(--sl-color-accent) 5%, var(--sl-color-bg)) !important; stroke: var(--sl-color-hairline-light) !important; }',
+					'.cluster text, .cluster .label { fill: var(--sl-color-gray-2) !important; color: var(--sl-color-gray-2) !important; }',
+				].join('\n'),
+			},
 		}),
 		starlight({
 			title: 'den',
+			expressiveCode: {
+				plugins: [wholeTokenTextMarkers()],
+			},
 			social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/denful/den' }
       ],
@@ -191,17 +224,14 @@ export default defineConfig({
 				SocialIcons: './src/components/SocialIcons.astro',
 				PageSidebar: './src/components/PageSidebar.astro',
 				Hero: './src/components/Hero.astro',
+				ThemeProvider: './src/components/ThemeProvider.astro',
+				ThemeSelect: './src/components/ThemeSelect.astro',
 			},
-			plugins: [
-				catppuccin({
-					dark: { flavor: "macchiato", accent: "mauve" },
-					light: { flavor: "latte", accent: "mauve" },
-				}),
-			],
 			editLink: {
 				baseUrl: 'https://github.com/denful/den/edit/main/docs/',
 			},
 			customCss: [
+				'./src/styles/layout.css',
 				'./src/styles/custom.css'
 			],
 		}),

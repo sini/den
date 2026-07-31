@@ -1,11 +1,27 @@
 ---
 import { Font } from "astro:assets";
 import DefaultHead from '@astrojs/starlight/components/Head.astro';
+import { defaults, modeMap, paletteCss, storageKey } from '../palettes.mjs';
+
+const css = paletteCss();
+
+// Runs before first paint so the palette is settled by the time anything
+// renders. Starlight's own ThemeProvider is overridden to not fight this.
+const bootScript = `(function(){try{
+var M=${JSON.stringify(modeMap)},D=${JSON.stringify(defaults)},K=${JSON.stringify(storageKey)};
+var s=localStorage.getItem(K);
+if(!s||!M[s])s=window.matchMedia("(prefers-color-scheme: light)").matches?D.light:D.dark;
+var r=document.documentElement;
+r.dataset.palette=s;r.dataset.theme=M[s];
+}catch(e){}})();`;
 ---
 
 <DefaultHead />
 
 <Font cssVariable="--font-victor-mono" preload />
 <Font cssVariable="--font-jetbrains-mono" preload />
+
+<style is:global set:html={css}></style>
+<script is:inline set:html={bootScript}></script>
 
 <script src="./svg-zoom.js"/>

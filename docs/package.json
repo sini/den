@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@astrojs/starlight": "^0.37.7",
-    "@catppuccin/starlight": "^1.1.1",
     "astro": "^5.18.1",
     "astro-mermaid": "^1.4.0",
     "mermaid": "^11.14.0",

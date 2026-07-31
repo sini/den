@@ -65,9 +65,15 @@ const isCurrent = (sidebar: SidebarEntry[]): boolean =>
 		margin-top: auto;
 	}
 
-	/** Always show the scrollbar gutter. */
+	/**
+	 * Reserve the scrollbar gutter so switching between tabs of differing
+	 * height does not shift the sidebar horizontally. `scrollbar-gutter`
+	 * reserves that space without painting a track, where `overflow-y: scroll`
+	 * renders a permanent scrollbar even when the content fits.
+	 */
 	:global(.sidebar-pane) {
-		overflow-y: scroll;
+		overflow-y: auto;
+		scrollbar-gutter: stable;
 	}
 
 	/* Styles for the custom tab switcher. */
